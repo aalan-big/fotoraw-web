@@ -86,14 +86,15 @@ const passos = [
 
     <!-- Eventos recentes -->
     <section class="mx-auto max-w-6xl px-6 py-24">
-      <div class="mb-10 flex items-end justify-between">
+      <div class="mb-10 flex items-end justify-between gap-6">
         <div>
-          <h2 class="text-2xl font-semibold">Acabou de sair do forno</h2>
-          <p class="mt-2 text-sm text-muted/80">
-            Eventos publicados nos últimos dias — o seu pode estar aqui
+          <span class="mb-3 block h-1 w-10 rounded-full bg-wine" aria-hidden="true" />
+          <h2 class="text-2xl font-semibold md:text-3xl">Acabou de sair do forno</h2>
+          <p class="mt-2 text-muted">
+            Eventos publicados nos últimos dias — o seu pode estar aqui.
           </p>
         </div>
-        <NuxtLink to="/eventos" class="text-sm text-muted hover:text-text">Ver todos</NuxtLink>
+        <UiBotao to="/eventos" variante="secundaria" class="shrink-0">Ver todos</UiBotao>
       </div>
 
       <div v-if="status === 'pending'" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -125,8 +126,9 @@ const passos = [
     <!-- Como funciona -->
     <section id="como-funciona" class="border-y border-border bg-surface">
       <div class="mx-auto max-w-6xl px-6 py-24">
-        <h2 class="text-2xl font-semibold">Do número de peito à foto em 2 minutos</h2>
-        <p class="mt-2 text-sm text-muted/80">Sem criar conta, sem senha, sem esperar e-mail.</p>
+        <span class="mb-3 block h-1 w-10 rounded-full bg-wine" aria-hidden="true" />
+        <h2 class="text-2xl font-semibold md:text-3xl">Do número de peito à foto em 2 minutos</h2>
+        <p class="mt-2 text-muted">Sem criar conta, sem senha, sem esperar e-mail.</p>
 
         <ol class="mt-12 grid gap-6 md:grid-cols-3">
           <li v-for="(p, i) in passos" :key="p.titulo" class="card p-7">
