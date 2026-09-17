@@ -2,9 +2,9 @@
 import type { GaleriaPublica } from '~/types/galeria';
 
 useSeoMeta({
-  title: 'Você fez a prova. A foto é sua.',
+  title: 'Suas fotos do evento, direto do fotógrafo',
   description:
-    'Digite seu número de peito, escolha suas melhores fotos e baixe em alta resolução na hora. Pix, sem cadastro, direto do fotógrafo.',
+    'Encontre suas fotos do evento, escolha as melhores e baixe em alta resolução na hora. Pix, sem cadastro, direto do fotógrafo.',
 });
 
 const api = useApi();
@@ -24,9 +24,9 @@ function buscar() {
 const passos = [
   {
     cor: 'warning' as const,
-    titulo: 'Digite seu número',
+    titulo: 'Encontre suas fotos',
     texto:
-      'Abra a galeria do evento e informe o número de peito. Só aparecem as fotos em que você está — nada de rolar por milhares de desconhecidos.',
+      'Abra a galeria do evento. Em provas, busque pelo seu número e veja só as fotos em que você aparece; em festas e formaturas, navegue pelo álbum.',
   },
   {
     cor: 'info' as const,
@@ -56,14 +56,14 @@ const passos = [
       />
       <div class="relative mx-auto max-w-6xl px-6 py-28 text-center md:py-40">
         <p class="mb-5 text-sm font-medium uppercase tracking-[0.2em] text-wine-tint">
-          Corridas · Pedais · Provas · Festas
+          Corridas · Pedais · Formaturas · Festas · Eventos
         </p>
         <h1 class="mx-auto max-w-3xl text-4xl font-bold leading-tight tracking-tight md:text-6xl">
-          Você fez a prova.<br class="hidden md:block" />
+          Você viveu o momento.<br class="hidden md:block" />
           A foto é sua.
         </h1>
         <p class="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted">
-          Digite seu número de peito, escolha as melhores e baixe em alta resolução na hora. Pix,
+          Encontre suas fotos do evento, escolha as melhores e baixe em alta resolução na hora. Pix,
           sem cadastro, e o dinheiro vai direto pro fotógrafo que estava lá.
         </p>
 
@@ -73,7 +73,7 @@ const passos = [
             id="busca"
             v-model="busca"
             type="search"
-            placeholder="Qual foi o evento? Ex.: Maratona de Curitiba"
+            placeholder="Qual foi o evento? Ex.: Formatura Medicina UFPR"
             class="h-12 flex-1 rounded-lg border border-border bg-surface px-4 text-base outline-none placeholder:text-muted/70 focus:border-wine"
           />
           <UiBotao type="submit" tamanho="lg">Buscar</UiBotao>
@@ -91,7 +91,7 @@ const passos = [
           <span class="mb-3 block h-1 w-10 rounded-full bg-wine" aria-hidden="true" />
           <h2 class="text-2xl font-semibold md:text-3xl">Eventos recentes</h2>
           <p class="mt-2 text-muted">
-            Galerias publicadas nos últimos dias. Procure o seu evento e digite seu número.
+            Galerias publicadas nos últimos dias. Encontre o seu evento.
           </p>
         </div>
         <UiBotao to="/eventos" variante="secundaria" class="shrink-0">Ver todos</UiBotao>
@@ -127,7 +127,7 @@ const passos = [
     <section id="como-funciona" class="border-y border-border bg-surface">
       <div class="mx-auto max-w-6xl px-6 py-24">
         <span class="mb-3 block h-1 w-10 rounded-full bg-wine" aria-hidden="true" />
-        <h2 class="text-2xl font-semibold md:text-3xl">Do número de peito à foto em 2 minutos</h2>
+        <h2 class="text-2xl font-semibold md:text-3xl">Da galeria à foto em 2 minutos</h2>
         <p class="mt-2 text-muted">Sem criar conta, sem senha, sem esperar e-mail.</p>
 
         <ol class="mt-12 grid gap-6 md:grid-cols-3">
