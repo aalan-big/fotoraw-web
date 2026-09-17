@@ -11,7 +11,6 @@ const envValida = {
   STORAGE_BUCKET_PREVIEWS: 'previews',
   STORAGE_BUCKET_ORIGINAIS: 'originais',
   STORAGE_PREVIEWS_URL_PUBLICA: 'http://localhost:9000/previews',
-  ASAAS_API_URL: 'https://sandbox.asaas.com/api/v3',
   EMAIL_REMETENTE: 'FotoRAW <x@y.z>',
 };
 

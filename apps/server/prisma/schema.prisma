@@ -176,7 +176,6 @@ enum StatusPedido {
 enum Provedor {
   MERCADOPAGO @map("mercadopago")
   STRIPE      @map("stripe")
-  ASAAS       @map("asaas")
   MANUAL      @map("manual")
 
   @@map("provedor")

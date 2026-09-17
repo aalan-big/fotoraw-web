@@ -1,6 +1,6 @@
 # Banco de dados — modelo aplicado (migrations 4–7)
 
-> Estado: **aplicado** no banco local em 2026-09-18 (21 tabelas + view `saldos_fotografo`). Pendente aplicar no Supabase.
+> Estado: **aplicado no Supabase** (projeto iysabguxvdgbvmjmmlgj, us-west-2) e no banco local — 21 tabelas + view `saldos_fotografo`, seed rodado.
 
 Base: `fotoraw-main/docs/web/banco-de-dados.md` (relatório do desktop, 17 tabelas) cruzado com o
 `apps/server/prisma/schema.prisma` atual (10 tabelas, 3 migrations aplicadas).
@@ -24,7 +24,7 @@ Este documento é o **alvo**. Depois de aprovado vira 4 migrations (seção 6).
 | status do pedido | `REEMBOLSADO` | `estornado` | **`estornado`** (mesmo nome do pagamento). |
 | centavos | — | `bigint` | **`int4`** (limite R$ 21 mi por valor) — evita BigInt no JSON do Nest. |
 | datas | `timestamp(3)` | `timestamptz` | **`timestamp(3)`** (padrão Prisma; app grava UTC). Trocar por `@db.Timestamptz` se algum dia houver leitura direta fora da app. |
-| provedores | asaas/mercadopago | asaas/mercadopago/manual | **mercadopago** (vendas, marketplace: fotógrafo conecta a conta) · **stripe** (assinatura de plano) · manual · asaas (reserva) |
+| provedores | asaas/mercadopago | asaas/mercadopago/manual | **mercadopago** (vendas, marketplace: fotógrafo conecta a conta) · **stripe** (assinatura de plano) · manual |
 | taxas | — | — | fotógrafo escolhe em `perfis.taxas_para_cliente`; pedido guarda `taxa_cliente_centavos` (repassada) e `taxa_provedor_centavos` (real). **Comissão sempre sobre o subtotal do produto.** |
 
 ---
@@ -88,7 +88,7 @@ Plano (catálogo) ≠ assinatura (contrato de cobrança) ≠ licença (direito d
 **`assinaturas`**
 `conta_id` · `plano_id` · `status: trial | ativa | inadimplente | cancelada | expirada` · `inicio_em` ·
 `periodo_atual_inicio` · `periodo_atual_fim` · `cancelada_em?` · `cancela_no_fim_do_periodo bool` ·
-`provedor: asaas | mercadopago | manual` · `provedor_assinatura_id? UNIQUE` · `origem: site | admin` · `observacao_admin?`
+`provedor: stripe | manual` · `provedor_assinatura_id? UNIQUE` · `origem: site | admin` · `observacao_admin?`
 Índices: `(conta_id, status)`.
 
 **`licencas`**
@@ -146,7 +146,7 @@ Plano (catálogo) ≠ assinatura (contrato de cobrança) ≠ licença (direito d
 `pedido_id` · `foto_id` · `preco_centavos` (**snapshot**) · `incluida bool` (pacote: dentro das N, preço 0) · UNIQUE `(pedido_id, foto_id)`
 
 **`pagamentos`** — uma tentativa por linha
-`pedido_id` · `provedor: asaas | mercadopago | manual` · `metodo: pix | cartao | boleto` ·
+`pedido_id` · `provedor: stripe | manual` · `metodo: pix | cartao | boleto` ·
 `provedor_pagamento_id UNIQUE` (idempotência do webhook) ·
 `status: criado | pendente | aprovado | recusado | estornado | expirado` · `valor_centavos` ·
 `pix_copia_cola?` · `pix_qr_key?` · `pix_expira_em?` · `split_aplicado bool` · `payload jsonb?` · `aprovado_em?`
@@ -213,7 +213,7 @@ foto.status          ativa | oculta
 pedido.status        aberto | aguardando_pagamento | pago | cancelado | expirado | estornado
 pagamento.status     criado | pendente | aprovado | recusado | estornado | expirado
 pagamento.metodo     pix | cartao | boleto
-provedor             mercadopago | stripe | asaas | manual
+provedor             mercadopago | stripe | manual
 repasse.status       aberto | solicitado | pago | falhou
 repasse.metodo       split_automatico | pix_manual
 sync.tipo            publicar | atualizar_fotos | despublicar | puxar_pedidos

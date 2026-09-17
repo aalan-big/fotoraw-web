@@ -83,15 +83,15 @@ DROP TYPE "metodo_pagamento";
 ALTER TYPE "metodo_pagamento_new" RENAME TO "metodo_pagamento";
 
 -- provedor_pagamento -> provedor (MERCADO_PAGO -> mercadopago; + manual)
-CREATE TYPE "provedor" AS ENUM ('mercadopago', 'stripe', 'asaas', 'manual');
+CREATE TYPE "provedor" AS ENUM ('mercadopago', 'stripe', 'manual');
 ALTER TABLE "pagamentos" ALTER COLUMN "provedor" TYPE "provedor"
-  USING (CASE "provedor"::text WHEN 'MERCADO_PAGO' THEN 'mercadopago' ELSE lower("provedor"::text) END::"provedor");
+  USING (CASE "provedor"::text WHEN 'MERCADO_PAGO' THEN 'mercadopago' WHEN 'ASAAS' THEN 'manual' ELSE lower("provedor"::text) END::"provedor");
 ALTER TABLE "webhooks_recebidos" ALTER COLUMN "provedor" TYPE "provedor"
-  USING (CASE "provedor"::text WHEN 'MERCADO_PAGO' THEN 'mercadopago' ELSE lower("provedor"::text) END::"provedor");
+  USING (CASE "provedor"::text WHEN 'MERCADO_PAGO' THEN 'mercadopago' WHEN 'ASAAS' THEN 'manual' ELSE lower("provedor"::text) END::"provedor");
 ALTER TABLE "assinaturas" ALTER COLUMN "provedor" TYPE "provedor"
-  USING (CASE "provedor"::text WHEN 'MERCADO_PAGO' THEN 'mercadopago' ELSE lower("provedor"::text) END::"provedor");
+  USING (CASE "provedor"::text WHEN 'MERCADO_PAGO' THEN 'mercadopago' WHEN 'ASAAS' THEN 'manual' ELSE lower("provedor"::text) END::"provedor");
 ALTER TABLE "contas" ALTER COLUMN "provedor_pagamento" TYPE "provedor"
-  USING (CASE "provedor_pagamento"::text WHEN 'MERCADO_PAGO' THEN 'mercadopago' ELSE lower("provedor_pagamento"::text) END::"provedor");
+  USING (CASE "provedor_pagamento"::text WHEN 'MERCADO_PAGO' THEN 'mercadopago' WHEN 'ASAAS' THEN 'manual' ELSE lower("provedor_pagamento"::text) END::"provedor");
 DROP TYPE "provedor_pagamento";
 
 -- status_assinatura: PENDENTE -> trial; + expirada

@@ -6,7 +6,9 @@ Banco: **Supabase** (Postgres gerenciado). No painel do projeto → *Connect* �
 *Prisma*, copie as duas URLs pro `apps/server/.env`:
 
 - `DATABASE_URL` — Session pooler (runtime da API)
-- `DIRECT_URL` — conexão direta (migrations e seed)
+- `DIRECT_URL` — migrations e seed. A conexão direta (`db.[ref].supabase.co`) é só IPv6; sem IPv6 na rede, use o mesmo Session pooler.
+
+Senha com `@`, `#`, `%` ou `/` precisa vir URL-encoded (`@` → `%40`).
 
 Depois, tudo da raiz do monorepo, um terminal só:
 

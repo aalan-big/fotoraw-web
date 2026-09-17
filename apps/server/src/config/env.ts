@@ -25,9 +25,16 @@ export const envSchema = z.object({
   STORAGE_BUCKET_ORIGINAIS: z.string().min(1),
   STORAGE_PREVIEWS_URL_PUBLICA: z.url(),
 
-  ASAAS_API_URL: z.url(),
-  ASAAS_API_KEY: z.string().default(''),
-  ASAAS_WEBHOOK_TOKEN: z.string().default(''),
+  // Mercado Pago (vendas de evento, marketplace: fotógrafo conecta a conta dele)
+  MERCADOPAGO_APP_ID: z.string().default(''),
+  MERCADOPAGO_CLIENT_SECRET: z.string().default(''),
+  MERCADOPAGO_ACCESS_TOKEN: z.string().default(''),
+  MERCADOPAGO_WEBHOOK_SECRET: z.string().default(''),
+  // Stripe (assinatura de plano)
+  STRIPE_SECRET_KEY: z.string().default(''),
+  STRIPE_WEBHOOK_SECRET: z.string().default(''),
+  // chave (32 bytes base64) que cifra os tokens OAuth em conexoes_pagamento
+  CHAVE_CIFRA_TOKENS: z.string().default(''),
   COMISSAO_PLATAFORMA: z.coerce.number().min(0).max(1).default(0.1),
 
   RESEND_API_KEY: z.string().default(''),
