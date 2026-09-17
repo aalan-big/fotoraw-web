@@ -34,8 +34,9 @@ export class GaleriasPublicasRepositorio {
     return this.prisma.galeria.findMany({
       where: {
         status: 'PUBLICADA',
+        excluidoEm: null,
         ...porSecao,
-        AND: [{ OR: [{ expiraEm: null }, { expiraEm: { gt: new Date() } }] }, ...porBusca],
+        AND: [{ OR: [{ encerraEm: null }, { encerraEm: { gt: new Date() } }] }, ...porBusca],
       },
       orderBy: { publicadaEm: 'desc' },
       take: limite,
@@ -49,11 +50,11 @@ export class GaleriasPublicasRepositorio {
         dataEvento: true,
         cidade: true,
         uf: true,
-        precoFoto: true,
-        capaUrl: true,
+        precoFotoCentavos: true,
+        capaKey: true,
         publicadaEm: true,
+        totalFotos: true,
         conta: { select: { nome: true, slug: true } },
-        _count: { select: { fotos: true } },
       },
     });
   }

@@ -35,7 +35,7 @@ async function compartilhar(e: Event) {
 <template>
   <NuxtLink
     :to="destino"
-    class="group relative block aspect-[3/4] overflow-hidden rounded-xl border border-border bg-surface transition-all hover:-translate-y-1 hover:border-wine/60 hover:shadow-[0_20px_50px_-20px_rgba(134,18,34,0.6)]"
+    class="group relative block aspect-3/4 overflow-hidden rounded-xl border border-border bg-surface transition-all hover:-translate-y-1 hover:border-wine/60 hover:shadow-[0_20px_50px_-20px_rgba(134,18,34,0.6)]"
   >
     <!-- capa em tela cheia -->
     <img
@@ -62,7 +62,7 @@ async function compartilhar(e: Event) {
     </div>
 
     <!-- escurece de baixo pra cima pra o painel ler bem -->
-    <div class="absolute inset-0 bg-gradient-to-t from-bg via-bg/60 to-transparent" />
+    <div class="absolute inset-0 bg-linear-to-t from-bg via-bg/60 to-transparent" />
 
     <!-- compartilhar -->
     <button
@@ -145,10 +145,13 @@ async function compartilhar(e: Event) {
               {{ ensaio ? 'Portfólio' : disponivel ? 'Fotos disponíveis' : 'Em breve' }}
             </span>
           </p>
-          <p v-if="galeria.precoFoto" class="mt-1 text-[11px] uppercase tracking-wide text-muted">
+          <p
+            v-if="galeria.precoFotoCentavos"
+            class="mt-1 text-[11px] uppercase tracking-wide text-muted"
+          >
             A partir de
             <span class="block text-base font-bold text-wine-tint">
-              {{ formatarMoeda(galeria.precoFoto) }}
+              {{ formatarCentavos(galeria.precoFotoCentavos) }}
             </span>
           </p>
           <p v-else-if="ensaio" class="mt-1 text-[11px] uppercase tracking-wide text-muted">

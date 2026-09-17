@@ -64,8 +64,8 @@ export interface GaleriaPublica {
   dataEvento: string | null;
   cidade: string | null;
   uf: string | null;
-  /** menor preço por foto (string decimal) — null quando não vende avulso */
-  precoFoto: string | null;
+  /** menor preço por foto, em centavos — null quando não vende avulso */
+  precoFotoCentavos: number | null;
   capaUrl: string | null;
   publicadaEm: string;
   totalFotos: number;

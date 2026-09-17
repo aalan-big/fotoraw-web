@@ -1,4 +1,6 @@
-# Banco de dados — modelo fechado (para revisão antes das migrations)
+# Banco de dados — modelo aplicado (migrations 4–7)
+
+> Estado: **aplicado** no banco local em 2026-09-18 (21 tabelas + view `saldos_fotografo`). Pendente aplicar no Supabase.
 
 Base: `fotoraw-main/docs/web/banco-de-dados.md` (relatório do desktop, 17 tabelas) cruzado com o
 `apps/server/prisma/schema.prisma` atual (10 tabelas, 3 migrations aplicadas).
@@ -20,6 +22,10 @@ Este documento é o **alvo**. Depois de aprovado vira 4 migrations (seção 6).
 | plano | enum `GRATUITO\|PRO` | tabela `planos` | **tabela** — admin muda preço/limite sem deploy. |
 | upload | (não tinha) | `sync_lotes`, sem tabela por arquivo | **`sync_lotes`** + estado por foto em `fotos.alta_key/preview_key` (null = não subiu). Tabela por arquivo só se a retomada exigir. |
 | status do pedido | `REEMBOLSADO` | `estornado` | **`estornado`** (mesmo nome do pagamento). |
+| centavos | — | `bigint` | **`int4`** (limite R$ 21 mi por valor) — evita BigInt no JSON do Nest. |
+| datas | `timestamp(3)` | `timestamptz` | **`timestamp(3)`** (padrão Prisma; app grava UTC). Trocar por `@db.Timestamptz` se algum dia houver leitura direta fora da app. |
+| provedores | asaas/mercadopago | asaas/mercadopago/manual | **mercadopago** (vendas, marketplace: fotógrafo conecta a conta) · **stripe** (assinatura de plano) · manual · asaas (reserva) |
+| taxas | — | — | fotógrafo escolhe em `perfis.taxas_para_cliente`; pedido guarda `taxa_cliente_centavos` (repassada) e `taxa_provedor_centavos` (real). **Comissão sempre sobre o subtotal do produto.** |
 
 ---
 
@@ -56,7 +62,12 @@ Convenções: `id uuid PK`, `criado_em/atualizado_em timestamptz` em todas (omit
 
 **`perfis`** — como aparece na vitrine (1:1, PK = `conta_id`)
 `nome_fantasia` · `bio?` · `logo_key?` · `capa_key?` · `whatsapp?` · `instagram?` · `site?` · `cidade?` · `uf char(2)?` ·
-`cnpj_cpf?` (só dígitos) · `chave_pix?` · `provedor_pagamento?` · `provedor_carteira_id?` (split)
+`cnpj_cpf?` (só dígitos) · `chave_pix?` · `taxas_para_cliente bool` (repassa a taxa do provedor ao comprador ou absorve)
+
+**`conexoes_pagamento`** — conta do fotógrafo no provedor (OAuth Mercado Pago)
+`conta_id` · `provedor` · `provedor_usuario_id` (collector_id) · `access_token_cifrado` · `refresh_token_cifrado?` ·
+`token_expira_em?` · `rotulo?` · `conectado_em` · `revogado_em?` · UNIQUE `(conta_id, provedor)`
+> A comissão do marketplace (10%) cai na conta MP da plataforma; a Stripe recebe só assinaturas.
 > O desktop empurra isso no sync (espelha `estudio`).
 
 **`tokens_api`** — o que o desktop usa pra sincronizar
@@ -126,7 +137,7 @@ Plano (catálogo) ≠ assinatura (contrato de cobrança) ≠ licença (direito d
 **`pedidos`**
 `numero bigint UNIQUE` (sequence) · `conta_id` (desnormalizado: relatório do fotógrafo) · `galeria_id` · `comprador_id` ·
 `status: aberto | aguardando_pagamento | pago | cancelado | expirado | estornado` ·
-`subtotal_centavos` · `desconto_centavos default 0` · `total_centavos` ·
+`subtotal_centavos` (valor do produto, base da comissão) · `desconto_centavos default 0` · `taxa_cliente_centavos default 0` · `total_centavos` (= subtotal − desconto + taxa_cliente) ·
 `comissao_pct numeric(5,2)` (**snapshot** do plano) · `comissao_centavos` · `taxa_provedor_centavos?` · `repasse_centavos` ·
 `expira_em?` (reserva do Pix) · `pago_em?` · `sincronizado_desktop_em?`
 Índices: `(conta_id, status, pago_em)`, `(conta_id, sincronizado_desktop_em)`, `galeria_id`, `comprador_id`.
@@ -202,7 +213,7 @@ foto.status          ativa | oculta
 pedido.status        aberto | aguardando_pagamento | pago | cancelado | expirado | estornado
 pagamento.status     criado | pendente | aprovado | recusado | estornado | expirado
 pagamento.metodo     pix | cartao | boleto
-provedor             asaas | mercadopago | manual
+provedor             mercadopago | stripe | asaas | manual
 repasse.status       aberto | solicitado | pago | falhou
 repasse.metodo       split_automatico | pix_manual
 sync.tipo            publicar | atualizar_fotos | despublicar | puxar_pedidos

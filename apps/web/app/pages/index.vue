@@ -70,9 +70,7 @@ const diferenciais = [
       <div
         class="pointer-events-none absolute inset-0 bg-[url(/imagens/fundo-login.jpg)] bg-cover bg-center"
       />
-      <div
-        class="pointer-events-none absolute inset-0 bg-gradient-to-b from-bg/40 via-bg/70 to-bg"
-      />
+      <div class="pointer-events-none absolute inset-0 bg-linear-to-b from-bg/40 via-bg/70 to-bg" />
       <div class="relative mx-auto max-w-6xl px-6 pb-20 pt-24 text-center md:pb-28 md:pt-36">
         <p class="mb-5 text-sm font-medium uppercase tracking-[0.2em] text-wine-tint">
           Eventos · Ensaios · Formaturas · Casamentos

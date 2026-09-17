@@ -1,3 +1,8 @@
+/** centavos (int) -> "R$ 15,00" — todo dinheiro da API vem em centavos */
+export function formatarCentavos(centavos: number) {
+  return formatarMoeda(centavos / 100);
+}
+
 export function formatarMoeda(valor: number | string) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
     Number(valor),

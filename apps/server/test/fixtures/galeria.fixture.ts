@@ -18,7 +18,7 @@ export function galeriaEventoFixture(
     categoria: 'CORRIDA_RUA',
     modoVenda: 'AVULSO',
     status: 'PUBLICADA',
-    precoFoto: '15.00',
+    precoFotoCentavos: 1500,
     publicadaEm: new Date(),
     ...sobrescrever,
   };

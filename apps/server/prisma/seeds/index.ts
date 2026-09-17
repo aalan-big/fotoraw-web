@@ -19,8 +19,20 @@ const diasAtras = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 const capa = (semente: string) => `https://picsum.photos/seed/${semente}/1200/1600`;
 
 const contas = [
-  { nome: 'Estúdio Luz', slug: 'estudio-luz', email: 'contato@estudioluz.local' },
-  { nome: 'Marcos Foco', slug: 'marcosfoco', email: 'marcos@foco.local' },
+  {
+    nome: 'Estúdio Luz',
+    slug: 'estudio-luz',
+    email: 'contato@estudioluz.local',
+    cidade: 'Curitiba',
+    uf: 'PR',
+  },
+  {
+    nome: 'Marcos Foco',
+    slug: 'marcosfoco',
+    email: 'marcos@foco.local',
+    cidade: 'Fortaleza',
+    uf: 'CE',
+  },
 ];
 
 interface SeedGaleria {
@@ -35,9 +47,9 @@ interface SeedGaleria {
   dataEvento: Date;
   cidade: string;
   uf: string;
-  precoFoto: string | null;
+  precoFotoCentavos: number | null;
   publicadaEm: Date;
-  capaUrl: string | null;
+  capaKey: string | null;
   fotos: number;
 }
 
@@ -50,7 +62,7 @@ const evento = (g: Partial<SeedGaleria>): Partial<SeedGaleria> => ({
 const portfolio = (g: Partial<SeedGaleria>): Partial<SeedGaleria> => ({
   visibilidade: 'PORTFOLIO',
   modoVenda: 'PACOTE',
-  precoFoto: null,
+  precoFotoCentavos: null,
   ...g,
 });
 
@@ -64,9 +76,9 @@ const galerias = [
     dataEvento: diasAtras(2),
     cidade: 'Curitiba',
     uf: 'PR',
-    precoFoto: '15.00',
+    precoFotoCentavos: 1500,
     publicadaEm: diasAtras(1),
-    capaUrl: capa('maratona'),
+    capaKey: capa('maratona'),
     fotos: 48,
   }),
   evento({
@@ -78,9 +90,9 @@ const galerias = [
     dataEvento: diasAtras(4),
     cidade: 'Morretes',
     uf: 'PR',
-    precoFoto: '12.00',
+    precoFotoCentavos: 1200,
     publicadaEm: diasAtras(3),
-    capaUrl: capa('pedal'),
+    capaKey: capa('pedal'),
     fotos: 120,
   }),
   evento({
@@ -92,9 +104,9 @@ const galerias = [
     dataEvento: diasAtras(6),
     cidade: 'Iguatu',
     uf: 'CE',
-    precoFoto: '18.00',
+    precoFotoCentavos: 1800,
     publicadaEm: diasAtras(5),
-    capaUrl: capa('noturna'),
+    capaKey: capa('noturna'),
     fotos: 75,
   }),
   evento({
@@ -106,9 +118,9 @@ const galerias = [
     dataEvento: diasAtras(10),
     cidade: 'Curitiba',
     uf: 'PR',
-    precoFoto: '20.00',
+    precoFotoCentavos: 2000,
     publicadaEm: diasAtras(9),
-    capaUrl: null,
+    capaKey: null,
     fotos: 0,
   }),
   // ensaios que o cliente autorizou mostrar: aparecem em "Ensaios em destaque"
@@ -123,7 +135,7 @@ const galerias = [
     cidade: 'Curitiba',
     uf: 'PR',
     publicadaEm: diasAtras(12),
-    capaUrl: capa('gestante'),
+    capaKey: capa('gestante'),
     fotos: 24,
   }),
   portfolio({
@@ -138,7 +150,7 @@ const galerias = [
     cidade: 'Fortaleza',
     uf: 'CE',
     publicadaEm: diasAtras(15),
-    capaUrl: capa('casamento'),
+    capaKey: capa('casamento'),
     fotos: 60,
   }),
   portfolio({
@@ -152,18 +164,22 @@ const galerias = [
     cidade: 'Fortaleza',
     uf: 'CE',
     publicadaEm: diasAtras(18),
-    capaUrl: capa('newborn'),
+    capaKey: capa('newborn'),
     fotos: 18,
   }),
 ] as SeedGaleria[];
 
 async function main() {
   const idPorSlug = new Map<string, string>();
-  for (const c of contas) {
+  for (const { cidade, uf, ...c } of contas) {
     const conta = await prisma.conta.upsert({
       where: { slug: c.slug },
       update: { nome: c.nome },
-      create: { ...c, senhaHash: 'trocar-por-hash-real' },
+      create: {
+        ...c,
+        senhaHash: 'trocar-por-hash-real',
+        perfil: { create: { nomeFantasia: c.nome, cidade, uf } },
+      },
     });
     idPorSlug.set(c.slug, conta.id);
   }
@@ -173,8 +189,8 @@ async function main() {
     const { conta: _, fotos, ...dados } = g;
     const galeria = await prisma.galeria.upsert({
       where: { contaId_ensaioIdDesktop: { contaId, ensaioIdDesktop: g.ensaioIdDesktop } },
-      update: { ...dados, contaId },
-      create: { ...dados, contaId, status: 'PUBLICADA' },
+      update: { ...dados, contaId, totalFotos: fotos },
+      create: { ...dados, contaId, status: 'PUBLICADA', totalFotos: fotos },
     });
 
     // fotos numeradas: número de peito 1000..., 3 fotos por atleta (irrelevante em ensaio)

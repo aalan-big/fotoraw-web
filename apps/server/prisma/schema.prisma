@@ -1,12 +1,13 @@
-// Schema da web do FotoRAW.
+// Schema da web do FotoRAW — modelo fechado em docs/banco-de-dados.md.
 //
 // Regras:
 //  - o desktop é a fonte da verdade de clientes/agenda/financeiro/arquivos; aqui só vive
-//    o que a vitrine precisa: conta + plano, galerias publicadas, fotos (preview + alta),
-//    compradores, pedidos, pagamentos e downloads.
+//    o que a vitrine, o espaço do fotógrafo e o admin precisam.
 //  - os IDs do desktop viajam junto (ensaioIdDesktop, fotoIdDesktop) — são eles que
 //    levam o pedido de volta pro lugar certo no `pedidos` local.
-//  - a web nunca processa imagem: previewKey e altaKey já chegam prontos.
+//  - a web nunca processa imagem: previewKey/altaKey chegam prontos do desktop.
+//  - dinheiro em centavos (int4: até R$ 21 milhões por valor). Banco guarda CHAVE no bucket, nunca URL.
+//  - enums: MAIUSCULO no TS, minúsculo no banco (@map) — iguais aos nomes do desktop.
 //
 // Convenções: campos camelCase no client, colunas/tabelas snake_case em pt-BR no banco.
 
@@ -19,258 +20,529 @@ datasource db {
   provider = "postgresql"
 }
 
-// ---------------------------------------------------------------------------
+// ===========================================================================
 // Enums
-// ---------------------------------------------------------------------------
+// ===========================================================================
 
-enum Plano {
-  GRATUITO // só cenário evento (10% por foto)
-  PRO // mensal: libera galeria privada com seleção (cenário ensaio)
+enum StatusConta {
+  ATIVA     @map("ativa")
+  SUSPENSA  @map("suspensa") // inadimplente: vitrine no ar, publicar bloqueado
+  BLOQUEADA @map("bloqueada") // nada funciona
 
-  @@map("plano")
+  @@map("status_conta")
 }
 
-enum StatusPlano {
-  ATIVO
-  TRIAL
-  INADIMPLENTE
-  CANCELADO
+enum PapelConta {
+  FOTOGRAFO @map("fotografo")
+  ADMIN     @map("admin")
 
-  @@map("status_plano")
+  @@map("papel_conta")
+}
+
+enum Periodicidade {
+  MENSAL  @map("mensal")
+  ANUAL   @map("anual")
+  NENHUMA @map("nenhuma")
+
+  @@map("periodicidade")
+}
+
+enum StatusAssinatura {
+  TRIAL        @map("trial")
+  ATIVA        @map("ativa")
+  INADIMPLENTE @map("inadimplente")
+  CANCELADA    @map("cancelada")
+  EXPIRADA     @map("expirada")
+
+  @@map("status_assinatura")
+}
+
+enum OrigemAssinatura {
+  SITE  @map("site")
+  ADMIN @map("admin")
+
+  @@map("origem_assinatura")
+}
+
+enum TipoLicenca {
+  ASSINATURA @map("assinatura")
+  CORTESIA   @map("cortesia")
+  VITALICIA  @map("vitalicia")
+  TRIAL      @map("trial")
+
+  @@map("tipo_licenca")
+}
+
+enum StatusLicenca {
+  ATIVA    @map("ativa")
+  SUSPENSA @map("suspensa")
+  REVOGADA @map("revogada")
+  EXPIRADA @map("expirada")
+
+  @@map("status_licenca")
+}
+
+enum StatusFatura {
+  PENDENTE  @map("pendente")
+  PAGA      @map("paga")
+  VENCIDA   @map("vencida")
+  CANCELADA @map("cancelada")
+  ESTORNADA @map("estornada")
+
+  @@map("status_fatura")
 }
 
 /// O que a galeria é — espelha o tipo do ensaio no desktop.
 enum Modalidade {
-  EVENTO // corrida, formatura, festa: muita gente, venda avulsa
-  ENSAIO_INTERNO // estúdio
-  ENSAIO_EXTERNO // locação
+  EVENTO         @map("evento")
+  ENSAIO_INTERNO @map("ensaio_interno")
+  ENSAIO_EXTERNO @map("ensaio_externo")
 
   @@map("modalidade")
 }
 
 /// Quem vê a galeria.
 enum Visibilidade {
-  PUBLICA // aparece na vitrine e na busca (eventos)
-  PRIVADA // só com link/senha (cliente do ensaio)
-  PORTFOLIO // ensaio autorizado pelo cliente, exibido no perfil do fotógrafo
+  PUBLICA   @map("publica") // vitrine e busca (eventos)
+  PRIVADA   @map("privada") // só com código/senha (cliente do ensaio)
+  PORTFOLIO @map("portfolio") // ensaio autorizado pelo cliente, exibido no perfil
 
   @@map("visibilidade")
 }
 
 /// Categoria: define chip, capa padrão e se a galeria oferece busca por número.
 enum Categoria {
-  // eventos
-  CORRIDA_RUA
-  TRAIL
-  CICLISMO
-  TRIATLO
-  NATACAO
-  ESPORTIVO // outros esportes (futebol, lutas, crossfit...)
-  FORMATURA
-  CASAMENTO
-  FESTA // aniversário, confraternização
-  CORPORATIVO
-  // ensaios
-  GESTANTE
-  NEWBORN
-  FAMILIA
-  INFANTIL
-  QUINZE_ANOS
-  CASAL
-  PESSOAL // book, retrato, profissional
-  MODA
-  PRODUTO
-  OUTRO
+  CORRIDA_RUA @map("corrida_rua")
+  TRAIL       @map("trail")
+  CICLISMO    @map("ciclismo")
+  TRIATLO     @map("triatlo")
+  NATACAO     @map("natacao")
+  ESPORTIVO   @map("esportivo")
+  FORMATURA   @map("formatura")
+  CASAMENTO   @map("casamento")
+  FESTA       @map("festa")
+  CORPORATIVO @map("corporativo")
+  GESTANTE    @map("gestante")
+  NEWBORN     @map("newborn")
+  FAMILIA     @map("familia")
+  INFANTIL    @map("infantil")
+  QUINZE_ANOS @map("quinze_anos")
+  CASAL       @map("casal")
+  PESSOAL     @map("pessoal")
+  MODA        @map("moda")
+  PRODUTO     @map("produto")
+  OUTRO       @map("outro")
 
   @@map("categoria")
 }
 
 enum ModoVenda {
-  AVULSO // paga por foto (evento)
-  PACOTE // N incluídas no ensaio + extras
-  ENTREGA // só entrega, sem venda
+  AVULSO  @map("avulso") // paga por foto (evento)
+  PACOTE  @map("pacote") // N incluídas no ensaio + extras
+  ENTREGA @map("entrega") // só entrega, sem venda
 
   @@map("modo_venda")
 }
 
 enum StatusGaleria {
-  RASCUNHO
-  PUBLICADA
-  ARQUIVADA
+  RASCUNHO  @map("rascunho")
+  PUBLICADA @map("publicada")
+  PAUSADA   @map("pausada") // link no ar, compra bloqueada
+  ENCERRADA @map("encerrada")
 
   @@map("status_galeria")
 }
 
+enum StatusFoto {
+  ATIVA  @map("ativa")
+  OCULTA @map("oculta")
+
+  @@map("status_foto")
+}
+
 enum StatusPedido {
-  ABERTO // carrinho virou pedido, sem cobrança ainda
-  AGUARDANDO_PAGAMENTO // cobrança criada no provedor
-  PAGO
-  EXPIRADO
-  CANCELADO
-  REEMBOLSADO
+  ABERTO               @map("aberto")
+  AGUARDANDO_PAGAMENTO @map("aguardando_pagamento")
+  PAGO                 @map("pago")
+  CANCELADO            @map("cancelado")
+  EXPIRADO             @map("expirado")
+  ESTORNADO            @map("estornado")
 
   @@map("status_pedido")
 }
 
-enum ProvedorPagamento {
-  ASAAS
-  MERCADO_PAGO
+/// mercadopago: vendas de evento (marketplace, fotógrafo conecta a conta dele);
+/// stripe: assinatura de plano (cartão); manual: admin marcou como pago / cortesia.
+enum Provedor {
+  MERCADOPAGO @map("mercadopago")
+  STRIPE      @map("stripe")
+  ASAAS       @map("asaas")
+  MANUAL      @map("manual")
 
-  @@map("provedor_pagamento")
+  @@map("provedor")
 }
 
 enum MetodoPagamento {
-  PIX
-  CARTAO
+  PIX    @map("pix")
+  CARTAO @map("cartao")
+  BOLETO @map("boleto")
 
   @@map("metodo_pagamento")
 }
 
 enum StatusPagamento {
-  PENDENTE
-  CONFIRMADO
-  RECUSADO
-  ESTORNADO
+  CRIADO    @map("criado")
+  PENDENTE  @map("pendente")
+  APROVADO  @map("aprovado")
+  RECUSADO  @map("recusado")
+  ESTORNADO @map("estornado")
+  EXPIRADO  @map("expirado")
 
   @@map("status_pagamento")
 }
 
-enum StatusAssinatura {
-  ATIVA
-  PENDENTE
-  INADIMPLENTE
-  CANCELADA
+enum StatusRepasse {
+  ABERTO     @map("aberto")
+  SOLICITADO @map("solicitado")
+  PAGO       @map("pago")
+  FALHOU     @map("falhou")
 
-  @@map("status_assinatura")
+  @@map("status_repasse")
 }
 
-// ---------------------------------------------------------------------------
-// Conta do fotógrafo
-// ---------------------------------------------------------------------------
+enum MetodoRepasse {
+  SPLIT_AUTOMATICO @map("split_automatico")
+  PIX_MANUAL       @map("pix_manual")
 
+  @@map("metodo_repasse")
+}
+
+enum TipoSync {
+  PUBLICAR        @map("publicar")
+  ATUALIZAR_FOTOS @map("atualizar_fotos")
+  DESPUBLICAR     @map("despublicar")
+  PUXAR_PEDIDOS   @map("puxar_pedidos")
+
+  @@map("tipo_sync")
+}
+
+enum StatusSync {
+  RECEBIDO    @map("recebido")
+  PROCESSANDO @map("processando")
+  CONCLUIDO   @map("concluido")
+  ERRO        @map("erro")
+
+  @@map("status_sync")
+}
+
+// ===========================================================================
+// 3.1 Contas e acesso
+// ===========================================================================
+
+/// Fotógrafo, estúdio ou admin — um por login.
 model Conta {
-  id          String      @id @default(uuid(7)) @db.Uuid
-  nome        String
-  /// handle público: fotoraw.com.br/@slug
-  slug        String      @unique
-  email       String      @unique
-  senhaHash   String      @map("senha_hash")
-  plano       Plano       @default(GRATUITO)
-  statusPlano StatusPlano @default(ATIVO) @map("status_plano")
+  id                String      @id @default(uuid(7)) @db.Uuid
+  /// sempre minúsculo (normalizado na app)
+  email             String      @unique
+  senhaHash         String      @map("senha_hash")
+  nome              String
+  /// handle público: fotoraw.com.br/@slug — imutável depois de publicar
+  slug              String      @unique
+  status            StatusConta @default(ATIVA)
+  papel             PapelConta  @default(FOTOGRAFO)
+  emailVerificadoEm DateTime?   @map("email_verificado_em")
+  criadoEm          DateTime    @default(now()) @map("criado_em")
+  atualizadoEm      DateTime    @updatedAt @map("atualizado_em")
+  excluidoEm        DateTime?   @map("excluido_em")
 
-  /// token de longa duração usado pelo desktop (guardado como hash; o valor só
-  /// aparece uma vez em "Conectar à vitrine")
-  apiTokenHash     String?   @unique @map("api_token_hash")
-  apiTokenCriadoEm DateTime? @map("api_token_criado_em")
+  perfil            Perfil?
+  conexoesPagamento ConexaoPagamento[]
+  tokensApi         TokenApi[]
+  dispositivos      Dispositivo[]
+  assinaturas       Assinatura[]
+  licencas          Licenca[]
+  licencasEmitidas  Licenca[]          @relation("licenca_emitida_por")
+  galerias          Galeria[]
+  pedidos           Pedido[]
+  repasses          Repasse[]
+  syncLotes         SyncLote[]
+  auditorias        Auditoria[]
 
-  /// id do fotógrafo no provedor de pagamento (carteira que recebe o split)
-  provedorPagamento    ProvedorPagamento? @map("provedor_pagamento")
-  provedorPagamentoRef String?            @map("provedor_pagamento_ref")
-
-  criadoEm     DateTime @default(now()) @map("criado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
-
-  galerias    Galeria[]
-  pedidos     Pedido[]
-  assinaturas Assinatura[]
-
+  @@index([status])
   @@map("contas")
 }
 
-/// Assinatura do plano PRO (cenário ensaio). Histórico: uma conta pode ter várias.
-model Assinatura {
-  id              String            @id @default(uuid(7)) @db.Uuid
-  contaId         String            @map("conta_id") @db.Uuid
-  plano           Plano
-  status          StatusAssinatura  @default(PENDENTE)
-  provedor        ProvedorPagamento
-  provedorRef     String            @map("provedor_ref")
-  valorMensal     Decimal           @map("valor_mensal") @db.Decimal(10, 2)
-  inicioEm        DateTime          @map("inicio_em")
-  proximaCobranca DateTime?         @map("proxima_cobranca")
-  canceladaEm     DateTime?         @map("cancelada_em")
-  criadoEm        DateTime          @default(now()) @map("criado_em")
-  atualizadoEm    DateTime          @updatedAt @map("atualizado_em")
+/// Como o estúdio aparece na vitrine (1:1). O desktop empurra no sync (espelha `estudio`).
+model Perfil {
+  contaId          String   @id @map("conta_id") @db.Uuid
+  nomeFantasia     String   @map("nome_fantasia")
+  bio              String?
+  logoKey          String?  @map("logo_key")
+  capaKey          String?  @map("capa_key")
+  whatsapp         String?
+  instagram        String?
+  site             String?
+  cidade           String?
+  uf               String?  @db.Char(2)
+  /// só dígitos — necessário pro repasse/nota
+  cnpjCpf          String?  @map("cnpj_cpf")
+  /// pra repasse manual, se não usar split automático
+  chavePix         String?  @map("chave_pix")
+  /// escolha do fotógrafo: taxa do provedor vai pro comprador (true) ou ele absorve (false)
+  taxasParaCliente Boolean  @default(false) @map("taxas_para_cliente")
+  atualizadoEm     DateTime @updatedAt @map("atualizado_em")
 
   conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
 
-  @@unique([provedor, provedorRef])
+  @@map("perfis")
+}
+
+/// Conta do fotógrafo no provedor (OAuth do Mercado Pago). Tokens cifrados na app.
+model ConexaoPagamento {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  contaId             String    @map("conta_id") @db.Uuid
+  provedor            Provedor
+  /// id do usuário/vendedor no provedor (collector_id no MP)
+  provedorUsuarioId   String    @map("provedor_usuario_id")
+  accessTokenCifrado  String    @map("access_token_cifrado")
+  refreshTokenCifrado String?   @map("refresh_token_cifrado")
+  tokenExpiraEm       DateTime? @map("token_expira_em")
+  /// e-mail/apelido da conta conectada, só pra exibir
+  rotulo              String?
+  conectadoEm         DateTime  @default(now()) @map("conectado_em")
+  revogadoEm          DateTime? @map("revogado_em")
+  atualizadoEm        DateTime  @updatedAt @map("atualizado_em")
+
+  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  @@unique([contaId, provedor])
+  @@map("conexoes_pagamento")
+}
+
+/// Token de longa duração que o desktop usa pra sincronizar (um por máquina).
+model TokenApi {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  contaId     String    @map("conta_id") @db.Uuid
+  /// guarda só o hash; o token em claro aparece uma vez ("Conectar à vitrine")
+  tokenHash   String    @unique @map("token_hash")
+  nome        String
+  ultimoUsoEm DateTime? @map("ultimo_uso_em")
+  expiraEm    DateTime? @map("expira_em")
+  revogadoEm  DateTime? @map("revogado_em")
+  criadoEm    DateTime  @default(now()) @map("criado_em")
+
+  conta     Conta      @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  syncLotes SyncLote[]
+
   @@index([contaId])
+  @@map("tokens_api")
+}
+
+/// Máquinas que ativaram a licença — pro plano poder limitar "N máquinas".
+model Dispositivo {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  contaId       String   @map("conta_id") @db.Uuid
+  /// hash do hardware gerado pelo Tauri
+  fingerprint   String
+  nome          String
+  versaoApp     String?  @map("versao_app")
+  ultimoVistoEm DateTime @default(now()) @map("ultimo_visto_em")
+  criadoEm      DateTime @default(now()) @map("criado_em")
+
+  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  @@unique([contaId, fingerprint])
+  @@map("dispositivos")
+}
+
+// ===========================================================================
+// 3.2 Planos, assinaturas e licenças (admin)
+// Plano (catálogo) ≠ assinatura (contrato de cobrança) ≠ licença (direito de uso).
+// ===========================================================================
+
+model Plano {
+  id                    String        @id @default(uuid(7)) @db.Uuid
+  /// gratuito, pro_mensal, pro_anual
+  codigo                String        @unique
+  nome                  String
+  precoCentavos         Int           @map("preco_centavos")
+  periodicidade         Periodicidade
+  /// ex.: 10.00 — a comissão do evento pode variar por plano
+  comissaoEventoPct     Decimal       @map("comissao_evento_pct") @db.Decimal(5, 2)
+  limiteGaleriasAtivas  Int?          @map("limite_galerias_ativas")
+  limiteFotosPorGaleria Int?          @map("limite_fotos_por_galeria")
+  limiteArmazenamentoMb Int?          @map("limite_armazenamento_mb")
+  limiteDispositivos    Int?          @map("limite_dispositivos")
+  permiteGaleriaPrivada Boolean       @default(false) @map("permite_galeria_privada")
+  permiteEvento         Boolean       @default(true) @map("permite_evento")
+  /// tirar de venda sem apagar
+  ativo                 Boolean       @default(true)
+  ordem                 Int           @default(0)
+  criadoEm              DateTime      @default(now()) @map("criado_em")
+  atualizadoEm          DateTime      @updatedAt @map("atualizado_em")
+
+  assinaturas Assinatura[]
+
+  @@map("planos")
+}
+
+/// O contrato de cobrança.
+model Assinatura {
+  id                    String           @id @default(uuid(7)) @db.Uuid
+  contaId               String           @map("conta_id") @db.Uuid
+  planoId               String           @map("plano_id") @db.Uuid
+  status                StatusAssinatura @default(TRIAL)
+  inicioEm              DateTime         @map("inicio_em")
+  /// janela que está paga
+  periodoAtualInicio    DateTime         @map("periodo_atual_inicio")
+  periodoAtualFim       DateTime         @map("periodo_atual_fim")
+  canceladaEm           DateTime?        @map("cancelada_em")
+  cancelaNoFimDoPeriodo Boolean          @default(false) @map("cancela_no_fim_do_periodo")
+  provedor              Provedor
+  provedorAssinaturaId  String?          @unique @map("provedor_assinatura_id")
+  origem                OrigemAssinatura @default(SITE)
+  observacaoAdmin       String?          @map("observacao_admin")
+  criadoEm              DateTime         @default(now()) @map("criado_em")
+  atualizadoEm          DateTime         @updatedAt @map("atualizado_em")
+
+  conta    Conta     @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  plano    Plano     @relation(fields: [planoId], references: [id])
+  licencas Licenca[]
+  faturas  Fatura[]
+
+  @@index([contaId, status])
   @@map("assinaturas")
 }
 
-// ---------------------------------------------------------------------------
-// Galeria + fotos (espelho do ensaio publicado no desktop)
-// ---------------------------------------------------------------------------
+/// O direito de uso que o desktop consulta. Uma ATIVA por conta (índice parcial na migration).
+model Licenca {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  contaId      String        @map("conta_id") @db.Uuid
+  /// null = cortesia / manual
+  assinaturaId String?       @map("assinatura_id") @db.Uuid
+  /// FR-XXXX-XXXX-XXXX — o fotógrafo pode colar no desktop
+  chave        String        @unique
+  tipo         TipoLicenca
+  status       StatusLicenca @default(ATIVA)
+  /// null = enquanto a assinatura estiver ativa
+  validaAte    DateTime?     @map("valida_ate")
+  /// snapshot dos limites do plano na emissão — o desktop lê daqui, não do plano
+  recursos     Json
+  /// admin que emitiu (se manual)
+  emitidaPorId String?       @map("emitida_por_id") @db.Uuid
+  motivo       String?
+  emitidaEm    DateTime      @default(now()) @map("emitida_em")
+  atualizadaEm DateTime      @updatedAt @map("atualizada_em")
 
+  conta      Conta       @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  assinatura Assinatura? @relation(fields: [assinaturaId], references: [id])
+  emitidaPor Conta?      @relation("licenca_emitida_por", fields: [emitidaPorId], references: [id])
+
+  @@index([contaId, status])
+  @@map("licencas")
+}
+
+/// Cobranças da assinatura (histórico).
+model Fatura {
+  id                 String       @id @default(uuid(7)) @db.Uuid
+  assinaturaId       String       @map("assinatura_id") @db.Uuid
+  valorCentavos      Int          @map("valor_centavos")
+  vencimento         DateTime     @db.Date
+  status             StatusFatura @default(PENDENTE)
+  provedorCobrancaId String?      @unique @map("provedor_cobranca_id")
+  pagaEm             DateTime?    @map("paga_em")
+  urlBoletoPix       String?      @map("url_boleto_pix")
+  criadoEm           DateTime     @default(now()) @map("criado_em")
+  atualizadoEm       DateTime     @updatedAt @map("atualizado_em")
+
+  assinatura Assinatura @relation(fields: [assinaturaId], references: [id], onDelete: Cascade)
+
+  @@index([assinaturaId, status])
+  @@map("faturas")
+}
+
+// ===========================================================================
+// 3.3 Vitrine — o que é publicado
+// ===========================================================================
+
+/// Um ensaio publicado (upsert por ensaioIdDesktop: republicar atualiza, não duplica).
 model Galeria {
-  id              String @id @default(uuid(7)) @db.Uuid
-  contaId         String @map("conta_id") @db.Uuid
-  /// id do ensaio no banco local do desktop
-  ensaioIdDesktop String @map("ensaio_id_desktop")
-
-  titulo       String
+  id              String       @id @default(uuid(7)) @db.Uuid
+  contaId         String       @map("conta_id") @db.Uuid
+  ensaioIdDesktop String       @map("ensaio_id_desktop")
   /// fotoraw.com.br/@conta/slug
-  slug         String
-  descricao    String?
-  modalidade   Modalidade    @default(EVENTO)
-  visibilidade Visibilidade  @default(PRIVADA)
-  categoria    Categoria     @default(OUTRO)
-  modoVenda    ModoVenda     @map("modo_venda")
-  status       StatusGaleria @default(RASCUNHO)
+  slug            String
+  titulo          String
+  descricao       String?
+  modalidade      Modalidade   @default(EVENTO)
+  visibilidade    Visibilidade @default(PRIVADA)
+  categoria       Categoria    @default(OUTRO)
+  modoVenda       ModoVenda    @map("modo_venda")
 
-  /// quando e onde o evento aconteceu (aparece no card e na página da galeria)
+  /// avulso: cada foto; pacote: preço da extra (a foto pode sobrescrever)
+  precoFotoCentavos     Int?    @map("preco_foto_centavos")
+  /// pacote: quantas fotos já estão incluídas
+  fotosIncluidas        Int?    @map("fotos_incluidas")
+  /// pacote: só informativo (já foi pago via contrato)
+  precoPacoteCentavos   Int?    @map("preco_pacote_centavos")
+  /// modo entrega
+  permiteDownloadGratis Boolean @default(false) @map("permite_download_gratis")
+
+  capaKey      String? @map("capa_key")
+  /// galeria PRIVADA: o que vai no link/WhatsApp (LUZ-4821)
+  codigoAcesso String? @unique @map("codigo_acesso")
+  senhaHash    String? @map("senha_hash")
+
   dataEvento DateTime? @map("data_evento") @db.Date
   cidade     String?
   uf         String?   @db.Char(2)
 
-  /// AVULSO: preço de cada foto (a foto pode sobrescrever)
-  precoFoto      Decimal? @map("preco_foto") @db.Decimal(10, 2)
-  /// PACOTE: quantas fotos já estão incluídas no ensaio
-  fotosIncluidas Int?     @map("fotos_incluidas")
-  /// PACOTE: preço de cada foto além das incluídas
-  precoExtra     Decimal? @map("preco_extra") @db.Decimal(10, 2)
+  status      StatusGaleria @default(RASCUNHO)
+  publicadaEm DateTime?     @map("publicada_em")
+  /// evento sai do ar sozinho
+  encerraEm   DateTime?     @map("encerra_em")
 
-  capaUrl   String? @map("capa_url")
-  /// visibilidade PRIVADA: senha opcional (hash)
-  senhaHash String? @map("senha_hash")
+  /// caches atualizados pelo service (evita COUNT/SUM na home)
+  totalFotos          Int @default(0) @map("total_fotos")
+  totalVendasCentavos Int @default(0) @map("total_vendas_centavos")
 
-  publicadaEm  DateTime? @map("publicada_em")
-  expiraEm     DateTime? @map("expira_em")
   criadoEm     DateTime  @default(now()) @map("criado_em")
   atualizadoEm DateTime  @updatedAt @map("atualizado_em")
+  excluidoEm   DateTime? @map("excluido_em")
 
-  conta   Conta    @relation(fields: [contaId], references: [id], onDelete: Cascade)
-  fotos   Foto[]
-  pedidos Pedido[]
+  conta     Conta      @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  fotos     Foto[]
+  pedidos   Pedido[]
+  syncLotes SyncLote[]
 
   @@unique([contaId, slug])
   @@unique([contaId, ensaioIdDesktop])
+  @@index([contaId, status])
   @@index([status, visibilidade, publicadaEm])
   @@map("galerias")
 }
 
 model Foto {
-  id            String @id @default(uuid(7)) @db.Uuid
-  galeriaId     String @map("galeria_id") @db.Uuid
-  /// id da foto no banco local do desktop
-  fotoIdDesktop String @map("foto_id_desktop")
-
-  /// chave no bucket público `previews` (já com marca d'água)
-  previewKey String  @map("preview_key")
-  /// chave no bucket privado `originais`; null enquanto a alta não subiu
-  altaKey    String? @map("alta_key")
-  largura    Int?
-  altura     Int?
-
+  id                  String     @id @default(uuid(7)) @db.Uuid
+  galeriaId           String     @map("galeria_id") @db.Uuid
+  fotoIdDesktop       String     @map("foto_id_desktop")
+  /// com marca d'água, bucket público
+  previewKey          String     @map("preview_key")
+  thumbKey            String?    @map("thumb_key")
+  /// sem marca, bucket privado; null = ainda não subiu
+  altaKey             String?    @map("alta_key")
+  largura             Int?
+  altura              Int?
+  /// cota de armazenamento
+  tamanhoAltaBytes    Int?       @map("tamanho_alta_bytes")
   /// número de peito / identificação lida no evento
-  numeroIdentificacao String?  @map("numero_identificacao")
-  /// sobrescreve Galeria.precoFoto quando definido
-  preco               Decimal? @db.Decimal(10, 2)
-  ordem               Int      @default(0)
-
-  criadoEm     DateTime @default(now()) @map("criado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+  numeroIdentificacao String?    @map("numero_identificacao")
+  /// sobrescreve Galeria.precoFotoCentavos quando definido
+  precoCentavos       Int?       @map("preco_centavos")
+  ordem               Int        @default(0)
+  status              StatusFoto @default(ATIVA)
+  criadoEm            DateTime   @default(now()) @map("criado_em")
+  atualizadoEm        DateTime   @updatedAt @map("atualizado_em")
 
   galeria   Galeria      @relation(fields: [galeriaId], references: [id], onDelete: Cascade)
   itens     ItemPedido[]
@@ -282,73 +554,85 @@ model Foto {
   @@map("fotos")
 }
 
-// ---------------------------------------------------------------------------
-// Comprador + pedido
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// 3.4 Vitrine — quem compra e o que compra
+// ===========================================================================
 
-/// Mínimo necessário para recibo/nota (LGPD).
+/// Quem compra na vitrine. Sem contaId (compra de vários fotógrafos), sem senha (link mágico).
 model Comprador {
-  id       String  @id @default(uuid(7)) @db.Uuid
-  nome     String
-  email    String
-  whatsapp String?
-  cpf      String?
+  id              String   @id @default(uuid(7)) @db.Uuid
+  email           String   @unique
+  nome            String
+  whatsapp        String?
+  /// só dígitos; exigido pelo provedor pra Pix acima de certo valor
+  cpf             String?
+  /// LGPD
+  aceitouTermosEm DateTime @map("aceitou_termos_em")
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
 
-  criadoEm     DateTime @default(now()) @map("criado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+  pedidos   Pedido[]
+  downloads Download[]
 
-  pedidos Pedido[]
-
-  @@index([email])
   @@map("compradores")
 }
 
 model Pedido {
-  id     String @id @default(uuid(7)) @db.Uuid
-  /// número curto e sequencial para o comprador/fotógrafo citarem (#1042)
-  numero Int    @unique @default(autoincrement())
-
+  id          String @id @default(uuid(7)) @db.Uuid
+  /// sequencial legível (#1042)
+  numero      Int    @unique @default(autoincrement())
+  /// desnormalizado de propósito: relatório do fotógrafo não passa por galeria
+  contaId     String @map("conta_id") @db.Uuid
   galeriaId   String @map("galeria_id") @db.Uuid
   compradorId String @map("comprador_id") @db.Uuid
-  /// desnormalizado: consultas do painel do fotógrafo sem join em galeria
-  contaId     String @map("conta_id") @db.Uuid
 
-  status   StatusPedido @default(ABERTO)
-  subtotal Decimal      @db.Decimal(10, 2)
-  /// comissão da plataforma retida no split (evento: 10%)
-  comissao Decimal      @db.Decimal(10, 2)
-  total    Decimal      @db.Decimal(10, 2)
+  status StatusPedido @default(ABERTO)
 
-  expiraEm       DateTime? @map("expira_em")
-  pagoEm         DateTime? @map("pago_em")
-  /// quando o desktop puxou este pedido para o `pedidos` local (null = pendente de sync)
-  sincronizadoEm DateTime? @map("sincronizado_em")
+  /// soma dos itens (valor do produto) — base da comissão
+  subtotalCentavos     Int     @map("subtotal_centavos")
+  descontoCentavos     Int     @default(0) @map("desconto_centavos")
+  /// taxa do provedor repassada ao comprador (perfil.taxasParaCliente); 0 quando o fotógrafo absorve
+  taxaClienteCentavos  Int     @default(0) @map("taxa_cliente_centavos")
+  /// subtotal − desconto + taxa_cliente = o que o comprador paga
+  totalCentavos        Int     @map("total_centavos")
+  /// snapshot do plano no momento da compra — sempre sobre o subtotal
+  comissaoPct          Decimal @map("comissao_pct") @db.Decimal(5, 2)
+  comissaoCentavos     Int     @map("comissao_centavos")
+  /// o que o provedor cobrou de fato (vem do webhook)
+  taxaProvedorCentavos Int?    @map("taxa_provedor_centavos")
+  /// subtotal − desconto − comissão − (taxa do provedor, se o fotógrafo absorve)
+  repasseCentavos      Int     @map("repasse_centavos")
+
+  /// reserva do Pix
+  expiraEm              DateTime? @map("expira_em")
+  pagoEm                DateTime? @map("pago_em")
+  /// quando o desktop puxou este pedido (null = pendente de sync)
+  sincronizadoDesktopEm DateTime? @map("sincronizado_desktop_em")
 
   criadoEm     DateTime @default(now()) @map("criado_em")
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
+  conta      Conta        @relation(fields: [contaId], references: [id])
   galeria    Galeria      @relation(fields: [galeriaId], references: [id])
   comprador  Comprador    @relation(fields: [compradorId], references: [id])
-  conta      Conta        @relation(fields: [contaId], references: [id])
   itens      ItemPedido[]
   pagamentos Pagamento[]
   downloads  Download[]
 
-  @@index([contaId, status])
-  @@index([contaId, sincronizadoEm])
+  @@index([contaId, status, pagoEm])
+  @@index([contaId, sincronizadoDesktopEm])
   @@index([galeriaId])
   @@index([compradorId])
   @@map("pedidos")
 }
 
 model ItemPedido {
-  id       String @id @default(uuid(7)) @db.Uuid
-  pedidoId String @map("pedido_id") @db.Uuid
-  fotoId   String @map("foto_id") @db.Uuid
-
-  /// preço congelado no momento do pedido
-  precoUnitario Decimal @map("preco_unitario") @db.Decimal(10, 2)
-  /// PACOTE: true quando a foto está entre as N incluídas (preço 0)
+  id            String  @id @default(uuid(7)) @db.Uuid
+  pedidoId      String  @map("pedido_id") @db.Uuid
+  fotoId        String  @map("foto_id") @db.Uuid
+  /// snapshot — o preço da foto pode mudar depois
+  precoCentavos Int     @map("preco_centavos")
+  /// pacote: true quando está entre as N incluídas (preço 0)
   incluida      Boolean @default(false)
 
   pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
@@ -358,47 +642,125 @@ model ItemPedido {
   @@map("itens_pedido")
 }
 
-// ---------------------------------------------------------------------------
-// Pagamento
-// ---------------------------------------------------------------------------
-
+/// Uma tentativa de cobrança (um pedido pode ter várias).
 model Pagamento {
   id       String @id @default(uuid(7)) @db.Uuid
   pedidoId String @map("pedido_id") @db.Uuid
 
-  provedor    ProvedorPagamento
-  metodo      MetodoPagamento
-  /// id da cobrança no provedor
-  provedorRef String            @map("provedor_ref")
-  status      StatusPagamento   @default(PENDENTE)
-  valor       Decimal           @db.Decimal(10, 2)
+  provedor            Provedor
+  metodo              MetodoPagamento
+  /// chave de idempotência do webhook
+  provedorPagamentoId String          @unique @map("provedor_pagamento_id")
+  status              StatusPagamento @default(CRIADO)
+  valorCentavos       Int             @map("valor_centavos")
 
-  pixQrCode    String?   @map("pix_qr_code")
-  pixCopiaCola String?   @map("pix_copia_cola")
-  pixExpiraEm  DateTime? @map("pix_expira_em")
-
-  /// resposta bruta do provedor (auditoria)
-  payload      Json?
-  confirmadoEm DateTime? @map("confirmado_em")
-  criadoEm     DateTime  @default(now()) @map("criado_em")
-  atualizadoEm DateTime  @updatedAt @map("atualizado_em")
+  pixCopiaCola  String?   @map("pix_copia_cola")
+  pixQrKey      String?   @map("pix_qr_key")
+  pixExpiraEm   DateTime? @map("pix_expira_em")
+  /// true quando o provedor já reteve a comissão
+  splitAplicado Boolean   @default(false) @map("split_aplicado")
+  /// resposta crua do provedor (debug e disputa)
+  payload       Json?
+  aprovadoEm    DateTime? @map("aprovado_em")
+  criadoEm      DateTime  @default(now()) @map("criado_em")
+  atualizadoEm  DateTime  @updatedAt @map("atualizado_em")
 
   pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
-  @@unique([provedor, provedorRef])
   @@index([pedidoId])
   @@map("pagamentos")
 }
 
-/// Log de webhooks para idempotência e reprocessamento.
-model WebhookRecebido {
-  id        String            @id @default(uuid(7)) @db.Uuid
-  provedor  ProvedorPagamento
-  /// id do evento no provedor (chave de idempotência)
-  eventoRef String            @map("evento_ref")
-  tipo      String
-  payload   Json
+/// O direito de baixar a alta — gerado só na aprovação do pagamento.
+model Download {
+  id          String @id @default(uuid(7)) @db.Uuid
+  pedidoId    String @map("pedido_id") @db.Uuid
+  fotoId      String @map("foto_id") @db.Uuid
+  compradorId String @map("comprador_id") @db.Uuid
 
+  /// vai no link do e-mail; a URL assinada do bucket é gerada na hora
+  token            String    @unique
+  expiraEm         DateTime  @map("expira_em")
+  limiteBaixadas   Int       @default(5) @map("limite_baixadas")
+  baixadas         Int       @default(0)
+  ultimoDownloadEm DateTime? @map("ultimo_download_em")
+  criadoEm         DateTime  @default(now()) @map("criado_em")
+
+  pedido    Pedido    @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  foto      Foto      @relation(fields: [fotoId], references: [id])
+  comprador Comprador @relation(fields: [compradorId], references: [id])
+
+  @@unique([pedidoId, fotoId])
+  @@index([compradorId])
+  @@map("downloads")
+}
+
+// ===========================================================================
+// 3.5 Dinheiro do fotógrafo
+// ===========================================================================
+
+/// O que a plataforma deve/pagou ao fotógrafo por período. Saldo é view, não coluna.
+model Repasse {
+  id                      String        @id @default(uuid(7)) @db.Uuid
+  contaId                 String        @map("conta_id") @db.Uuid
+  periodoInicio           DateTime      @map("periodo_inicio") @db.Date
+  periodoFim              DateTime      @map("periodo_fim") @db.Date
+  valorCentavos           Int           @map("valor_centavos")
+  status                  StatusRepasse @default(ABERTO)
+  metodo                  MetodoRepasse
+  provedorTransferenciaId String?       @map("provedor_transferencia_id")
+  pagoEm                  DateTime?     @map("pago_em")
+  comprovanteKey          String?       @map("comprovante_key")
+  criadoEm                DateTime      @default(now()) @map("criado_em")
+  atualizadoEm            DateTime      @updatedAt @map("atualizado_em")
+
+  conta Conta @relation(fields: [contaId], references: [id])
+
+  @@index([contaId, status])
+  @@map("repasses")
+}
+
+// ===========================================================================
+// 3.6 Sincronização com o desktop
+// ===========================================================================
+
+/// Cada publicação/atualização vinda do desktop. Arquivo nunca passa pelo Nest.
+model SyncLote {
+  id                String     @id @default(uuid(7)) @db.Uuid
+  contaId           String     @map("conta_id") @db.Uuid
+  tokenApiId        String     @map("token_api_id") @db.Uuid
+  galeriaId         String?    @map("galeria_id") @db.Uuid
+  tipo              TipoSync
+  /// o desktop gera; reenviar não duplica
+  chaveIdempotencia String     @unique @map("chave_idempotencia")
+  status            StatusSync @default(RECEBIDO)
+  totalItens        Int        @default(0) @map("total_itens")
+  itensOk           Int        @default(0) @map("itens_ok")
+  itensErro         Int        @default(0) @map("itens_erro")
+  erro              String?
+  iniciadoEm        DateTime   @default(now()) @map("iniciado_em")
+  concluidoEm       DateTime?  @map("concluido_em")
+
+  conta    Conta    @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  tokenApi TokenApi @relation(fields: [tokenApiId], references: [id])
+  galeria  Galeria? @relation(fields: [galeriaId], references: [id])
+
+  @@index([contaId, status])
+  @@map("sync_lotes")
+}
+
+// ===========================================================================
+// 3.7 Operacional e admin
+// ===========================================================================
+
+/// Tudo que chega de fora é gravado ANTES de processar; reprocessar é ler daqui.
+model WebhookRecebido {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  provedor     Provedor
+  /// id do evento no provedor (idempotência)
+  eventoRef    String    @map("evento_ref")
+  tipo         String
+  payload      Json
   processadoEm DateTime? @map("processado_em")
   erro         String?
   criadoEm     DateTime  @default(now()) @map("criado_em")
@@ -408,26 +770,31 @@ model WebhookRecebido {
   @@map("webhooks_recebidos")
 }
 
-// ---------------------------------------------------------------------------
-// Entrega
-// ---------------------------------------------------------------------------
+/// O que o admin fez — responde "quem liberou essa licença?".
+model Auditoria {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  atorContaId String?  @map("ator_conta_id") @db.Uuid
+  /// licenca.emitir, conta.suspender, assinatura.marcar_paga…
+  acao        String
+  alvoTipo    String   @map("alvo_tipo")
+  alvoId      String   @map("alvo_id")
+  antes       Json?
+  depois      Json?
+  ip          String?
+  criadoEm    DateTime @default(now()) @map("criado_em")
 
-model Download {
-  id       String @id @default(uuid(7)) @db.Uuid
-  pedidoId String @map("pedido_id") @db.Uuid
-  fotoId   String @map("foto_id") @db.Uuid
+  ator Conta? @relation(fields: [atorContaId], references: [id])
 
-  /// token opaco que vai no link do e-mail; a URL assinada do R2 é gerada na hora
-  token     String    @unique
-  expiraEm  DateTime  @map("expira_em")
-  baixadoEm DateTime? @map("baixado_em")
-  contagem  Int       @default(0)
+  @@index([alvoTipo, alvoId])
+  @@index([atorContaId, criadoEm])
+  @@map("auditoria")
+}
 
-  criadoEm DateTime @default(now()) @map("criado_em")
+/// Comissão padrão, dias de download, minutos de reserva do Pix… sem redeploy.
+model ConfiguracaoPlataforma {
+  chave        String   @id
+  valor        Json
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
-  pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  foto   Foto   @relation(fields: [fotoId], references: [id])
-
-  @@unique([pedidoId, fotoId])
-  @@map("downloads")
+  @@map("configuracoes_plataforma")
 }

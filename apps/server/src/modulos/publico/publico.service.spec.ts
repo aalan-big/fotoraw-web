@@ -1,9 +1,10 @@
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { PublicoService } from './publico.service.js';
 import { GaleriasPublicasRepositorio } from './repositorios/galerias-publicas.repositorio.js';
 
 describe('PublicoService', () => {
-  it('achata _count.fotos em totalFotos', async () => {
+  it('monta capaUrl a partir da chave e devolve os campos da vitrine', async () => {
     const repo = {
       listarVitrine: vi.fn().mockResolvedValue([
         {
@@ -16,16 +17,20 @@ describe('PublicoService', () => {
           dataEvento: new Date('2026-08-30'),
           cidade: 'Curitiba',
           uf: 'PR',
-          precoFoto: { toFixed: () => '15.00' },
-          capaUrl: null,
+          precoFotoCentavos: 1500,
+          capaKey: 'capas/corrida.jpg',
+          totalFotos: 42,
           publicadaEm: new Date('2026-09-01'),
           conta: { nome: 'Estúdio Luz', slug: 'estudio-luz' },
-          _count: { fotos: 42 },
         },
       ]),
     };
     const modulo = await Test.createTestingModule({
-      providers: [PublicoService, { provide: GaleriasPublicasRepositorio, useValue: repo }],
+      providers: [
+        PublicoService,
+        { provide: GaleriasPublicasRepositorio, useValue: repo },
+        { provide: ConfigService, useValue: { get: () => 'http://cdn/previews' } },
+      ],
     }).compile();
 
     const resultado = await modulo.get(PublicoService).listarGalerias({ limite: 12 });
@@ -38,6 +43,6 @@ describe('PublicoService', () => {
         conta: { nome: 'Estúdio Luz', slug: 'estudio-luz' },
       }),
     ]);
-    expect(resultado[0]).not.toHaveProperty('_count');
+    expect(resultado[0]).not.toHaveProperty('capaKey');
   });
 });
