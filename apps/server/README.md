@@ -32,7 +32,8 @@ aponte as duas URLs pra ele (exemplo comentado no `.env.example`).
 | `test`               | unitários (`src/**/*.spec.ts`) — sem banco               |
 | `test:e2e`           | e2e (`test/e2e/**/*.e2e-spec.ts`) — precisa do docker up |
 | `db:start` / `db:stop` | Postgres local via `prisma dev` (sem Docker)           |
-| `db:migrate`         | `prisma migrate dev` (cria/aplica migration)             |
+| `db:migrate`         | aplica migrations pendentes (`migrate deploy`) — Supabase  |
+| `db:migrate:nova`    | cria migration nova a partir do schema (`migrate dev`)    |
 | `db:migrate:test`    | aplica migrations no banco `fotoraw_test`                |
 | `db:seed`            | roda `prisma/seeds/index.ts`                             |
 | `db:studio`          | Prisma Studio                                            |

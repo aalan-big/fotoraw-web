@@ -22,15 +22,15 @@
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "test:e2e:watch": "vitest --config ./vitest.config.e2e.ts",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate": "prisma migrate deploy",
     "db:migrate:test": "dotenv -e .env.test -- prisma migrate deploy",
     "db:reset": "prisma migrate reset",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "db:start": "prisma dev --name fotoraw --port 51230 --db-port 5433 --shadow-db-port 5434 --detach",
-    "db:stop": "prisma dev stop fotoraw"
+    "db:stop": "prisma dev stop fotoraw",
+    "db:migrate:nova": "prisma migrate dev"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
