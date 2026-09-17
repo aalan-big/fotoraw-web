@@ -135,6 +135,7 @@ fotografo/ já guarda a tela de login (app/pages/entrar) pra reaproveitar o visu
 - **modalidade** (o que é): EVENTO · ENSAIO_INTERNO · ENSAIO_EXTERNO — igual ao desktop
 - **visibilidade** (quem vê): PUBLICA (vitrine) · PRIVADA (link/senha do cliente) · PORTFOLIO (cliente autorizou, aparece no perfil)
 - **categoria**: corrida, formatura, casamento, gestante, newborn… define chip e se há busca por número
+- **entrega** (futuro, fase do app mobile): WEB · APP · AMBOS — galeria só no app ganha bloqueio de print
 
 ## Convenções
 

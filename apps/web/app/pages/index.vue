@@ -256,6 +256,44 @@ const diferenciais = [
       </div>
     </section>
 
+    <!-- Em breve: app -->
+    <section class="mx-auto max-w-6xl px-6 pb-24">
+      <div
+        class="card flex flex-col items-start gap-6 p-7 md:flex-row md:items-center md:justify-between md:p-8"
+      >
+        <div class="flex items-start gap-4">
+          <UiPastilha cor="wine" class="size-12 shrink-0">
+            <svg
+              class="size-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect x="7" y="2" width="10" height="20" rx="2" />
+              <path stroke-linecap="round" d="M11 18h2" />
+            </svg>
+          </UiPastilha>
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.15em] text-wine-tint">
+              Em breve no celular
+            </p>
+            <h2 class="mt-1 text-xl font-semibold">App FotoRAW com proteção contra print</h2>
+            <p class="mt-2 max-w-2xl leading-relaxed text-muted">
+              Galeria privada que não deixa tirar print nem gravar a tela. O fotógrafo escolhe, por
+              galeria, se libera pela web, só pelo app, ou pelos dois — e o cliente vê suas fotos
+              com a segurança que um ensaio merece.
+            </p>
+          </div>
+        </div>
+        <span
+          class="shrink-0 rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm font-medium text-muted"
+        >
+          iOS e Android
+        </span>
+      </div>
+    </section>
+
     <!-- Para fotógrafos: o argumento -->
     <section id="fotografos" class="border-t border-border bg-surface">
       <div class="mx-auto max-w-6xl px-6 py-24">
