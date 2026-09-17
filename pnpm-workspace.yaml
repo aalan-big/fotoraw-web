@@ -7,3 +7,6 @@ allowBuilds:
   '@prisma/engines': true
   prisma: true
   esbuild: true
+
+autoInstallPeers: true
+strictPeerDependencies: false

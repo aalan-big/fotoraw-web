@@ -6,9 +6,13 @@
     "node": ">=22"
   },
   "scripts": {
-    "server": "pnpm --filter server",
-    "web": "pnpm --filter web",
-    "dev:server": "pnpm --filter server start:dev",
+    "dev": "pnpm -r --parallel --stream dev",
+    "dev:server": "pnpm --filter server dev",
+    "dev:web": "pnpm --filter web dev",
+    "infra": "docker compose -f docker/docker-compose.yml up -d",
+    "infra:down": "docker compose -f docker/docker-compose.yml down",
+    "db:migrate": "pnpm --filter server db:migrate",
+    "db:seed": "pnpm --filter server db:seed",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",

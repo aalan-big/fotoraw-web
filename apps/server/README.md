@@ -4,17 +4,17 @@
 
 ```bash
 # 1. infra local (postgres, redis, minio)   — na raiz do monorepo
-docker compose -f docker/docker-compose.yml up -d
+npm run infra
 
 # 2. env
 cp apps/server/.env.example apps/server/.env
 
 # 3. banco
-pnpm --filter server db:migrate      # aplica migrations no fotoraw
-pnpm --filter server db:seed         # conta "estudio-luz" + galeria "corrida-2026"
+npm run db:migrate                   # aplica migrations no fotoraw
+npm run db:seed                      # conta "estudio-luz" + galeria "corrida-2026"
 
 # 4. api
-pnpm dev:server                      # http://localhost:3001/api/saude
+npm run dev                          # http://localhost:3001/api/saude
 ```
 
 ## Scripts
