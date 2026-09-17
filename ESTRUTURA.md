@@ -6,8 +6,10 @@ Regra de ouro: **a web nunca processa imagem** — recebe preview (com marca) e 
 ```
 fotoraw-web/
 ├── apps/
-│   ├── server/      NestJS  — API, sync com o desktop, pagamentos, downloads
-│   └── web/          Nuxt 3  — vitrine pública (SSR), checkout, painel do fotógrafo
+│   ├── server/       NestJS — API única: sync com o desktop, vitrine, pagamentos, downloads
+│   ├── web/          Nuxt   — vitrine + CLIENTE do fotógrafo: eventos, ensaio privado, checkout
+│   ├── fotografo/    Nuxt   — área do fotógrafo na web, enxuta (galerias, pedidos, conta, token)
+│   └── admin/        Nuxt   — gestão da plataforma: fotógrafos, licenças, planos
 ├── packages/
 │   ├── contratos/    tipos TS compartilhados (server ⇄ web ⇄ desktop)
 │   ├── tema/         theme.css — tokens Tailwind v4 (preto/branco/vinho) usados pelo desktop e pela web
@@ -83,7 +85,10 @@ Unitários (*.spec.ts) ficam ao lado do arquivo testado, padrão Nest.
 Padrão dentro de cada módulo: `*.module.ts`, `*.controller.ts`, `*.service.ts`,
 `dto/` (validação de entrada/saída) e `repositorios/` (acesso ao Prisma isolado do service).
 
-## apps/web (Nuxt 3)
+## apps/web (Nuxt 4) — cliente
+
+Quem usa: comprador de foto de evento e cliente de ensaio. Não tem login de fotógrafo
+(isso é apps/fotografo). Cabeçalho aponta pro app do fotógrafo via NUXT_PUBLIC_FOTOGRAFO_URL.
 
 ```
 assets/         css global, fontes, imagens de build
@@ -119,6 +124,17 @@ types/          tipos locais (o que não está em contratos)
 utils/          formatadores (moeda, cpf, número de peito)
 tests/          unit + e2e
 ```
+
+## apps/fotografo e apps/admin (Nuxt) — só estrutura
+
+Mesmo padrão do web (app/ com components, composables, layouts, pages…). Ainda sem código;
+fotografo/ já guarda a tela de login (app/pages/entrar) pra reaproveitar o visual.
+
+## Modelo: galeria
+
+- **modalidade** (o que é): EVENTO · ENSAIO_INTERNO · ENSAIO_EXTERNO — igual ao desktop
+- **visibilidade** (quem vê): PUBLICA (vitrine) · PRIVADA (link/senha do cliente) · PORTFOLIO (cliente autorizou, aparece no perfil)
+- **categoria**: corrida, formatura, casamento, gestante, newborn… define chip e se há busca por número
 
 ## Convenções
 

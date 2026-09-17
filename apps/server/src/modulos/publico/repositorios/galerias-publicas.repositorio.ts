@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '../../../infra/prisma/gerado/client.js';
 import { PrismaService } from '../../../infra/prisma/prisma.service.js';
 import type { ListarGaleriasDto } from '../dto/listar-galerias.dto.js';
 
@@ -6,24 +7,35 @@ import type { ListarGaleriasDto } from '../dto/listar-galerias.dto.js';
 export class GaleriasPublicasRepositorio {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Galerias de EVENTO publicadas, mais recentes primeiro. Privadas nunca aparecem aqui. */
-  listarPublicadas({ q, limite }: ListarGaleriasDto) {
+  /**
+   * O que pode aparecer na vitrine: eventos PUBLICA e ensaios PORTFOLIO,
+   * publicados e não expirados. PRIVADA nunca sai daqui.
+   */
+  listarVitrine({ q, secao, limite }: ListarGaleriasDto) {
+    const porSecao: Prisma.GaleriaWhereInput =
+      secao === 'eventos'
+        ? { modalidade: 'EVENTO', visibilidade: 'PUBLICA' }
+        : secao === 'ensaios'
+          ? { modalidade: { in: ['ENSAIO_INTERNO', 'ENSAIO_EXTERNO'] }, visibilidade: 'PORTFOLIO' }
+          : { visibilidade: { in: ['PUBLICA', 'PORTFOLIO'] } };
+
+    const porBusca: Prisma.GaleriaWhereInput[] = q
+      ? [
+          {
+            OR: [
+              { titulo: { contains: q, mode: 'insensitive' } },
+              { conta: { nome: { contains: q, mode: 'insensitive' } } },
+              { conta: { slug: { contains: q, mode: 'insensitive' } } },
+            ],
+          },
+        ]
+      : [];
+
     return this.prisma.galeria.findMany({
       where: {
-        tipo: 'EVENTO',
         status: 'PUBLICADA',
-        OR: [{ expiraEm: null }, { expiraEm: { gt: new Date() } }],
-        ...(q
-          ? {
-              AND: {
-                OR: [
-                  { titulo: { contains: q, mode: 'insensitive' } },
-                  { conta: { nome: { contains: q, mode: 'insensitive' } } },
-                  { conta: { slug: { contains: q, mode: 'insensitive' } } },
-                ],
-              },
-            }
-          : {}),
+        ...porSecao,
+        AND: [{ OR: [{ expiraEm: null }, { expiraEm: { gt: new Date() } }] }, ...porBusca],
       },
       orderBy: { publicadaEm: 'desc' },
       take: limite,
@@ -31,7 +43,8 @@ export class GaleriasPublicasRepositorio {
         id: true,
         titulo: true,
         slug: true,
-        tipo: true,
+        modalidade: true,
+        visibilidade: true,
         categoria: true,
         dataEvento: true,
         cidade: true,

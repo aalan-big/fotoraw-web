@@ -8,9 +8,12 @@ watch(
 
 const itens = [
   { to: '/eventos', rotulo: 'Eventos' },
+  { to: '/ensaio', rotulo: 'Meu ensaio' },
   { to: '/#como-funciona', rotulo: 'Como funciona' },
-  { to: '/#fotografos', rotulo: 'Para fotógrafos' },
 ];
+
+// Área do fotógrafo é outro app (apps/fotografo); aqui só o link.
+const { fotografoUrl } = useRuntimeConfig().public;
 
 // Item ativo: mesmo tratamento do menu lateral do desktop (fundo vinho).
 function ativo(to: string) {
@@ -42,8 +45,8 @@ function ativo(to: string) {
 
         <span class="mx-3 h-6 w-px bg-border" aria-hidden="true" />
 
-        <UiBotao to="/entrar" variante="fantasma">Entrar</UiBotao>
-        <UiBotao to="/entrar">Criar conta</UiBotao>
+        <UiBotao to="/#fotografos" variante="fantasma">Para fotógrafos</UiBotao>
+        <UiBotao :to="fotografoUrl">Sou fotógrafo</UiBotao>
       </nav>
 
       <button
@@ -72,8 +75,8 @@ function ativo(to: string) {
           {{ item.rotulo }}
         </NuxtLink>
         <div class="mt-3 grid grid-cols-2 gap-3">
-          <UiBotao to="/entrar" variante="secundaria">Entrar</UiBotao>
-          <UiBotao to="/entrar">Criar conta</UiBotao>
+          <UiBotao to="/#fotografos" variante="secundaria">Para fotógrafos</UiBotao>
+          <UiBotao :to="fotografoUrl">Sou fotógrafo</UiBotao>
         </div>
       </nav>
     </div>

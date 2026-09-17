@@ -3,7 +3,13 @@ import { type GaleriaPublica, rotuloCategoria } from '~/types/galeria';
 
 const props = defineProps<{ galeria: GaleriaPublica }>();
 
-const destino = computed(() => `/@${props.galeria.conta.slug}/${props.galeria.slug}`);
+// Portfólio de ensaio leva pro perfil do fotógrafo (é venda de serviço, não de foto).
+const ensaio = computed(() => props.galeria.modalidade !== 'EVENTO');
+const destino = computed(() =>
+  ensaio.value
+    ? `/@${props.galeria.conta.slug}`
+    : `/@${props.galeria.conta.slug}/${props.galeria.slug}`,
+);
 const disponivel = computed(() => props.galeria.totalFotos > 0);
 const local = computed(() => [props.galeria.cidade, props.galeria.uf].filter(Boolean).join('/'));
 const data = computed(() =>
@@ -131,10 +137,12 @@ async function compartilhar(e: Event) {
 
       <div class="mt-5 flex items-end justify-between gap-4 border-t border-text/10 pt-4">
         <div class="min-w-0">
-          <p class="flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide">
+          <p
+            class="flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide"
+          >
             <span class="size-1.5 rounded-full" :class="disponivel ? 'bg-success' : 'bg-warning'" />
             <span :class="disponivel ? 'text-success' : 'text-warning'">
-              {{ disponivel ? 'Fotos disponíveis' : 'Em breve' }}
+              {{ ensaio ? 'Portfólio' : disponivel ? 'Fotos disponíveis' : 'Em breve' }}
             </span>
           </p>
           <p v-if="galeria.precoFoto" class="mt-1 text-[11px] uppercase tracking-wide text-muted">
@@ -143,11 +151,17 @@ async function compartilhar(e: Event) {
               {{ formatarMoeda(galeria.precoFoto) }}
             </span>
           </p>
+          <p v-else-if="ensaio" class="mt-1 text-[11px] uppercase tracking-wide text-muted">
+            Por
+            <span class="block truncate text-sm font-semibold text-text">{{
+              galeria.conta.nome
+            }}</span>
+          </p>
         </div>
         <span
           class="inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-wine px-3.5 text-sm font-semibold text-white transition-colors group-hover:bg-wine-hover"
         >
-          Ver fotos
+          {{ ensaio ? 'Ver fotógrafo' : 'Ver fotos' }}
           <svg
             class="size-4"
             viewBox="0 0 24 24"

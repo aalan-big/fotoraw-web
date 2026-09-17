@@ -5,12 +5,13 @@ import { GaleriasPublicasRepositorio } from './repositorios/galerias-publicas.re
 describe('PublicoService', () => {
   it('achata _count.fotos em totalFotos', async () => {
     const repo = {
-      listarPublicadas: vi.fn().mockResolvedValue([
+      listarVitrine: vi.fn().mockResolvedValue([
         {
           id: '1',
           titulo: 'Corrida',
           slug: 'corrida',
-          tipo: 'EVENTO',
+          modalidade: 'EVENTO',
+          visibilidade: 'PUBLICA',
           categoria: 'CORRIDA_RUA',
           dataEvento: new Date('2026-08-30'),
           cidade: 'Curitiba',
@@ -29,7 +30,7 @@ describe('PublicoService', () => {
 
     const resultado = await modulo.get(PublicoService).listarGalerias({ limite: 12 });
 
-    expect(repo.listarPublicadas).toHaveBeenCalledWith({ limite: 12 });
+    expect(repo.listarVitrine).toHaveBeenCalledWith({ limite: 12 });
     expect(resultado).toEqual([
       expect.objectContaining({
         id: '1',

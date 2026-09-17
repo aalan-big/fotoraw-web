@@ -39,8 +39,27 @@ enum StatusPlano {
   @@map("status_plano")
 }
 
-/// Categoria do evento: define a capa/chip e se a galeria oferece busca por número.
-enum CategoriaEvento {
+/// O que a galeria é — espelha o tipo do ensaio no desktop.
+enum Modalidade {
+  EVENTO // corrida, formatura, festa: muita gente, venda avulsa
+  ENSAIO_INTERNO // estúdio
+  ENSAIO_EXTERNO // locação
+
+  @@map("modalidade")
+}
+
+/// Quem vê a galeria.
+enum Visibilidade {
+  PUBLICA // aparece na vitrine e na busca (eventos)
+  PRIVADA // só com link/senha (cliente do ensaio)
+  PORTFOLIO // ensaio autorizado pelo cliente, exibido no perfil do fotógrafo
+
+  @@map("visibilidade")
+}
+
+/// Categoria: define chip, capa padrão e se a galeria oferece busca por número.
+enum Categoria {
+  // eventos
   CORRIDA_RUA
   TRAIL
   CICLISMO
@@ -49,18 +68,21 @@ enum CategoriaEvento {
   ESPORTIVO // outros esportes (futebol, lutas, crossfit...)
   FORMATURA
   CASAMENTO
-  FESTA // aniversário, 15 anos, confraternização
+  FESTA // aniversário, confraternização
   CORPORATIVO
+  // ensaios
+  GESTANTE
+  NEWBORN
+  FAMILIA
+  INFANTIL
+  QUINZE_ANOS
+  CASAL
+  PESSOAL // book, retrato, profissional
+  MODA
+  PRODUTO
   OUTRO
 
-  @@map("categoria_evento")
-}
-
-enum TipoGaleria {
-  EVENTO // pública, busca por número de peito
-  PRIVADO // senha/link, cliente do ensaio
-
-  @@map("tipo_galeria")
+  @@map("categoria")
 }
 
 enum ModoVenda {
@@ -187,14 +209,15 @@ model Galeria {
   /// id do ensaio no banco local do desktop
   ensaioIdDesktop String @map("ensaio_id_desktop")
 
-  titulo    String
+  titulo       String
   /// fotoraw.com.br/@conta/slug
-  slug      String
-  descricao String?
-  tipo      TipoGaleria
-  categoria CategoriaEvento @default(OUTRO)
-  modoVenda ModoVenda       @map("modo_venda")
-  status    StatusGaleria   @default(RASCUNHO)
+  slug         String
+  descricao    String?
+  modalidade   Modalidade    @default(EVENTO)
+  visibilidade Visibilidade  @default(PRIVADA)
+  categoria    Categoria     @default(OUTRO)
+  modoVenda    ModoVenda     @map("modo_venda")
+  status       StatusGaleria @default(RASCUNHO)
 
   /// quando e onde o evento aconteceu (aparece no card e na página da galeria)
   dataEvento DateTime? @map("data_evento") @db.Date
@@ -209,7 +232,7 @@ model Galeria {
   precoExtra     Decimal? @map("preco_extra") @db.Decimal(10, 2)
 
   capaUrl   String? @map("capa_url")
-  /// galeria PRIVADO: senha opcional (hash)
+  /// visibilidade PRIVADA: senha opcional (hash)
   senhaHash String? @map("senha_hash")
 
   publicadaEm  DateTime? @map("publicada_em")
@@ -223,7 +246,7 @@ model Galeria {
 
   @@unique([contaId, slug])
   @@unique([contaId, ensaioIdDesktop])
-  @@index([status, publicadaEm])
+  @@index([status, visibilidade, publicadaEm])
   @@map("galerias")
 }
 

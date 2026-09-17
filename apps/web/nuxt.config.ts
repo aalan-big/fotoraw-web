@@ -14,6 +14,8 @@ export default defineNuxtConfig({
     public: {
       // URL do server (NestJS). Sobrescreva com NUXT_PUBLIC_API_BASE.
       apiBase: 'http://localhost:3001/api',
+      // apps/fotografo (área do fotógrafo). Sobrescreva com NUXT_PUBLIC_FOTOGRAFO_URL.
+      fotografoUrl: 'http://localhost:3002',
     },
   },
 

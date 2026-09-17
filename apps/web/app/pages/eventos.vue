@@ -11,7 +11,7 @@ const { data: galerias, status } = await useAsyncData(
   () => `galerias-${rota.query.q ?? ''}`,
   () =>
     api<GaleriaPublica[]>('/publico/galerias', {
-      query: { limite: 48, q: rota.query.q || undefined },
+      query: { secao: 'eventos', limite: 48, q: rota.query.q || undefined },
     }),
   { default: () => [], watch: [() => rota.query.q] },
 );
