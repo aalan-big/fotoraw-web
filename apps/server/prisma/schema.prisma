@@ -39,6 +39,23 @@ enum StatusPlano {
   @@map("status_plano")
 }
 
+/// Categoria do evento: define a capa/chip e se a galeria oferece busca por número.
+enum CategoriaEvento {
+  CORRIDA_RUA
+  TRAIL
+  CICLISMO
+  TRIATLO
+  NATACAO
+  ESPORTIVO // outros esportes (futebol, lutas, crossfit...)
+  FORMATURA
+  CASAMENTO
+  FESTA // aniversário, 15 anos, confraternização
+  CORPORATIVO
+  OUTRO
+
+  @@map("categoria_evento")
+}
+
 enum TipoGaleria {
   EVENTO // pública, busca por número de peito
   PRIVADO // senha/link, cliente do ensaio
@@ -175,8 +192,14 @@ model Galeria {
   slug      String
   descricao String?
   tipo      TipoGaleria
-  modoVenda ModoVenda     @map("modo_venda")
-  status    StatusGaleria @default(RASCUNHO)
+  categoria CategoriaEvento @default(OUTRO)
+  modoVenda ModoVenda       @map("modo_venda")
+  status    StatusGaleria   @default(RASCUNHO)
+
+  /// quando e onde o evento aconteceu (aparece no card e na página da galeria)
+  dataEvento DateTime? @map("data_evento") @db.Date
+  cidade     String?
+  uf         String?   @db.Char(2)
 
   /// AVULSO: preço de cada foto (a foto pode sobrescrever)
   precoFoto      Decimal? @map("preco_foto") @db.Decimal(10, 2)

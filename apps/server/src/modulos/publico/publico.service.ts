@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { CategoriaEvento } from '../../infra/prisma/gerado/client.js';
 import type { ListarGaleriasDto } from './dto/listar-galerias.dto.js';
 import { GaleriasPublicasRepositorio } from './repositorios/galerias-publicas.repositorio.js';
 
@@ -7,6 +8,12 @@ export interface GaleriaPublica {
   titulo: string;
   slug: string;
   tipo: 'EVENTO' | 'PRIVADO';
+  categoria: CategoriaEvento;
+  dataEvento: Date | null;
+  cidade: string | null;
+  uf: string | null;
+  /** menor preço por foto, em reais (string decimal) — null quando não vende avulso */
+  precoFoto: string | null;
   capaUrl: string | null;
   publicadaEm: Date | null;
   totalFotos: number;
@@ -19,6 +26,10 @@ export class PublicoService {
 
   async listarGalerias(dto: ListarGaleriasDto): Promise<GaleriaPublica[]> {
     const linhas = await this.galerias.listarPublicadas(dto);
-    return linhas.map(({ _count, ...g }) => ({ ...g, totalFotos: _count.fotos }));
+    return linhas.map(({ _count, precoFoto, ...g }) => ({
+      ...g,
+      precoFoto: precoFoto?.toFixed(2) ?? null,
+      totalFotos: _count.fotos,
+    }));
   }
 }

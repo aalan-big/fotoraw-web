@@ -1,79 +1,162 @@
 <script setup lang="ts">
-import type { GaleriaPublica } from '~/types/galeria';
+import { type GaleriaPublica, rotuloCategoria } from '~/types/galeria';
 
 const props = defineProps<{ galeria: GaleriaPublica }>();
+
 const destino = computed(() => `/@${props.galeria.conta.slug}/${props.galeria.slug}`);
+const disponivel = computed(() => props.galeria.totalFotos > 0);
+const local = computed(() => [props.galeria.cidade, props.galeria.uf].filter(Boolean).join('/'));
+const data = computed(() =>
+  props.galeria.dataEvento
+    ? formatarData(props.galeria.dataEvento, { day: '2-digit', month: 'short', year: 'numeric' })
+    : null,
+);
+
+const copiado = ref(false);
+async function compartilhar(e: Event) {
+  e.preventDefault();
+  const url = `${location.origin}${destino.value}`;
+  if (navigator.share) {
+    await navigator.share({ title: props.galeria.titulo, url }).catch(() => {});
+    return;
+  }
+  await navigator.clipboard.writeText(url);
+  copiado.value = true;
+  setTimeout(() => (copiado.value = false), 1500);
+}
 </script>
 
 <template>
   <NuxtLink
     :to="destino"
-    class="card group flex flex-col overflow-hidden transition-all hover:-translate-y-0.5 hover:border-wine/60 hover:shadow-[0_12px_40px_-12px_rgba(134,18,34,0.45)]"
+    class="group relative block aspect-[3/4] overflow-hidden rounded-xl border border-border bg-surface transition-all hover:-translate-y-1 hover:border-wine/60 hover:shadow-[0_20px_50px_-20px_rgba(134,18,34,0.6)]"
   >
-    <!-- capa -->
-    <div class="relative aspect-[4/3] overflow-hidden bg-surface-2">
-      <img
-        v-if="galeria.capaUrl"
-        :src="galeria.capaUrl"
-        :alt="galeria.titulo"
-        class="size-full object-cover transition-transform duration-500 group-hover:scale-105"
-        loading="lazy"
+    <!-- capa em tela cheia -->
+    <img
+      v-if="galeria.capaUrl"
+      :src="galeria.capaUrl"
+      :alt="galeria.titulo"
+      class="absolute inset-0 size-full object-cover transition-transform duration-700 group-hover:scale-105"
+      loading="lazy"
+    />
+    <div v-else class="absolute inset-0">
+      <div
+        class="absolute inset-0 bg-[url(/imagens/fundo-login.jpg)] bg-cover bg-center opacity-70"
       />
-      <!-- sem capa: fundo da marca bem escuro + ícone -->
-      <div v-else class="relative size-full">
-        <div
-          class="absolute inset-0 bg-[url(/imagens/fundo-login.jpg)] bg-cover bg-center opacity-60"
-        />
-        <div class="absolute inset-0 bg-gradient-to-t from-surface via-surface/40 to-transparent" />
+      <svg
+        class="absolute left-1/2 top-[30%] size-12 -translate-x-1/2 text-text/35"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+      >
+        <path d="M4 8h3l2-3h6l2 3h3v11H4z" />
+        <circle cx="12" cy="13" r="3.5" />
+      </svg>
+    </div>
+
+    <!-- escurece de baixo pra cima pra o painel ler bem -->
+    <div class="absolute inset-0 bg-gradient-to-t from-bg via-bg/60 to-transparent" />
+
+    <!-- compartilhar -->
+    <button
+      type="button"
+      class="absolute right-3 top-3 z-10 flex size-9 items-center justify-center rounded-full bg-bg/70 text-text backdrop-blur transition-colors hover:bg-wine"
+      :aria-label="copiado ? 'Link copiado' : 'Compartilhar'"
+      @click="compartilhar"
+    >
+      <svg
+        v-if="!copiado"
+        class="size-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+      </svg>
+      <svg
+        v-else
+        class="size-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+      >
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 12l5 5L19 7" />
+      </svg>
+    </button>
+
+    <!-- painel de informação -->
+    <div class="absolute inset-x-0 bottom-0 p-4">
+      <div class="mb-3 flex flex-wrap items-center gap-2">
+        <span
+          class="rounded-md bg-wine px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white"
+        >
+          {{ rotuloCategoria[galeria.categoria] }}
+        </span>
+        <span v-if="data" class="flex items-center gap-1 text-xs text-text/80">
+          <svg
+            class="size-3.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <path d="M3 10h18M8 3v4M16 3v4" />
+          </svg>
+          {{ data }}
+        </span>
+      </div>
+
+      <h3 class="text-lg font-bold uppercase leading-tight tracking-tight">{{ galeria.titulo }}</h3>
+
+      <p class="mt-1.5 flex items-center gap-1 text-sm text-muted">
         <svg
-          class="absolute left-1/2 top-1/2 size-10 -translate-x-1/2 -translate-y-1/2 text-text/40"
+          class="size-3.5 shrink-0"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          stroke-width="1.5"
+          stroke-width="2"
         >
-          <path d="M4 8h3l2-3h6l2 3h3v11H4z" />
-          <circle cx="12" cy="13" r="3.5" />
+          <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z" />
+          <circle cx="12" cy="10" r="2.5" />
         </svg>
-      </div>
-
-      <!-- gradiente pra legibilidade das etiquetas -->
-      <div
-        class="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-bg/70 to-transparent"
-      />
-
-      <span
-        class="absolute left-3 top-3 rounded-md bg-wine px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white"
-      >
-        {{ galeria.tipo === 'EVENTO' ? 'Evento' : 'Privada' }}
-      </span>
-      <span
-        class="absolute right-3 top-3 rounded-md bg-bg/80 px-2 py-0.5 text-xs font-medium text-text backdrop-blur"
-      >
-        {{ galeria.totalFotos > 0 ? `${galeria.totalFotos} fotos` : 'Em breve' }}
-      </span>
-    </div>
-
-    <!-- texto -->
-    <div class="flex flex-1 flex-col p-5">
-      <h3 class="text-[17px] font-semibold leading-snug">{{ galeria.titulo }}</h3>
-      <p class="mt-1 text-sm text-muted">
-        {{ formatarData(galeria.publicadaEm, { year: 'numeric' }) }}
+        <span class="truncate">{{ local || galeria.conta.nome }}</span>
       </p>
 
-      <div class="mt-4 flex items-center justify-between border-t border-border pt-4">
-        <span class="flex min-w-0 items-center gap-2.5">
-          <span
-            class="flex size-7 shrink-0 items-center justify-center rounded-full bg-wine-dim text-[11px] font-bold text-wine-tint"
-          >
-            {{ iniciais(galeria.conta.nome) }}
-          </span>
-          <span class="truncate text-sm text-muted">{{ galeria.conta.nome }}</span>
-        </span>
+      <div class="mt-4 flex items-end justify-between gap-3 border-t border-text/10 pt-3">
+        <div>
+          <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide">
+            <span class="size-1.5 rounded-full" :class="disponivel ? 'bg-success' : 'bg-warning'" />
+            <span :class="disponivel ? 'text-success' : 'text-warning'">
+              {{ disponivel ? 'Fotos disponíveis' : 'Em breve' }}
+            </span>
+          </p>
+          <p v-if="galeria.precoFoto" class="mt-1 text-[11px] uppercase tracking-wide text-muted">
+            A partir de
+            <span class="block text-base font-bold text-wine-tint">
+              {{ formatarMoeda(galeria.precoFoto) }}
+            </span>
+          </p>
+        </div>
         <span
-          class="shrink-0 text-sm font-medium text-wine-tint opacity-0 transition-opacity group-hover:opacity-100"
+          class="inline-flex h-10 items-center gap-1.5 rounded-lg bg-wine px-4 text-sm font-semibold text-white transition-colors group-hover:bg-wine-hover"
         >
-          Ver fotos →
+          Ver fotos
+          <svg
+            class="size-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
         </span>
       </div>
     </div>
