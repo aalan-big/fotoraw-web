@@ -12,7 +12,7 @@ const busca = ref('');
 
 const { data: recentes, status } = await useAsyncData(
   'galerias-recentes',
-  () => api<GaleriaPublica[]>('/publico/galerias', { query: { limite: 8 } }),
+  () => api<GaleriaPublica[]>('/publico/galerias', { query: { limite: 6 } }),
   { default: () => [] },
 );
 
@@ -97,10 +97,10 @@ const passos = [
         <UiBotao to="/eventos" variante="secundaria" class="shrink-0">Ver todos</UiBotao>
       </div>
 
-      <div v-if="status === 'pending'" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <GaleriaCartaoEsqueleto v-for="i in 4" :key="i" />
+      <div v-if="status === 'pending'" class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <GaleriaCartaoEsqueleto v-for="i in 3" :key="i" />
       </div>
-      <div v-else-if="recentes.length" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div v-else-if="recentes.length" class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
         <GaleriaCartao v-for="g in recentes" :key="g.id" :galeria="g" />
       </div>
       <div v-else class="card px-6 py-14 text-center">

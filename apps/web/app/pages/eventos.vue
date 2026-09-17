@@ -43,10 +43,10 @@ function buscar() {
       </form>
     </div>
 
-    <div v-if="status === 'pending'" class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-      <GaleriaCartaoEsqueleto v-for="i in 8" :key="i" />
+    <div v-if="status === 'pending'" class="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+      <GaleriaCartaoEsqueleto v-for="i in 6" :key="i" />
     </div>
-    <div v-else-if="galerias.length" class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+    <div v-else-if="galerias.length" class="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
       <GaleriaCartao v-for="g in galerias" :key="g.id" :galeria="g" />
     </div>
     <div v-else class="card mt-12 px-6 py-16 text-center">

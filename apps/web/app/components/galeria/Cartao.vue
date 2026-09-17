@@ -91,8 +91,8 @@ async function compartilhar(e: Event) {
     </button>
 
     <!-- painel de informação -->
-    <div class="absolute inset-x-0 bottom-0 p-4">
-      <div class="mb-3 flex flex-wrap items-center gap-2">
+    <div class="absolute inset-x-0 bottom-0 p-5">
+      <div class="mb-3 flex flex-wrap items-center gap-2.5">
         <span
           class="rounded-md bg-wine px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white"
         >
@@ -113,9 +113,9 @@ async function compartilhar(e: Event) {
         </span>
       </div>
 
-      <h3 class="text-lg font-bold uppercase leading-tight tracking-tight">{{ galeria.titulo }}</h3>
+      <h3 class="text-xl font-bold uppercase leading-tight tracking-tight">{{ galeria.titulo }}</h3>
 
-      <p class="mt-1.5 flex items-center gap-1 text-sm text-muted">
+      <p class="mt-2 flex items-center gap-1 text-sm text-muted">
         <svg
           class="size-3.5 shrink-0"
           viewBox="0 0 24 24"
@@ -129,7 +129,7 @@ async function compartilhar(e: Event) {
         <span class="truncate">{{ local || galeria.conta.nome }}</span>
       </p>
 
-      <div class="mt-4 flex items-end justify-between gap-3 border-t border-text/10 pt-3">
+      <div class="mt-5 flex items-end justify-between gap-4 border-t border-text/10 pt-4">
         <div class="min-w-0">
           <p class="flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide">
             <span class="size-1.5 rounded-full" :class="disponivel ? 'bg-success' : 'bg-warning'" />
