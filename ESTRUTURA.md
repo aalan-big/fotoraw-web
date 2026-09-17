@@ -10,6 +10,7 @@ fotoraw-web/
 │   └── web/          Nuxt 3  — vitrine pública (SSR), checkout, painel do fotógrafo
 ├── packages/
 │   ├── contratos/    tipos TS compartilhados (server ⇄ web ⇄ desktop)
+│   ├── tema/         theme.css — tokens Tailwind v4 (preto/branco/vinho) usados pelo desktop e pela web
 │   ├── config-ts/    tsconfig base
 │   └── config-eslint/ regras de lint compartilhadas
 ├── docs/

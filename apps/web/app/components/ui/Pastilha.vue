@@ -1,15 +1,16 @@
 <script setup lang="ts">
 // Quadradinho com ícone, igual às pastilhas do painel do desktop.
-withDefaults(defineProps<{ cor?: 'primaria' | 'amarelo' | 'azul' | 'roxo' | 'verde' }>(), {
-  cor: 'primaria',
+// Cores semânticas: vinho (marca) ou estado — nunca decoração.
+withDefaults(defineProps<{ cor?: 'wine' | 'warning' | 'info' | 'success' | 'danger' }>(), {
+  cor: 'wine',
 });
 
 const cores = {
-  primaria: 'bg-primaria-suave text-primaria-clara',
-  amarelo: 'bg-amarelo-suave text-amarelo',
-  azul: 'bg-azul-suave text-azul',
-  roxo: 'bg-roxo-suave text-roxo',
-  verde: 'bg-verde-suave text-verde',
+  wine: 'bg-wine-dim text-wine-tint',
+  warning: 'bg-warning/15 text-warning',
+  info: 'bg-info/15 text-info',
+  success: 'bg-success/15 text-success',
+  danger: 'bg-danger/15 text-danger',
 };
 </script>
 

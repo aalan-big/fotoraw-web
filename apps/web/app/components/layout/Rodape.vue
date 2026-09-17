@@ -1,13 +1,13 @@
 <template>
-  <footer class="mt-auto border-t border-borda">
+  <footer class="mt-auto border-t border-border">
     <div
-      class="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-4 py-8 text-sm text-texto-3 md:flex-row md:items-center"
+      class="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 px-4 py-8 text-sm text-muted/80 md:flex-row md:items-center"
     >
       <p>© {{ new Date().getFullYear() }} FotoRAW · fotos de evento direto do fotógrafo.</p>
       <nav class="flex gap-5">
-        <NuxtLink to="/eventos" class="hover:text-texto-2">Eventos</NuxtLink>
-        <NuxtLink to="/#fotografos" class="hover:text-texto-2">Para fotógrafos</NuxtLink>
-        <NuxtLink to="/privacidade" class="hover:text-texto-2">Privacidade</NuxtLink>
+        <NuxtLink to="/eventos" class="hover:text-muted">Eventos</NuxtLink>
+        <NuxtLink to="/#fotografos" class="hover:text-muted">Para fotógrafos</NuxtLink>
+        <NuxtLink to="/privacidade" class="hover:text-muted">Privacidade</NuxtLink>
       </nav>
     </div>
   </footer>

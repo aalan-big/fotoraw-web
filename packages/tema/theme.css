@@ -1,0 +1,107 @@
+/*
+ * Tema FotoRAW — preto / branco / vinho (vinho extraído do vermelho da logo).
+ * Tailwind v4, sem tailwind.config.js. Importe DEPOIS do tailwindcss:
+ *
+ *   @import 'tailwindcss';
+ *   @import '@fotoraw/tema/theme.css';
+ *
+ * Os valores vivem em variáveis de runtime (:root) e o @theme só aponta pra elas.
+ * Assim um modo claro pode ser ligado com <html data-tema="claro"> sem tocar nos
+ * componentes — e o desktop, que nunca seta o atributo, continua idêntico.
+ */
+
+:root {
+  /* neutros (leve puxada pro vermelho, pra conversar com o vinho) */
+  --bg: #0c0a0b; /* fundo da página */
+  --surface: #161214; /* cards, menu lateral */
+  --surface-2: #1f191b; /* hover, chips, campo desabilitado */
+  --border: #2a2225; /* bordas e divisórias */
+  --text: #f5f0f1; /* texto principal */
+  --muted: #a39a9d; /* texto secundário, rótulos */
+
+  /* vinho (logo: #800010–#880010) */
+  --wine: #861222; /* botão primário, item ativo, seleção */
+  --wine-hover: #9e1628; /* hover do primário */
+  --wine-tint: #e0485c; /* links e texto vinho sobre preto */
+  --wine-dim: #2e1116; /* fundo suave: chips, foco, destaque leve */
+
+  /* semânticas — estado, nunca decoração */
+  --danger: #e5484d;
+  --success: #6fcf97;
+  --warning: #e0a83a;
+  --info: #6aa9e9;
+
+  color-scheme: dark;
+}
+
+/* Modo claro opcional (recibo, termos). Só a web usa. */
+:root[data-tema='claro'] {
+  --bg: #faf7f8;
+  --surface: #ffffff;
+  --surface-2: #f1eaec;
+  --border: #e3d9dc;
+  --text: #1a1416;
+  --muted: #6b5f63;
+
+  --wine-tint: #861222; /* sobre fundo claro o próprio vinho já tem contraste */
+  --wine-dim: #f7e3e6;
+
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+
+  --color-wine: var(--wine);
+  --color-wine-hover: var(--wine-hover);
+  --color-wine-tint: var(--wine-tint);
+  --color-wine-dim: var(--wine-dim);
+
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --radius-lg: 8px; /* raio padrão */
+}
+
+@layer base {
+  html {
+    font-size: 15px;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--wine);
+    color: #fff;
+  }
+
+  /* scrollbar fina no tom da borda */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}

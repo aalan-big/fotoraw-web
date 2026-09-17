@@ -23,17 +23,17 @@ function buscar() {
 
 const passos = [
   {
-    cor: 'amarelo' as const,
+    cor: 'warning' as const,
     titulo: 'Ache pelo número de peito',
     texto: 'Abra a galeria do evento e digite seu número. Só aparecem as fotos em que você está.',
   },
   {
-    cor: 'azul' as const,
+    cor: 'info' as const,
     titulo: 'Escolha as que quiser',
     texto: 'Veja a prévia com marca d’água, monte o carrinho e informe só nome, e-mail e WhatsApp.',
   },
   {
-    cor: 'verde' as const,
+    cor: 'success' as const,
     titulo: 'Pague no Pix e baixe na hora',
     texto: 'Confirmou o pagamento, a foto em alta resolução já está liberada pra download.',
   },
@@ -43,18 +43,18 @@ const passos = [
 <template>
   <div>
     <!-- Hero -->
-    <section class="relative overflow-hidden border-b border-borda">
+    <section class="relative overflow-hidden border-b border-border">
       <div
-        class="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(176,24,47,0.18),transparent)]"
+        class="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(134,18,34,0.28),transparent)]"
       />
       <div class="relative mx-auto max-w-6xl px-4 py-20 text-center md:py-28">
-        <p class="mb-4 text-sm font-medium uppercase tracking-widest text-primaria-clara">
+        <p class="mb-4 text-sm font-medium uppercase tracking-widest text-wine-tint">
           Fotos de evento
         </p>
         <h1 class="mx-auto max-w-3xl text-4xl font-bold tracking-tight md:text-6xl">
           Encontre suas fotos e baixe na hora
         </h1>
-        <p class="mx-auto mt-5 max-w-xl text-lg text-texto-2">
+        <p class="mx-auto mt-5 max-w-xl text-lg text-muted">
           Corridas, pedais, provas e festas. Busque pelo número de peito, pague no Pix e receba a
           foto em alta resolução direto do fotógrafo.
         </p>
@@ -66,11 +66,11 @@ const passos = [
             v-model="busca"
             type="search"
             placeholder="Nome do evento ou do fotógrafo"
-            class="h-12 flex-1 rounded-lg border border-borda-2 bg-card px-4 text-base outline-none placeholder:text-texto-3 focus:border-primaria"
+            class="h-12 flex-1 rounded-lg border border-border bg-surface px-4 text-base outline-none placeholder:text-muted/70 focus:border-wine"
           />
           <UiBotao type="submit" tamanho="lg">Buscar</UiBotao>
         </form>
-        <p class="mt-3 text-sm text-texto-3">
+        <p class="mt-3 text-sm text-muted/80">
           Recebeu um link do fotógrafo? É só abrir — ele já leva direto pra galeria.
         </p>
       </div>
@@ -81,9 +81,9 @@ const passos = [
       <div class="mb-6 flex items-end justify-between">
         <div>
           <h2 class="text-2xl font-semibold">Eventos recentes</h2>
-          <p class="mt-1 text-sm text-texto-3">Galerias publicadas nos últimos dias</p>
+          <p class="mt-1 text-sm text-muted/80">Galerias publicadas nos últimos dias</p>
         </div>
-        <NuxtLink to="/eventos" class="text-sm text-texto-2 hover:text-texto">Ver todos</NuxtLink>
+        <NuxtLink to="/eventos" class="text-sm text-muted hover:text-text">Ver todos</NuxtLink>
       </div>
 
       <div v-if="status === 'pending'" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -93,7 +93,7 @@ const passos = [
         <GaleriaCartao v-for="g in recentes" :key="g.id" :galeria="g" />
       </div>
       <div v-else class="card px-6 py-14 text-center">
-        <UiPastilha cor="primaria" class="mx-auto mb-4 size-12">
+        <UiPastilha cor="wine" class="mx-auto mb-4 size-12">
           <svg
             class="size-6"
             viewBox="0 0 24 24"
@@ -106,17 +106,17 @@ const passos = [
           </svg>
         </UiPastilha>
         <p class="font-medium">Nenhum evento publicado ainda</p>
-        <p class="mt-1 text-sm text-texto-3">
+        <p class="mt-1 text-sm text-muted/80">
           Assim que um fotógrafo publicar uma galeria, ela aparece aqui.
         </p>
       </div>
     </section>
 
     <!-- Como funciona -->
-    <section id="como-funciona" class="border-y border-borda bg-fundo-2">
+    <section id="como-funciona" class="border-y border-border bg-surface">
       <div class="mx-auto max-w-6xl px-4 py-14">
         <h2 class="text-2xl font-semibold">Como funciona</h2>
-        <p class="mt-1 text-sm text-texto-3">Sem cadastro, sem senha. Três passos.</p>
+        <p class="mt-1 text-sm text-muted/80">Sem cadastro, sem senha. Três passos.</p>
 
         <ol class="mt-8 grid gap-4 md:grid-cols-3">
           <li v-for="(p, i) in passos" :key="p.titulo" class="card p-5">
@@ -126,7 +126,7 @@ const passos = [
               </UiPastilha>
               <h3 class="font-semibold">{{ p.titulo }}</h3>
             </div>
-            <p class="mt-3 text-sm leading-relaxed text-texto-2">{{ p.texto }}</p>
+            <p class="mt-3 text-sm leading-relaxed text-muted">{{ p.texto }}</p>
           </li>
         </ol>
       </div>
@@ -136,29 +136,29 @@ const passos = [
     <section id="fotografos" class="mx-auto max-w-6xl px-4 py-14">
       <div class="card grid gap-8 p-6 md:grid-cols-[1fr_auto] md:items-center md:p-10">
         <div>
-          <p class="text-sm font-medium uppercase tracking-widest text-primaria-clara">
+          <p class="text-sm font-medium uppercase tracking-widest text-wine-tint">
             Para fotógrafos
           </p>
           <h2 class="mt-2 text-2xl font-semibold md:text-3xl">
             Publique direto do FotoRAW desktop
           </h2>
-          <p class="mt-3 max-w-xl text-texto-2">
+          <p class="mt-3 max-w-xl text-muted">
             Você processa e marca as fotos no seu computador, como já faz. Um clique em
-            <strong class="text-texto">Publicar</strong> e a galeria vai pro ar com link pra mandar
+            <strong class="text-text">Publicar</strong> e a galeria vai pro ar com link pra mandar
             no WhatsApp. Cobramos 10% só sobre o que vender — nada por mês.
           </p>
-          <ul class="mt-5 grid gap-2 text-sm text-texto-2 sm:grid-cols-2">
+          <ul class="mt-5 grid gap-2 text-sm text-muted sm:grid-cols-2">
             <li class="flex items-center gap-2">
-              <span class="size-1.5 rounded-full bg-verde" /> Pix com repasse automático
+              <span class="size-1.5 rounded-full bg-success" /> Pix com repasse automático
             </li>
             <li class="flex items-center gap-2">
-              <span class="size-1.5 rounded-full bg-verde" /> Pedidos voltam pro seu desktop
+              <span class="size-1.5 rounded-full bg-success" /> Pedidos voltam pro seu desktop
             </li>
             <li class="flex items-center gap-2">
-              <span class="size-1.5 rounded-full bg-verde" /> Alta resolução entregue por você
+              <span class="size-1.5 rounded-full bg-success" /> Alta resolução entregue por você
             </li>
             <li class="flex items-center gap-2">
-              <span class="size-1.5 rounded-full bg-verde" /> Galeria privada pra ensaios (plano
+              <span class="size-1.5 rounded-full bg-success" /> Galeria privada pra ensaios (plano
               PRO)
             </li>
           </ul>

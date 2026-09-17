@@ -10,6 +10,8 @@ export const envSchema = z.object({
   WEB_URL: z.url(),
 
   DATABASE_URL: z.string().min(1),
+  /** conexão direta p/ migrations (Supabase); opcional, cai em DATABASE_URL */
+  DIRECT_URL: z.string().min(1).optional(),
   REDIS_URL: z.string().min(1),
 
   JWT_SECRET: z.string().min(16),

@@ -1,0 +1,10 @@
+{
+  "name": "@fotoraw/tema",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tokens de tema do FotoRAW (Tailwind v4) compartilhados entre desktop e web",
+  "exports": {
+    "./theme.css": "./theme.css"
+  },
+  "files": ["theme.css"]
+}

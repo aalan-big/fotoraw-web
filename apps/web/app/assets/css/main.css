@@ -1,58 +1,11 @@
 @import 'tailwindcss';
+@import '@fotoraw/tema/theme.css';
 
-/*
- * Tema: segue a identidade do FotoRAW desktop.
- * Fundo quase preto, cards levemente mais claros com borda sutil,
- * vermelho vinho como cor principal, texto claro.
- */
-@theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-
-  /* superfícies */
-  --color-fundo: #0f0f10;
-  --color-fundo-2: #131315;
-  --color-card: #151517;
-  --color-card-2: #1b1b1e;
-  --color-borda: #232326;
-  --color-borda-2: #2e2e33;
-
-  /* texto */
-  --color-texto: #f4f4f5;
-  --color-texto-2: #a1a1aa;
-  --color-texto-3: #71717a;
-
-  /* marca */
-  --color-primaria: #b0182f;
-  --color-primaria-escura: #8b1a2b;
-  --color-primaria-clara: #e01e3c;
-  --color-primaria-suave: #2a1116;
-
-  /* pastilhas de ícone (como no desktop) */
-  --color-amarelo: #f5c542;
-  --color-amarelo-suave: #2b2410;
-  --color-azul: #3b82f6;
-  --color-azul-suave: #0f1a2e;
-  --color-roxo: #8b5cf6;
-  --color-roxo-suave: #1c1530;
-  --color-verde: #22c55e;
-  --color-verde-suave: #0f2418;
-
-  --radius-card: 0.875rem;
-}
-
-html {
-  color-scheme: dark;
-}
-
-body {
-  @apply bg-fundo text-texto antialiased;
-}
-
-/* utilitários curtos que se repetem em todo lugar */
+/* utilitários curtos da vitrine */
 @utility card {
-  @apply bg-card border border-borda rounded-card;
+  @apply bg-surface border border-border rounded-lg;
 }
 
 @utility pastilha {
-  @apply inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-borda;
+  @apply inline-flex size-10 shrink-0 items-center justify-center rounded-lg border border-border;
 }

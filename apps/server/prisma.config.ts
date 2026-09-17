@@ -8,6 +8,8 @@ export default defineConfig({
     seed: 'tsx prisma/seeds/index.ts',
   },
   datasource: {
-    url: process.env['DATABASE_URL'],
+    // Migrations precisam de conexão direta (Supabase: porta 5432, sem pooler).
+    // Em runtime a app usa DATABASE_URL (pooler) via PrismaService.
+    url: process.env['DIRECT_URL'] ?? process.env['DATABASE_URL'],
   },
 });

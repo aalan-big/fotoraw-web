@@ -2,11 +2,16 @@
 
 ## Subir em dev
 
-Tudo da raiz do monorepo, um terminal só:
+Banco: **Supabase** (Postgres gerenciado). No painel do projeto → *Connect* → *ORMs* →
+*Prisma*, copie as duas URLs pro `apps/server/.env`:
+
+- `DATABASE_URL` — Session pooler (runtime da API)
+- `DIRECT_URL` — conexão direta (migrations e seed)
+
+Depois, tudo da raiz do monorepo, um terminal só:
 
 ```bash
-npm run db            # Postgres local via `prisma dev` (sem Docker), porta 5433, fica em background
-npm run db:migrate    # primeira vez / quando mudar o schema
+npm run db:migrate    # aplica as migrations no Supabase (primeira vez / quando mudar o schema)
 npm run db:seed       # conta "estudio-luz" + galeria "corrida-2026"
 npm run dev           # server (3001) + web (3000)
 ```
@@ -14,11 +19,8 @@ npm run dev           # server (3001) + web (3000)
 - API: http://localhost:3001/api/saude
 - Vitrine: http://localhost:3000
 
-Na primeira vez, crie o banco: o `prisma dev` sobe vazio, então rode uma vez
-`npm run db:migrate` — ele cria `fotoraw` se não existir. Pra parar: `npm run db:stop`.
-
-Alternativa com Docker (Postgres + Redis + MinIO): `npm run infra` e ajuste
-`DATABASE_URL` no `.env` pra porta 5432 (veja `.env.example`).
+Sem internet / sem Supabase: `npm run db` sobe um Postgres local (`prisma dev`, porta 5433);
+aponte as duas URLs pra ele (exemplo comentado no `.env.example`).
 
 ## Scripts
 
@@ -43,7 +45,8 @@ Alternativa com Docker (Postgres + Redis + MinIO): `npm run infra` e ajuste
   `fotoraw_test`. Use `limparBanco(app)` no `beforeEach` e as factories de
   `test/fixtures/` para montar o cenário.
 
-Antes do primeiro e2e: `pnpm --filter server db:migrate:test`.
+Os e2e **não** usam o Supabase: rodam no Postgres local (`npm run db`), banco `fotoraw_test`.
+Antes do primeiro e2e: `npm run db` e depois `pnpm --filter server db:migrate:test`.
 
 ## Convenções
 

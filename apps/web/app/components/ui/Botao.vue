@@ -10,9 +10,9 @@ withDefaults(
 );
 
 const classes = {
-  primaria: 'bg-primaria text-white hover:bg-primaria-clara',
-  secundaria: 'bg-card-2 text-texto border border-borda-2 hover:border-texto-3',
-  fantasma: 'text-texto-2 hover:text-texto hover:bg-card-2',
+  primaria: 'bg-wine text-white hover:bg-wine-hover',
+  secundaria: 'bg-surface-2 text-text border border-border hover:border-muted/40',
+  fantasma: 'text-muted hover:text-text hover:bg-surface-2',
 };
 const tamanhos = { md: 'h-10 px-4 text-sm', lg: 'h-12 px-6 text-base' };
 </script>
@@ -22,7 +22,7 @@ const tamanhos = { md: 'h-10 px-4 text-sm', lg: 'h-12 px-6 text-base' };
     :is="to ? resolveComponent('NuxtLink') : 'button'"
     :to="to"
     :type="to ? undefined : type"
-    class="inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primaria"
+    class="inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wine"
     :class="[classes[variante], tamanhos[tamanho]]"
   >
     <slot />

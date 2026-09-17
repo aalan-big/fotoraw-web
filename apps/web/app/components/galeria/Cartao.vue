@@ -8,9 +8,9 @@ const destino = computed(() => `/@${props.galeria.conta.slug}/${props.galeria.sl
 <template>
   <NuxtLink
     :to="destino"
-    class="card group block overflow-hidden transition-colors hover:border-borda-2"
+    class="card group block overflow-hidden transition-colors hover:border-muted/40"
   >
-    <div class="relative aspect-[4/3] overflow-hidden bg-card-2">
+    <div class="relative aspect-[4/3] overflow-hidden bg-surface-2">
       <img
         v-if="galeria.capaUrl"
         :src="galeria.capaUrl"
@@ -20,19 +20,19 @@ const destino = computed(() => `/@${props.galeria.conta.slug}/${props.galeria.sl
       />
       <div
         v-else
-        class="flex size-full items-center justify-center bg-gradient-to-br from-primaria-suave to-card-2 text-3xl font-bold text-primaria-clara/70"
+        class="flex size-full items-center justify-center bg-gradient-to-br from-wine-dim to-surface-2 text-3xl font-bold text-wine-tint/70"
       >
         {{ iniciais(galeria.titulo) }}
       </div>
       <span
-        class="absolute left-3 top-3 rounded-md bg-fundo/80 px-2 py-0.5 text-xs font-medium text-texto-2 backdrop-blur"
+        class="absolute left-3 top-3 rounded-md bg-bg/80 px-2 py-0.5 text-xs font-medium text-muted backdrop-blur"
       >
         {{ galeria.totalFotos }} fotos
       </span>
     </div>
     <div class="p-4">
       <h3 class="truncate font-semibold">{{ galeria.titulo }}</h3>
-      <p class="mt-1 flex items-center justify-between text-sm text-texto-3">
+      <p class="mt-1 flex items-center justify-between text-sm text-muted/80">
         <span class="truncate">@{{ galeria.conta.slug }}</span>
         <span>{{ formatarData(galeria.publicadaEm) }}</span>
       </p>
