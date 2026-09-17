@@ -44,13 +44,15 @@ const passos = [
   <div>
     <!-- Hero -->
     <section class="relative overflow-hidden border-b border-border">
+      <!-- mesmo fundo da tela de login do desktop, escurecendo até o bg -->
       <div
-        class="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(134,18,34,0.28),transparent)]"
+        class="pointer-events-none absolute inset-0 bg-[url(/imagens/fundo-login.jpg)] bg-cover bg-center"
       />
-      <div class="relative mx-auto max-w-6xl px-4 py-20 text-center md:py-28">
-        <p class="mb-4 text-sm font-medium uppercase tracking-widest text-wine-tint">
-          Fotos de evento
-        </p>
+      <div
+        class="pointer-events-none absolute inset-0 bg-gradient-to-b from-bg/40 via-bg/70 to-bg"
+      />
+      <div class="relative mx-auto max-w-6xl px-4 py-16 text-center md:py-24">
+        <UiLogo class="mx-auto mb-6 h-32 md:h-40" />
         <h1 class="mx-auto max-w-3xl text-4xl font-bold tracking-tight md:text-6xl">
           Encontre suas fotos e baixe na hora
         </h1>

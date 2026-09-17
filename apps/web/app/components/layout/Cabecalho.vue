@@ -10,13 +10,8 @@ watch(
 <template>
   <header class="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur">
     <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-      <NuxtLink to="/" class="flex items-center gap-2.5">
-        <span
-          class="flex size-9 items-center justify-center rounded-lg bg-wine text-sm font-bold text-white"
-        >
-          F
-        </span>
-        <span class="text-base font-semibold tracking-tight">FotoRAW</span>
+      <NuxtLink to="/" class="flex items-center">
+        <UiLogo variante="wordmark" />
       </NuxtLink>
 
       <nav class="hidden items-center gap-1 md:flex">
