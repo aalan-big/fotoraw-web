@@ -89,9 +89,9 @@ const passos = [
       <div class="mb-10 flex items-end justify-between gap-6">
         <div>
           <span class="mb-3 block h-1 w-10 rounded-full bg-wine" aria-hidden="true" />
-          <h2 class="text-2xl font-semibold md:text-3xl">Acabou de sair do forno</h2>
+          <h2 class="text-2xl font-semibold md:text-3xl">Eventos recentes</h2>
           <p class="mt-2 text-muted">
-            Eventos publicados nos últimos dias — o seu pode estar aqui.
+            Galerias publicadas nos últimos dias. Procure o seu evento e digite seu número.
           </p>
         </div>
         <UiBotao to="/eventos" variante="secundaria" class="shrink-0">Ver todos</UiBotao>
