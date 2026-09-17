@@ -23,7 +23,7 @@ function buscar() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-6xl px-4 py-10">
+  <div class="mx-auto max-w-6xl px-6 py-16">
     <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
       <div>
         <h1 class="text-3xl font-bold tracking-tight">Eventos</h1>
@@ -43,13 +43,13 @@ function buscar() {
       </form>
     </div>
 
-    <div v-if="status === 'pending'" class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div v-if="status === 'pending'" class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
       <GaleriaCartaoEsqueleto v-for="i in 8" :key="i" />
     </div>
-    <div v-else-if="galerias.length" class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div v-else-if="galerias.length" class="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
       <GaleriaCartao v-for="g in galerias" :key="g.id" :galeria="g" />
     </div>
-    <div v-else class="card mt-8 px-6 py-14 text-center">
+    <div v-else class="card mt-12 px-6 py-16 text-center">
       <p class="font-medium">Nada encontrado</p>
       <p class="mt-1 text-sm text-muted/80">
         Tente outro nome ou peça o link direto pro fotógrafo.

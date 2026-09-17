@@ -30,9 +30,9 @@ const destino = computed(() => `/@${props.galeria.conta.slug}/${props.galeria.sl
         {{ galeria.totalFotos }} fotos
       </span>
     </div>
-    <div class="p-4">
+    <div class="p-5">
       <h3 class="truncate font-semibold">{{ galeria.titulo }}</h3>
-      <p class="mt-1 flex items-center justify-between text-sm text-muted/80">
+      <p class="mt-2 flex items-center justify-between text-sm text-muted/80">
         <span class="truncate">@{{ galeria.conta.slug }}</span>
         <span>{{ formatarData(galeria.publicadaEm) }}</span>
       </p>

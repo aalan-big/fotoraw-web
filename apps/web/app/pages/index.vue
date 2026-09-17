@@ -51,17 +51,19 @@ const passos = [
       <div
         class="pointer-events-none absolute inset-0 bg-gradient-to-b from-bg/40 via-bg/70 to-bg"
       />
-      <div class="relative mx-auto max-w-6xl px-4 py-16 text-center md:py-24">
-        <UiLogo class="mx-auto mb-6 h-32 md:h-40" />
-        <h1 class="mx-auto max-w-3xl text-4xl font-bold tracking-tight md:text-6xl">
+      <div class="relative mx-auto max-w-6xl px-6 py-28 text-center md:py-40">
+        <p class="mb-5 text-sm font-medium uppercase tracking-[0.2em] text-wine-tint">
+          Fotos de evento
+        </p>
+        <h1 class="mx-auto max-w-3xl text-4xl font-bold leading-tight tracking-tight md:text-6xl">
           Encontre suas fotos e baixe na hora
         </h1>
-        <p class="mx-auto mt-5 max-w-xl text-lg text-muted">
+        <p class="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted">
           Corridas, pedais, provas e festas. Busque pelo número de peito, pague no Pix e receba a
           foto em alta resolução direto do fotógrafo.
         </p>
 
-        <form class="mx-auto mt-10 flex max-w-xl gap-2" @submit.prevent="buscar">
+        <form class="mx-auto mt-12 flex max-w-xl gap-3" @submit.prevent="buscar">
           <label class="sr-only" for="busca">Buscar evento ou fotógrafo</label>
           <input
             id="busca"
@@ -72,26 +74,26 @@ const passos = [
           />
           <UiBotao type="submit" tamanho="lg">Buscar</UiBotao>
         </form>
-        <p class="mt-3 text-sm text-muted/80">
+        <p class="mt-4 text-sm text-muted/80">
           Recebeu um link do fotógrafo? É só abrir — ele já leva direto pra galeria.
         </p>
       </div>
     </section>
 
     <!-- Eventos recentes -->
-    <section class="mx-auto max-w-6xl px-4 py-14">
-      <div class="mb-6 flex items-end justify-between">
+    <section class="mx-auto max-w-6xl px-6 py-24">
+      <div class="mb-10 flex items-end justify-between">
         <div>
           <h2 class="text-2xl font-semibold">Eventos recentes</h2>
-          <p class="mt-1 text-sm text-muted/80">Galerias publicadas nos últimos dias</p>
+          <p class="mt-2 text-sm text-muted/80">Galerias publicadas nos últimos dias</p>
         </div>
         <NuxtLink to="/eventos" class="text-sm text-muted hover:text-text">Ver todos</NuxtLink>
       </div>
 
-      <div v-if="status === 'pending'" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div v-if="status === 'pending'" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <GaleriaCartaoEsqueleto v-for="i in 4" :key="i" />
       </div>
-      <div v-else-if="recentes.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div v-else-if="recentes.length" class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <GaleriaCartao v-for="g in recentes" :key="g.id" :galeria="g" />
       </div>
       <div v-else class="card px-6 py-14 text-center">
@@ -116,27 +118,27 @@ const passos = [
 
     <!-- Como funciona -->
     <section id="como-funciona" class="border-y border-border bg-surface">
-      <div class="mx-auto max-w-6xl px-4 py-14">
+      <div class="mx-auto max-w-6xl px-6 py-24">
         <h2 class="text-2xl font-semibold">Como funciona</h2>
-        <p class="mt-1 text-sm text-muted/80">Sem cadastro, sem senha. Três passos.</p>
+        <p class="mt-2 text-sm text-muted/80">Sem cadastro, sem senha. Três passos.</p>
 
-        <ol class="mt-8 grid gap-4 md:grid-cols-3">
-          <li v-for="(p, i) in passos" :key="p.titulo" class="card p-5">
+        <ol class="mt-12 grid gap-6 md:grid-cols-3">
+          <li v-for="(p, i) in passos" :key="p.titulo" class="card p-7">
             <div class="flex items-center gap-3">
               <UiPastilha :cor="p.cor">
                 <span class="text-sm font-bold">{{ i + 1 }}</span>
               </UiPastilha>
               <h3 class="font-semibold">{{ p.titulo }}</h3>
             </div>
-            <p class="mt-3 text-sm leading-relaxed text-muted">{{ p.texto }}</p>
+            <p class="mt-4 text-sm leading-relaxed text-muted">{{ p.texto }}</p>
           </li>
         </ol>
       </div>
     </section>
 
     <!-- Para fotógrafos -->
-    <section id="fotografos" class="mx-auto max-w-6xl px-4 py-14">
-      <div class="card grid gap-8 p-6 md:grid-cols-[1fr_auto] md:items-center md:p-10">
+    <section id="fotografos" class="mx-auto max-w-6xl px-6 py-24">
+      <div class="card grid gap-10 p-8 md:grid-cols-[1fr_auto] md:items-center md:p-14">
         <div>
           <p class="text-sm font-medium uppercase tracking-widest text-wine-tint">
             Para fotógrafos
@@ -144,12 +146,12 @@ const passos = [
           <h2 class="mt-2 text-2xl font-semibold md:text-3xl">
             Publique direto do FotoRAW desktop
           </h2>
-          <p class="mt-3 max-w-xl text-muted">
+          <p class="mt-4 max-w-xl leading-relaxed text-muted">
             Você processa e marca as fotos no seu computador, como já faz. Um clique em
             <strong class="text-text">Publicar</strong> e a galeria vai pro ar com link pra mandar
             no WhatsApp. Cobramos 10% só sobre o que vender — nada por mês.
           </p>
-          <ul class="mt-5 grid gap-2 text-sm text-muted sm:grid-cols-2">
+          <ul class="mt-7 grid gap-3 text-sm text-muted sm:grid-cols-2">
             <li class="flex items-center gap-2">
               <span class="size-1.5 rounded-full bg-success" /> Pix com repasse automático
             </li>
