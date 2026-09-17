@@ -130,8 +130,8 @@ async function compartilhar(e: Event) {
       </p>
 
       <div class="mt-4 flex items-end justify-between gap-3 border-t border-text/10 pt-3">
-        <div>
-          <p class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide">
+        <div class="min-w-0">
+          <p class="flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide">
             <span class="size-1.5 rounded-full" :class="disponivel ? 'bg-success' : 'bg-warning'" />
             <span :class="disponivel ? 'text-success' : 'text-warning'">
               {{ disponivel ? 'Fotos disponíveis' : 'Em breve' }}
@@ -145,7 +145,7 @@ async function compartilhar(e: Event) {
           </p>
         </div>
         <span
-          class="inline-flex h-10 items-center gap-1.5 rounded-lg bg-wine px-4 text-sm font-semibold text-white transition-colors group-hover:bg-wine-hover"
+          class="inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-wine px-3.5 text-sm font-semibold text-white transition-colors group-hover:bg-wine-hover"
         >
           Ver fotos
           <svg
