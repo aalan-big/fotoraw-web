@@ -2,9 +2,9 @@
 import type { GaleriaPublica } from '~/types/galeria';
 
 useSeoMeta({
-  title: 'Suas fotos do evento',
+  title: 'Você fez a prova. A foto é sua.',
   description:
-    'Encontre suas fotos pelo número de peito, pague no Pix e baixe na hora. Direto do fotógrafo, sem intermediário.',
+    'Digite seu número de peito, escolha suas melhores fotos e baixe em alta resolução na hora. Pix, sem cadastro, direto do fotógrafo.',
 });
 
 const api = useApi();
@@ -24,18 +24,21 @@ function buscar() {
 const passos = [
   {
     cor: 'warning' as const,
-    titulo: 'Ache pelo número de peito',
-    texto: 'Abra a galeria do evento e digite seu número. Só aparecem as fotos em que você está.',
+    titulo: 'Digite seu número',
+    texto:
+      'Abra a galeria do evento e informe o número de peito. Só aparecem as fotos em que você está — nada de rolar por milhares de desconhecidos.',
   },
   {
     cor: 'info' as const,
-    titulo: 'Escolha as que quiser',
-    texto: 'Veja a prévia com marca d’água, monte o carrinho e informe só nome, e-mail e WhatsApp.',
+    titulo: 'Escolha as melhores',
+    texto:
+      'Veja cada foto em tamanho grande, marque as que valem a pena e finalize com nome, e-mail e WhatsApp. Só isso.',
   },
   {
     cor: 'success' as const,
-    titulo: 'Pague no Pix e baixe na hora',
-    texto: 'Confirmou o pagamento, a foto em alta resolução já está liberada pra download.',
+    titulo: 'Pix e pronto',
+    texto:
+      'Pagou, baixou. A foto em alta resolução, sem marca d’água, fica liberada na hora — e o link chega no seu e-mail também.',
   },
 ];
 </script>
@@ -53,14 +56,15 @@ const passos = [
       />
       <div class="relative mx-auto max-w-6xl px-6 py-28 text-center md:py-40">
         <p class="mb-5 text-sm font-medium uppercase tracking-[0.2em] text-wine-tint">
-          Fotos de evento
+          Corridas · Pedais · Provas · Festas
         </p>
         <h1 class="mx-auto max-w-3xl text-4xl font-bold leading-tight tracking-tight md:text-6xl">
-          Encontre suas fotos e baixe na hora
+          Você fez a prova.<br class="hidden md:block" />
+          A foto é sua.
         </h1>
         <p class="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted">
-          Corridas, pedais, provas e festas. Busque pelo número de peito, pague no Pix e receba a
-          foto em alta resolução direto do fotógrafo.
+          Digite seu número de peito, escolha as melhores e baixe em alta resolução na hora. Pix,
+          sem cadastro, e o dinheiro vai direto pro fotógrafo que estava lá.
         </p>
 
         <form class="mx-auto mt-12 flex max-w-xl gap-3" @submit.prevent="buscar">
@@ -69,13 +73,13 @@ const passos = [
             id="busca"
             v-model="busca"
             type="search"
-            placeholder="Nome do evento ou do fotógrafo"
+            placeholder="Qual foi o evento? Ex.: Maratona de Curitiba"
             class="h-12 flex-1 rounded-lg border border-border bg-surface px-4 text-base outline-none placeholder:text-muted/70 focus:border-wine"
           />
           <UiBotao type="submit" tamanho="lg">Buscar</UiBotao>
         </form>
         <p class="mt-4 text-sm text-muted/80">
-          Recebeu um link do fotógrafo? É só abrir — ele já leva direto pra galeria.
+          Recebeu o link no WhatsApp? Abra direto — nem precisa buscar.
         </p>
       </div>
     </section>
@@ -84,8 +88,10 @@ const passos = [
     <section class="mx-auto max-w-6xl px-6 py-24">
       <div class="mb-10 flex items-end justify-between">
         <div>
-          <h2 class="text-2xl font-semibold">Eventos recentes</h2>
-          <p class="mt-2 text-sm text-muted/80">Galerias publicadas nos últimos dias</p>
+          <h2 class="text-2xl font-semibold">Acabou de sair do forno</h2>
+          <p class="mt-2 text-sm text-muted/80">
+            Eventos publicados nos últimos dias — o seu pode estar aqui
+          </p>
         </div>
         <NuxtLink to="/eventos" class="text-sm text-muted hover:text-text">Ver todos</NuxtLink>
       </div>
@@ -109,9 +115,9 @@ const passos = [
             <circle cx="12" cy="12" r="3.5" />
           </svg>
         </UiPastilha>
-        <p class="font-medium">Nenhum evento publicado ainda</p>
+        <p class="font-medium">Nenhum evento no ar ainda</p>
         <p class="mt-1 text-sm text-muted/80">
-          Assim que um fotógrafo publicar uma galeria, ela aparece aqui.
+          Assim que um fotógrafo publicar, aparece aqui. Se você tem o link, é só abrir.
         </p>
       </div>
     </section>
@@ -119,8 +125,8 @@ const passos = [
     <!-- Como funciona -->
     <section id="como-funciona" class="border-y border-border bg-surface">
       <div class="mx-auto max-w-6xl px-6 py-24">
-        <h2 class="text-2xl font-semibold">Como funciona</h2>
-        <p class="mt-2 text-sm text-muted/80">Sem cadastro, sem senha. Três passos.</p>
+        <h2 class="text-2xl font-semibold">Do número de peito à foto em 2 minutos</h2>
+        <p class="mt-2 text-sm text-muted/80">Sem criar conta, sem senha, sem esperar e-mail.</p>
 
         <ol class="mt-12 grid gap-6 md:grid-cols-3">
           <li v-for="(p, i) in passos" :key="p.titulo" class="card p-7">
@@ -144,31 +150,32 @@ const passos = [
             Para fotógrafos
           </p>
           <h2 class="mt-2 text-2xl font-semibold md:text-3xl">
-            Publique direto do FotoRAW desktop
+            Fotografou o evento? Venda no mesmo dia.
           </h2>
           <p class="mt-4 max-w-xl leading-relaxed text-muted">
-            Você processa e marca as fotos no seu computador, como já faz. Um clique em
-            <strong class="text-text">Publicar</strong> e a galeria vai pro ar com link pra mandar
-            no WhatsApp. Cobramos 10% só sobre o que vender — nada por mês.
+            Trate e marque as fotos no FotoRAW desktop, como já faz. Um clique em
+            <strong class="text-text">Publicar</strong> e a galeria está no ar, com link pronto pro
+            grupo da corrida. Sem mensalidade: você só paga 10% do que vender — se não vender, não
+            paga nada.
           </p>
           <ul class="mt-7 grid gap-3 text-sm text-muted sm:grid-cols-2">
             <li class="flex items-center gap-2">
-              <span class="size-1.5 rounded-full bg-success" /> Pix com repasse automático
+              <span class="size-1.5 rounded-full bg-success" /> Pix cai direto na sua conta
             </li>
             <li class="flex items-center gap-2">
-              <span class="size-1.5 rounded-full bg-success" /> Pedidos voltam pro seu desktop
+              <span class="size-1.5 rounded-full bg-success" /> Cada venda aparece no seu desktop
             </li>
             <li class="flex items-center gap-2">
-              <span class="size-1.5 rounded-full bg-success" /> Alta resolução entregue por você
+              <span class="size-1.5 rounded-full bg-success" /> Marca d’água feita na sua máquina
             </li>
             <li class="flex items-center gap-2">
-              <span class="size-1.5 rounded-full bg-success" /> Galeria privada pra ensaios (plano
+              <span class="size-1.5 rounded-full bg-success" /> Galerias privadas pra ensaios (plano
               PRO)
             </li>
           </ul>
         </div>
         <div class="flex flex-col gap-3 md:min-w-52">
-          <UiBotao to="/entrar" tamanho="lg">Criar conta grátis</UiBotao>
+          <UiBotao to="/entrar" tamanho="lg">Começar a vender</UiBotao>
           <UiBotao to="/entrar" variante="secundaria" tamanho="lg">Já tenho conta</UiBotao>
         </div>
       </div>
