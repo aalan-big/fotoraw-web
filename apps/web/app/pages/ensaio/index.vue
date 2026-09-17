@@ -20,7 +20,7 @@ const beneficios = [
 <template>
   <div class="relative min-h-dvh overflow-hidden">
     <div class="absolute inset-0 bg-[url(/imagens/fundo-login.jpg)] bg-cover bg-center" />
-    <div class="absolute inset-0 bg-gradient-to-r from-bg/95 via-bg/80 to-bg/60" />
+    <div class="absolute inset-0 bg-linear-to-r from-bg/95 via-bg/80 to-bg/60" />
 
     <div class="relative mx-auto flex min-h-dvh max-w-6xl flex-col px-6 py-8">
       <header class="flex items-center justify-between">
