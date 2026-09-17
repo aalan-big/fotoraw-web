@@ -1,0 +1,387 @@
+// Schema da web do FotoRAW.
+//
+// Regras:
+//  - o desktop é a fonte da verdade de clientes/agenda/financeiro/arquivos; aqui só vive
+//    o que a vitrine precisa: conta + plano, galerias publicadas, fotos (preview + alta),
+//    compradores, pedidos, pagamentos e downloads.
+//  - os IDs do desktop viajam junto (ensaioIdDesktop, fotoIdDesktop) — são eles que
+//    levam o pedido de volta pro lugar certo no `pedidos` local.
+//  - a web nunca processa imagem: previewKey e altaKey já chegam prontos.
+//
+// Convenções: campos camelCase no client, colunas/tabelas snake_case em pt-BR no banco.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/infra/prisma/gerado"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Plano {
+  GRATUITO // só cenário evento (10% por foto)
+  PRO // mensal: libera galeria privada com seleção (cenário ensaio)
+
+  @@map("plano")
+}
+
+enum StatusPlano {
+  ATIVO
+  TRIAL
+  INADIMPLENTE
+  CANCELADO
+
+  @@map("status_plano")
+}
+
+enum TipoGaleria {
+  EVENTO // pública, busca por número de peito
+  PRIVADO // senha/link, cliente do ensaio
+
+  @@map("tipo_galeria")
+}
+
+enum ModoVenda {
+  AVULSO // paga por foto (evento)
+  PACOTE // N incluídas no ensaio + extras
+  ENTREGA // só entrega, sem venda
+
+  @@map("modo_venda")
+}
+
+enum StatusGaleria {
+  RASCUNHO
+  PUBLICADA
+  ARQUIVADA
+
+  @@map("status_galeria")
+}
+
+enum StatusPedido {
+  ABERTO // carrinho virou pedido, sem cobrança ainda
+  AGUARDANDO_PAGAMENTO // cobrança criada no provedor
+  PAGO
+  EXPIRADO
+  CANCELADO
+  REEMBOLSADO
+
+  @@map("status_pedido")
+}
+
+enum ProvedorPagamento {
+  ASAAS
+  MERCADO_PAGO
+
+  @@map("provedor_pagamento")
+}
+
+enum MetodoPagamento {
+  PIX
+  CARTAO
+
+  @@map("metodo_pagamento")
+}
+
+enum StatusPagamento {
+  PENDENTE
+  CONFIRMADO
+  RECUSADO
+  ESTORNADO
+
+  @@map("status_pagamento")
+}
+
+enum StatusAssinatura {
+  ATIVA
+  PENDENTE
+  INADIMPLENTE
+  CANCELADA
+
+  @@map("status_assinatura")
+}
+
+// ---------------------------------------------------------------------------
+// Conta do fotógrafo
+// ---------------------------------------------------------------------------
+
+model Conta {
+  id          String      @id @default(uuid(7)) @db.Uuid
+  nome        String
+  /// handle público: fotoraw.com.br/@slug
+  slug        String      @unique
+  email       String      @unique
+  senhaHash   String      @map("senha_hash")
+  plano       Plano       @default(GRATUITO)
+  statusPlano StatusPlano @default(ATIVO) @map("status_plano")
+
+  /// token de longa duração usado pelo desktop (guardado como hash; o valor só
+  /// aparece uma vez em "Conectar à vitrine")
+  apiTokenHash     String?   @unique @map("api_token_hash")
+  apiTokenCriadoEm DateTime? @map("api_token_criado_em")
+
+  /// id do fotógrafo no provedor de pagamento (carteira que recebe o split)
+  provedorPagamento    ProvedorPagamento? @map("provedor_pagamento")
+  provedorPagamentoRef String?            @map("provedor_pagamento_ref")
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  galerias    Galeria[]
+  pedidos     Pedido[]
+  assinaturas Assinatura[]
+
+  @@map("contas")
+}
+
+/// Assinatura do plano PRO (cenário ensaio). Histórico: uma conta pode ter várias.
+model Assinatura {
+  id              String            @id @default(uuid(7)) @db.Uuid
+  contaId         String            @map("conta_id") @db.Uuid
+  plano           Plano
+  status          StatusAssinatura  @default(PENDENTE)
+  provedor        ProvedorPagamento
+  provedorRef     String            @map("provedor_ref")
+  valorMensal     Decimal           @map("valor_mensal") @db.Decimal(10, 2)
+  inicioEm        DateTime          @map("inicio_em")
+  proximaCobranca DateTime?         @map("proxima_cobranca")
+  canceladaEm     DateTime?         @map("cancelada_em")
+  criadoEm        DateTime          @default(now()) @map("criado_em")
+  atualizadoEm    DateTime          @updatedAt @map("atualizado_em")
+
+  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  @@unique([provedor, provedorRef])
+  @@index([contaId])
+  @@map("assinaturas")
+}
+
+// ---------------------------------------------------------------------------
+// Galeria + fotos (espelho do ensaio publicado no desktop)
+// ---------------------------------------------------------------------------
+
+model Galeria {
+  id              String @id @default(uuid(7)) @db.Uuid
+  contaId         String @map("conta_id") @db.Uuid
+  /// id do ensaio no banco local do desktop
+  ensaioIdDesktop String @map("ensaio_id_desktop")
+
+  titulo    String
+  /// fotoraw.com.br/@conta/slug
+  slug      String
+  descricao String?
+  tipo      TipoGaleria
+  modoVenda ModoVenda     @map("modo_venda")
+  status    StatusGaleria @default(RASCUNHO)
+
+  /// AVULSO: preço de cada foto (a foto pode sobrescrever)
+  precoFoto      Decimal? @map("preco_foto") @db.Decimal(10, 2)
+  /// PACOTE: quantas fotos já estão incluídas no ensaio
+  fotosIncluidas Int?     @map("fotos_incluidas")
+  /// PACOTE: preço de cada foto além das incluídas
+  precoExtra     Decimal? @map("preco_extra") @db.Decimal(10, 2)
+
+  capaUrl   String? @map("capa_url")
+  /// galeria PRIVADO: senha opcional (hash)
+  senhaHash String? @map("senha_hash")
+
+  publicadaEm  DateTime? @map("publicada_em")
+  expiraEm     DateTime? @map("expira_em")
+  criadoEm     DateTime  @default(now()) @map("criado_em")
+  atualizadoEm DateTime  @updatedAt @map("atualizado_em")
+
+  conta   Conta    @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  fotos   Foto[]
+  pedidos Pedido[]
+
+  @@unique([contaId, slug])
+  @@unique([contaId, ensaioIdDesktop])
+  @@index([status, publicadaEm])
+  @@map("galerias")
+}
+
+model Foto {
+  id            String @id @default(uuid(7)) @db.Uuid
+  galeriaId     String @map("galeria_id") @db.Uuid
+  /// id da foto no banco local do desktop
+  fotoIdDesktop String @map("foto_id_desktop")
+
+  /// chave no bucket público `previews` (já com marca d'água)
+  previewKey String  @map("preview_key")
+  /// chave no bucket privado `originais`; null enquanto a alta não subiu
+  altaKey    String? @map("alta_key")
+  largura    Int?
+  altura     Int?
+
+  /// número de peito / identificação lida no evento
+  numeroIdentificacao String?  @map("numero_identificacao")
+  /// sobrescreve Galeria.precoFoto quando definido
+  preco               Decimal? @db.Decimal(10, 2)
+  ordem               Int      @default(0)
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  galeria   Galeria      @relation(fields: [galeriaId], references: [id], onDelete: Cascade)
+  itens     ItemPedido[]
+  downloads Download[]
+
+  @@unique([galeriaId, fotoIdDesktop])
+  @@index([galeriaId, numeroIdentificacao])
+  @@index([galeriaId, ordem])
+  @@map("fotos")
+}
+
+// ---------------------------------------------------------------------------
+// Comprador + pedido
+// ---------------------------------------------------------------------------
+
+/// Mínimo necessário para recibo/nota (LGPD).
+model Comprador {
+  id       String  @id @default(uuid(7)) @db.Uuid
+  nome     String
+  email    String
+  whatsapp String?
+  cpf      String?
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  pedidos Pedido[]
+
+  @@index([email])
+  @@map("compradores")
+}
+
+model Pedido {
+  id     String @id @default(uuid(7)) @db.Uuid
+  /// número curto e sequencial para o comprador/fotógrafo citarem (#1042)
+  numero Int    @unique @default(autoincrement())
+
+  galeriaId   String @map("galeria_id") @db.Uuid
+  compradorId String @map("comprador_id") @db.Uuid
+  /// desnormalizado: consultas do painel do fotógrafo sem join em galeria
+  contaId     String @map("conta_id") @db.Uuid
+
+  status   StatusPedido @default(ABERTO)
+  subtotal Decimal      @db.Decimal(10, 2)
+  /// comissão da plataforma retida no split (evento: 10%)
+  comissao Decimal      @db.Decimal(10, 2)
+  total    Decimal      @db.Decimal(10, 2)
+
+  expiraEm       DateTime? @map("expira_em")
+  pagoEm         DateTime? @map("pago_em")
+  /// quando o desktop puxou este pedido para o `pedidos` local (null = pendente de sync)
+  sincronizadoEm DateTime? @map("sincronizado_em")
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  galeria    Galeria      @relation(fields: [galeriaId], references: [id])
+  comprador  Comprador    @relation(fields: [compradorId], references: [id])
+  conta      Conta        @relation(fields: [contaId], references: [id])
+  itens      ItemPedido[]
+  pagamentos Pagamento[]
+  downloads  Download[]
+
+  @@index([contaId, status])
+  @@index([contaId, sincronizadoEm])
+  @@index([galeriaId])
+  @@index([compradorId])
+  @@map("pedidos")
+}
+
+model ItemPedido {
+  id       String @id @default(uuid(7)) @db.Uuid
+  pedidoId String @map("pedido_id") @db.Uuid
+  fotoId   String @map("foto_id") @db.Uuid
+
+  /// preço congelado no momento do pedido
+  precoUnitario Decimal @map("preco_unitario") @db.Decimal(10, 2)
+  /// PACOTE: true quando a foto está entre as N incluídas (preço 0)
+  incluida      Boolean @default(false)
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  foto   Foto   @relation(fields: [fotoId], references: [id])
+
+  @@unique([pedidoId, fotoId])
+  @@map("itens_pedido")
+}
+
+// ---------------------------------------------------------------------------
+// Pagamento
+// ---------------------------------------------------------------------------
+
+model Pagamento {
+  id       String @id @default(uuid(7)) @db.Uuid
+  pedidoId String @map("pedido_id") @db.Uuid
+
+  provedor    ProvedorPagamento
+  metodo      MetodoPagamento
+  /// id da cobrança no provedor
+  provedorRef String            @map("provedor_ref")
+  status      StatusPagamento   @default(PENDENTE)
+  valor       Decimal           @db.Decimal(10, 2)
+
+  pixQrCode    String?   @map("pix_qr_code")
+  pixCopiaCola String?   @map("pix_copia_cola")
+  pixExpiraEm  DateTime? @map("pix_expira_em")
+
+  /// resposta bruta do provedor (auditoria)
+  payload      Json?
+  confirmadoEm DateTime? @map("confirmado_em")
+  criadoEm     DateTime  @default(now()) @map("criado_em")
+  atualizadoEm DateTime  @updatedAt @map("atualizado_em")
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@unique([provedor, provedorRef])
+  @@index([pedidoId])
+  @@map("pagamentos")
+}
+
+/// Log de webhooks para idempotência e reprocessamento.
+model WebhookRecebido {
+  id        String            @id @default(uuid(7)) @db.Uuid
+  provedor  ProvedorPagamento
+  /// id do evento no provedor (chave de idempotência)
+  eventoRef String            @map("evento_ref")
+  tipo      String
+  payload   Json
+
+  processadoEm DateTime? @map("processado_em")
+  erro         String?
+  criadoEm     DateTime  @default(now()) @map("criado_em")
+
+  @@unique([provedor, eventoRef])
+  @@index([processadoEm])
+  @@map("webhooks_recebidos")
+}
+
+// ---------------------------------------------------------------------------
+// Entrega
+// ---------------------------------------------------------------------------
+
+model Download {
+  id       String @id @default(uuid(7)) @db.Uuid
+  pedidoId String @map("pedido_id") @db.Uuid
+  fotoId   String @map("foto_id") @db.Uuid
+
+  /// token opaco que vai no link do e-mail; a URL assinada do R2 é gerada na hora
+  token     String    @unique
+  expiraEm  DateTime  @map("expira_em")
+  baixadoEm DateTime? @map("baixado_em")
+  contagem  Int       @default(0)
+
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  foto   Foto   @relation(fields: [fotoId], references: [id])
+
+  @@unique([pedidoId, fotoId])
+  @@map("downloads")
+}

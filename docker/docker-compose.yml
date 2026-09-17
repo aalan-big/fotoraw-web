@@ -1,0 +1,64 @@
+# Infra local de desenvolvimento.
+#   docker compose -f docker/docker-compose.yml up -d
+#
+# Os dados ficam em docker/dados/ (ignorado no git).
+name: fotoraw-web
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: fotoraw-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fotoraw
+      POSTGRES_PASSWORD: fotoraw
+      POSTGRES_DB: fotoraw
+    ports:
+      - '5432:5432'
+    volumes:
+      - ./dados/postgres:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U fotoraw']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: fotoraw-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - ./dados/redis:/data
+    command: ['redis-server', '--appendonly', 'yes']
+
+  # Simula o Cloudflare R2 (API S3) em dev.
+  minio:
+    image: minio/minio:latest
+    container_name: fotoraw-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: fotoraw
+      MINIO_ROOT_PASSWORD: fotoraw123
+    ports:
+      - '9000:9000' # API S3
+      - '9001:9001' # console web
+    volumes:
+      - ./dados/minio:/data
+    command: server /data --console-address ':9001'
+
+  # Cria os dois buckets na subida: previews (público) e originais (privado).
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 fotoraw fotoraw123; do sleep 1; done;
+      mc mb --ignore-existing local/previews;
+      mc mb --ignore-existing local/originais;
+      mc anonymous set download local/previews;
+      exit 0;
+      "

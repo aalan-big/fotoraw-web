@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
+# scripts de pós-instalação permitidos (engines do prisma, esbuild do vite)
+allowBuilds:
+  '@prisma/engines': true
+  prisma: true
+  esbuild: true

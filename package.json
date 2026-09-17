@@ -1,0 +1,20 @@
+{
+  "name": "fotoraw-web",
+  "private": true,
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "server": "pnpm --filter server",
+    "web": "pnpm --filter web",
+    "dev:server": "pnpm --filter server start:dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,vue,json,md,yml}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2"
+  }
+}
