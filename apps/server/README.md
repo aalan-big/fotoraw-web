@@ -2,20 +2,23 @@
 
 ## Subir em dev
 
+Tudo da raiz do monorepo, um terminal só:
+
 ```bash
-# 1. infra local (postgres, redis, minio)   — na raiz do monorepo
-npm run infra
-
-# 2. env
-cp apps/server/.env.example apps/server/.env
-
-# 3. banco
-npm run db:migrate                   # aplica migrations no fotoraw
-npm run db:seed                      # conta "estudio-luz" + galeria "corrida-2026"
-
-# 4. api
-npm run dev                          # http://localhost:3001/api/saude
+npm run db            # Postgres local via `prisma dev` (sem Docker), porta 5433, fica em background
+npm run db:migrate    # primeira vez / quando mudar o schema
+npm run db:seed       # conta "estudio-luz" + galeria "corrida-2026"
+npm run dev           # server (3001) + web (3000)
 ```
+
+- API: http://localhost:3001/api/saude
+- Vitrine: http://localhost:3000
+
+Na primeira vez, crie o banco: o `prisma dev` sobe vazio, então rode uma vez
+`npm run db:migrate` — ele cria `fotoraw` se não existir. Pra parar: `npm run db:stop`.
+
+Alternativa com Docker (Postgres + Redis + MinIO): `npm run infra` e ajuste
+`DATABASE_URL` no `.env` pra porta 5432 (veja `.env.example`).
 
 ## Scripts
 
@@ -26,6 +29,7 @@ npm run dev                          # http://localhost:3001/api/saude
 | `lint`               | oxlint                                                   |
 | `test`               | unitários (`src/**/*.spec.ts`) — sem banco               |
 | `test:e2e`           | e2e (`test/e2e/**/*.e2e-spec.ts`) — precisa do docker up |
+| `db:start` / `db:stop` | Postgres local via `prisma dev` (sem Docker)           |
 | `db:migrate`         | `prisma migrate dev` (cria/aplica migration)             |
 | `db:migrate:test`    | aplica migrations no banco `fotoraw_test`                |
 | `db:seed`            | roda `prisma/seeds/index.ts`                             |

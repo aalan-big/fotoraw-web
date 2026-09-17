@@ -1,7 +1,7 @@
 {
   "name": "fotoraw-web",
   "private": true,
-  "packageManager": "pnpm@12.4.2",
+  "packageManager": "pnpm@10.32.1",
   "engines": {
     "node": ">=22"
   },
@@ -9,10 +9,12 @@
     "dev": "pnpm -r --parallel --stream dev",
     "dev:server": "pnpm --filter server dev",
     "dev:web": "pnpm --filter web dev",
-    "infra": "docker compose -f docker/docker-compose.yml up -d",
-    "infra:down": "docker compose -f docker/docker-compose.yml down",
+    "db": "pnpm --filter server db:start",
+    "db:stop": "pnpm --filter server db:stop",
     "db:migrate": "pnpm --filter server db:migrate",
     "db:seed": "pnpm --filter server db:seed",
+    "infra": "docker compose -f docker/docker-compose.yml up -d",
+    "infra:down": "docker compose -f docker/docker-compose.yml down",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",

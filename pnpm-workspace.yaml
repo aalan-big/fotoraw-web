@@ -3,10 +3,7 @@ packages:
   - packages/*
 
 # scripts de pós-instalação permitidos (engines do prisma, esbuild do vite)
-allowBuilds:
-  '@prisma/engines': true
-  prisma: true
-  esbuild: true
-
-autoInstallPeers: true
-strictPeerDependencies: false
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - prisma
+  - esbuild

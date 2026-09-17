@@ -28,7 +28,9 @@
     "db:reset": "prisma migrate reset",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "db:start": "prisma dev --name fotoraw --port 51230 --db-port 5433 --shadow-db-port 5434 --detach",
+    "db:stop": "prisma dev stop fotoraw"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
