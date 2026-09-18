@@ -1,6 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Licenca } from '../../infra/prisma/gerado/client.js';
+import { NaoEncontradoExcecao } from '../../comum/excecoes/dominio.excecao.js';
 import { gerarChaveLicenca } from './chave.js';
+import {
+  LicencaEncerradaExcecao,
+  OutraLicencaAtivaExcecao,
+  PlanoNaoEncontradoExcecao,
+  ValidadeObrigatoriaExcecao,
+} from './licencas.excecoes.js';
 import { type RecursosLicenca, recursosDoPlano } from './recursos-licenca.js';
 import { LicencasRepositorio } from './repositorios/licencas.repositorio.js';
 
@@ -57,6 +64,64 @@ export class LicencasService {
       );
       return null;
     }
+  }
+
+  /**
+   * Emissão manual pelo admin (cortesia, vitalícia, trial estendido). Os limites
+   * vêm do plano-base com ajustes; a licença ativa anterior vira REVOGADA.
+   */
+  async emitirManual(dados: {
+    contaId: string;
+    tipo: 'CORTESIA' | 'VITALICIA' | 'TRIAL';
+    planoBaseId: string;
+    recursos?: Partial<RecursosLicenca>;
+    validaAte?: Date | null;
+    motivo: string;
+    emitidaPorId: string;
+  }): Promise<{ nova: Licenca; revogadas: number }> {
+    const plano = await this.repo.planoPorId(dados.planoBaseId);
+    if (!plano) throw new PlanoNaoEncontradoExcecao(dados.planoBaseId);
+    if (dados.tipo !== 'VITALICIA' && !dados.validaAte) throw new ValidadeObrigatoriaExcecao();
+    const recursos: RecursosLicenca = { ...recursosDoPlano(plano), ...(dados.recursos ?? {}) };
+    return this.repo.emitirSubstituindo(
+      {
+        contaId: dados.contaId,
+        chave: gerarChaveLicenca(),
+        tipo: dados.tipo,
+        validaAte: dados.tipo === 'VITALICIA' ? null : dados.validaAte,
+        recursos: { ...recursos },
+        motivo: `plano:${plano.id} · ${dados.motivo}`,
+        emitidaPorId: dados.emitidaPorId,
+      },
+      'substituída por nova emissão',
+    );
+  }
+
+  /** suspensa ↔ ativa, ou revogada (definitivo). Reativar só se não houver outra ativa. */
+  async alterarStatus(
+    id: string,
+    status: 'ATIVA' | 'SUSPENSA' | 'REVOGADA',
+    motivo?: string,
+  ): Promise<{ antes: Licenca; depois: Licenca }> {
+    const antes = await this.repo.porId(id);
+    if (!antes) throw new NaoEncontradoExcecao('Licença', id);
+    if (antes.status === 'REVOGADA' || antes.status === 'EXPIRADA') {
+      throw new LicencaEncerradaExcecao(antes.status);
+    }
+    if (status === 'ATIVA') {
+      const ativa = await this.repo.ativaMaisRecente(antes.contaId);
+      if (ativa && ativa.id !== id) throw new OutraLicencaAtivaExcecao(ativa.chave);
+    }
+    const depois = await this.repo.alterarStatus(id, status, motivo);
+    return { antes, depois };
+  }
+
+  historico(contaId: string): Promise<Licenca[]> {
+    return this.repo.historico(contaId);
+  }
+
+  listar(filtro: Parameters<LicencasRepositorio['listar']>[0]) {
+    return this.repo.listar(filtro);
   }
 
   async atual(contaId: string): Promise<LicencaAtual> {

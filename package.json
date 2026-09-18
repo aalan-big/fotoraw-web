@@ -14,6 +14,7 @@
     "db:stop": "pnpm --filter server db:stop",
     "db:migrate": "pnpm --filter server db:migrate",
     "db:seed": "pnpm --filter server db:seed",
+    "admin:criar": "pnpm --filter server admin:criar",
     "infra": "docker compose -f docker/docker-compose.yml up -d",
     "infra:down": "docker compose -f docker/docker-compose.yml down",
     "build": "pnpm -r build",

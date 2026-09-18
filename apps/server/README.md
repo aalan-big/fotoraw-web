@@ -73,6 +73,19 @@ Licença: o cadastro emite um **trial** de `trial_dias` (config, 14) com os limi
 - Trocar/redefinir senha revoga todas as sessões web e todos os tokens do desktop.
 - E-mails (verificar, redefinir, trocar e-mail) saem pelo Resend; sem `RESEND_API_KEY` o link é logado no console.
 
+## Admin (docs/fluxos/ambiente-admin.md)
+
+Rotas `/admin/*` exigem `JwtGuard` + `PapelGuard('ADMIN')` (decorator `@SoAdmin()`). O admin nunca nasce
+pelo cadastro público:
+
+```bash
+pnpm admin:criar --nome "Nome" --email admin@dominio --senha "senha longa"   # cria ou promove
+```
+
+Dev: `admin@fotoraw.local` / `admin-dev-2026`. Já existe: contas (listar, detalhe, status, reenviar
+verificação, revogar dispositivo) e licenças (listar, emitir cortesia/vitalícia/trial, suspender/reativar/
+revogar). Toda ação grava em `auditoria` com o admin como ator.
+
 ## Convenções
 
 - ESM (`"type": "module"`): imports internos terminam em `.js`.
