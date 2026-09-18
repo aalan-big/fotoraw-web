@@ -25,6 +25,7 @@ import { ContasAuthRepositorio } from './repositorios/contas.repositorio.js';
 import { DispositivosRepositorio } from './repositorios/dispositivos.repositorio.js';
 import { SessoesWebRepositorio } from './repositorios/sessoes-web.repositorio.js';
 import { TokensVerificacaoRepositorio } from './repositorios/tokens-verificacao.repositorio.js';
+import { LicencasService } from '../licencas/licencas.service.js';
 import { LimitadorTentativas } from './senha/limitador-tentativas.js';
 import { SenhaService } from './senha/senha.service.js';
 import { ehSenhaComum } from './senha/senhas-comuns.js';
@@ -96,6 +97,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly email: EmailService,
     private readonly auditoria: AuditoriaService,
+    private readonly licencas: LicencasService,
     config: ConfigService<Env, true>,
   ) {
     this.refreshDias = config.get('SESSAO_REFRESH_DIAS');
@@ -129,6 +131,7 @@ export class AuthService {
       atorContaId: conta.id,
       ip: ctx.ip,
     });
+    await this.licencas.emitirTrial(conta.id);
     await this.enviarVerificacaoEmail(conta);
 
     // já entra logado; sem verificar o e-mail só navega (não publica)
@@ -245,10 +248,11 @@ export class AuthService {
   async vincularDispositivo(dto: DispositivoDto, ctx: Contexto) {
     const conta = await this.autenticar(dto.email, dto.senha);
 
+    // reconexão de máquina ainda conectada não ocupa vaga; máquina nova (ou revogada) ocupa
     const existente = await this.dispositivos.porFingerprint(conta.id, dto.fingerprint);
-    if (!existente) {
+    if (!existente?.conectado) {
       const limite = await this.dispositivos.limiteDispositivos(conta.id);
-      if (limite !== null && (await this.dispositivos.contarDaConta(conta.id)) >= limite) {
+      if (limite !== null && (await this.dispositivos.contarConectados(conta.id)) >= limite) {
         throw new LimiteDispositivosExcecao(limite);
       }
     }
@@ -321,11 +325,17 @@ export class AuthService {
     await this.trocarSenha(conta.id, novaSenha, ctx, 'senha.alterada');
   }
 
-  /** Trocar senha derruba tudo: sessões web e tokens do desktop (ele pede login uma vez). */
-  private async trocarSenha(contaId: string, novaSenha: string, ctx: Contexto, acao: string) {
-    await this.contas.atualizarSenha(contaId, await this.senha.hash(novaSenha));
+  /** Derruba tudo da conta: sessões web e tokens do desktop (ele pede login uma vez). */
+  async revogarTudo(contaId: string): Promise<{ sessoes: number; tokens: number }> {
     const sessoes = await this.sessoes.revogarTodasDaConta(contaId);
     const tokens = await this.dispositivos.revogarTodosDaConta(contaId);
+    return { sessoes, tokens };
+  }
+
+  /** Trocar senha derruba tudo. */
+  private async trocarSenha(contaId: string, novaSenha: string, ctx: Contexto, acao: string) {
+    await this.contas.atualizarSenha(contaId, await this.senha.hash(novaSenha));
+    const { sessoes, tokens } = await this.revogarTudo(contaId);
     await this.auditoria.registrar({
       acao,
       alvoTipo: 'conta',

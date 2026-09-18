@@ -6,6 +6,7 @@ import { ZodValidationPipe } from '../../comum/pipes/zod-validation.pipe.js';
 import type { Env } from '../../config/env.js';
 import { AuthService, type Contexto, type SessaoEmitida } from './auth.service.js';
 import { Ctx } from './decorators/contexto.decorator.js';
+import { lerRefresh, limparCookieSessao, responderSessao } from './sessao-cookie.js';
 import { type CadastroDto, cadastroSchema } from './dto/cadastro.dto.js';
 import { type DispositivoDto, dispositivoSchema } from './dto/dispositivo.dto.js';
 import { type LoginDto, loginSchema } from './dto/login.dto.js';
@@ -21,9 +22,6 @@ import {
   reenviarVerificacaoSchema,
   verificarEmailSchema,
 } from './dto/verificar-email.dto.js';
-
-/** Nome do cookie do refresh token. Só viaja pra `/api/auth`. */
-export const COOKIE_REFRESH = 'fr_sessao';
 
 /** 5 tentativas a cada 15 min por IP (o service limita por e-mail). */
 const SENSIVEL = { default: { limit: 5, ttl: 15 * 60 * 1000 } };
@@ -142,25 +140,15 @@ export class AuthController {
     await this.auth.redefinirSenha(dto.token, dto.senha, ctx);
   }
 
-  // ---------------------------------------------------------------------------
-
   private responderSessao(res: Response, sessao: SessaoEmitida) {
-    res.cookie(COOKIE_REFRESH, sessao.refresh, {
-      httpOnly: true,
-      secure: this.cookieSeguro,
-      sameSite: 'lax',
-      path: '/api/auth',
-      expires: sessao.refreshExpiraEm,
-    });
-    return { acesso: sessao.acesso, conta: sessao.conta };
+    return responderSessao(res, sessao, this.cookieSeguro);
   }
 
   private limparCookie(res: Response) {
-    res.clearCookie(COOKIE_REFRESH, { path: '/api/auth' });
+    limparCookieSessao(res);
   }
 
   private lerRefresh(req: Request): string | undefined {
-    const valor = (req.cookies as Record<string, string> | undefined)?.[COOKIE_REFRESH];
-    return typeof valor === 'string' && valor.length > 0 ? valor : undefined;
+    return lerRefresh(req);
   }
 }

@@ -60,6 +60,14 @@ Antes do primeiro e2e: `npm run db` e depois `pnpm --filter server db:migrate:te
 
 Uso nos outros módulos: `@UseGuards(JwtGuard)` no controller e `@ContaAtual() conta: Conta` no handler.
 
+Conta logada (`JwtGuard`): `GET /me` (conta + perfil + licença + pendências) · `PATCH /me` (nome; e-mail com
+reconfirmação) · `PUT /me/senha` (devolve sessão nova) · `GET/PUT /me/perfil` · `GET /me/dispositivos` ·
+`DELETE /me/dispositivos/:id` (revoga o token da máquina) · `POST /me/excluir` (exclusão lógica, pede a senha).
+
+Licença: o cadastro emite um **trial** de `trial_dias` (config, 14) com os limites do PRO; vencido, a conta cai no
+`gratuito`. Desktop consulta `GET /licencas/atual` com o `token_api`. Formato de `recursos` (snake_case, o desktop lê):
+`src/modulos/licencas/recursos-licenca.ts`.
+
 - Senha: argon2id (64 MB, 3 it.), mínimo 8, lista de senhas comuns.
 - Força bruta: 5 falhas / 15 min por e-mail (`LimitadorTentativas`, em memória) **e** por IP (`@Throttle`, desligado em `test`).
 - Trocar/redefinir senha revoga todas as sessões web e todos os tokens do desktop.

@@ -2,7 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { EmailService, type Email } from '../../src/infra/email/email.service.js';
 import { PrismaService } from '../../src/infra/prisma/prisma.service.js';
-import { COOKIE_REFRESH } from '../../src/modulos/auth/auth.controller.js';
+import { COOKIE_REFRESH } from '../../src/modulos/auth/sessao-cookie.js';
 import { LimitadorTentativas } from '../../src/modulos/auth/senha/limitador-tentativas.js';
 import { limparBanco } from '../utils/banco.js';
 import { criarApp } from '../utils/criar-app.js';

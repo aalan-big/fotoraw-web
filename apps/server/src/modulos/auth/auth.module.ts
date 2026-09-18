@@ -1,9 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { Env } from '../../config/env.js';
+import { LicencasModule } from '../licencas/licencas.module.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtGuard } from './guards/jwt.guard.js';
@@ -24,6 +25,7 @@ import { SenhaService } from './senha/senha.service.js';
  */
 @Module({
   imports: [
+    forwardRef(() => LicencasModule),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) => ({
@@ -54,6 +56,14 @@ import { SenhaService } from './senha/senha.service.js';
     PapelGuard,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
-  exports: [AuthService, JwtGuard, TokenApiGuard, PapelGuard, JwtModule, ContasAuthRepositorio],
+  exports: [
+    AuthService,
+    JwtGuard,
+    TokenApiGuard,
+    PapelGuard,
+    JwtModule,
+    ContasAuthRepositorio,
+    DispositivosRepositorio,
+  ],
 })
 export class AuthModule {}

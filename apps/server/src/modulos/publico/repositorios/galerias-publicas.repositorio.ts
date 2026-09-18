@@ -35,6 +35,8 @@ export class GaleriasPublicasRepositorio {
       where: {
         status: 'PUBLICADA',
         excluidoEm: null,
+        // conta excluída ou bloqueada some da vitrine junto com as galerias
+        conta: { excluidoEm: null, status: { not: 'BLOQUEADA' } },
         ...porSecao,
         AND: [{ OR: [{ encerraEm: null }, { encerraEm: { gt: new Date() } }] }, ...porBusca],
       },

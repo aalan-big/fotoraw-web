@@ -3,19 +3,62 @@ import type { Dispositivo, TokenApi } from '../../../infra/prisma/gerado/client.
 import { PrismaService } from '../../../infra/prisma/prisma.service.js';
 import type { RecursosLicenca } from '../../licencas/recursos-licenca.js';
 
+/** token_api que ainda vale: não revogado e não vencido (função: a data é a de agora, não a da subida). */
+const tokenVivo = () => ({
+  revogadoEm: null,
+  OR: [{ expiraEm: null }, { expiraEm: { gt: new Date() } }],
+});
+
 /** Dispositivos e os tokens_api que eles usam — tudo do lado do desktop. */
 @Injectable()
 export class DispositivosRepositorio {
   constructor(private readonly prisma: PrismaService) {}
 
-  contarDaConta(contaId: string): Promise<number> {
-    return this.prisma.dispositivo.count({ where: { contaId } });
+  /** Máquinas que ocupam vaga na licença = as que têm um token vivo. Revogada libera a vaga. */
+  contarConectados(contaId: string): Promise<number> {
+    return this.prisma.dispositivo.count({ where: { contaId, tokensApi: { some: tokenVivo() } } });
   }
 
-  porFingerprint(contaId: string, fingerprint: string): Promise<Dispositivo | null> {
-    return this.prisma.dispositivo.findUnique({
+  /** O dispositivo e se ele ainda tem token vivo (reconexão não conta como máquina nova). */
+  async porFingerprint(
+    contaId: string,
+    fingerprint: string,
+  ): Promise<{ dispositivo: Dispositivo; conectado: boolean } | null> {
+    const d = await this.prisma.dispositivo.findUnique({
       where: { contaId_fingerprint: { contaId, fingerprint } },
+      include: { _count: { select: { tokensApi: { where: tokenVivo() } } } },
     });
+    if (!d) return null;
+    const { _count, ...dispositivo } = d;
+    return { dispositivo, conectado: _count.tokensApi > 0 };
+  }
+
+  listarDaConta(contaId: string) {
+    return this.prisma.dispositivo.findMany({
+      where: { contaId },
+      orderBy: { ultimoVistoEm: 'desc' },
+      include: {
+        tokensApi: {
+          where: tokenVivo(),
+          orderBy: { criadoEm: 'desc' },
+          take: 1,
+          select: { ultimoUsoEm: true, expiraEm: true },
+        },
+      },
+    });
+  }
+
+  porIdDaConta(contaId: string, id: string): Promise<Dispositivo | null> {
+    return this.prisma.dispositivo.findFirst({ where: { id, contaId } });
+  }
+
+  /** Revogar a máquina = matar os tokens dela. A linha fica (histórico, sync_lotes apontam pro token). */
+  async revogarDispositivo(dispositivoId: string): Promise<number> {
+    const r = await this.prisma.tokenApi.updateMany({
+      where: { dispositivoId, revogadoEm: null },
+      data: { revogadoEm: new Date() },
+    });
+    return r.count;
   }
 
   upsert(dados: {
