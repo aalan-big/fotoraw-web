@@ -428,8 +428,14 @@ model Plano {
   limiteFotosPorGaleria Int?          @map("limite_fotos_por_galeria")
   limiteArmazenamentoMb Int?          @map("limite_armazenamento_mb")
   limiteDispositivos    Int?          @map("limite_dispositivos")
+  /// galeria privada com seleção do cliente (parte do ensaio)
   permiteGaleriaPrivada Boolean       @default(false) @map("permite_galeria_privada")
+  /// vender foto de evento — o gratuito só tem isso (10% pra plataforma)
   permiteEvento         Boolean       @default(true) @map("permite_evento")
+  /// publicar ensaio (portfólio / entrega ao cliente)
+  permiteEnsaio         Boolean       @default(false) @map("permite_ensaio")
+  /// módulos de gestão no desktop: clientes, agenda, contratos, financeiro
+  permiteGestaoEstudio  Boolean       @default(false) @map("permite_gestao_estudio")
   /// tirar de venda sem apagar
   ativo                 Boolean       @default(true)
   ordem                 Int           @default(0)

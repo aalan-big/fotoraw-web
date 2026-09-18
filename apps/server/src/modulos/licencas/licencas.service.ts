@@ -103,6 +103,8 @@ const RECURSOS_MINIMOS: RecursosLicenca = {
   limite_fotos_por_galeria: 200,
   limite_armazenamento_mb: 2048,
   limite_dispositivos: 1,
-  permite_galeria_privada: false,
   permite_evento: true,
+  permite_ensaio: false,
+  permite_galeria_privada: false,
+  permite_gestao_estudio: false,
 };

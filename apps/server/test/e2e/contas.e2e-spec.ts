@@ -65,6 +65,8 @@ describe('contas e licencas (e2e)', () => {
           limiteArmazenamentoMb: 204800,
           limiteDispositivos: 3,
           permiteGaleriaPrivada: true,
+          permiteEnsaio: true,
+          permiteGestaoEstudio: true,
           ordem: 2,
         },
       ],
@@ -98,7 +100,13 @@ describe('contas e licencas (e2e)', () => {
       expect(res.body.licenca).toMatchObject({
         plano: 'trial',
         tipo: 'TRIAL',
-        recursos: { limite_dispositivos: 3, permite_galeria_privada: true },
+        recursos: {
+          limite_dispositivos: 3,
+          permite_evento: true,
+          permite_ensaio: true,
+          permite_galeria_privada: true,
+          permite_gestao_estudio: true,
+        },
       });
       expect(res.body.licenca.chave).toMatch(/^FR-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
       expect(res.body.licenca.diasRestantes).toBe(14);
@@ -112,7 +120,13 @@ describe('contas e licencas (e2e)', () => {
       expect(res.body.licenca).toMatchObject({
         plano: 'gratuito',
         chave: null,
-        recursos: { limite_dispositivos: 1, permite_galeria_privada: false },
+        recursos: {
+          limite_dispositivos: 1,
+          permite_evento: true,
+          permite_ensaio: false,
+          permite_galeria_privada: false,
+          permite_gestao_estudio: false,
+        },
       });
       expect(await prisma.licenca.count({ where: { status: 'EXPIRADA' } })).toBe(1);
     });

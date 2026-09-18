@@ -39,8 +39,10 @@ export interface RecursosLicenca {
   limite_fotos_por_galeria: number | null;
   limite_armazenamento_mb: number | null;
   limite_dispositivos: number | null;
-  permite_galeria_privada: boolean;
   permite_evento: boolean;
+  permite_ensaio: boolean;
+  permite_galeria_privada: boolean;
+  permite_gestao_estudio: boolean;
 }
 
 export interface Licenca {

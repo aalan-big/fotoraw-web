@@ -58,6 +58,18 @@ e `tokens_verificacao` (tipo `verificar_email | redefinir_senha`, hash, expira, 
 
 ---
 
+## 1.1 O que cada plano libera
+
+| | Gratuito | PRO (trial 14 dias no cadastro) |
+|---|---|---|
+| Vender foto de **evento** (corrida, pedal, formatura…) | ✅ — plataforma fica com 10% | ✅ — 10% |
+| Publicar **ensaio** (portfólio, entrega ao cliente) | ❌ | ✅ |
+| Galeria privada com **seleção** do cliente | ❌ | ✅ |
+| **Gestão do estúdio** no desktop (clientes, agenda, contratos, financeiro) | ❌ | ✅ |
+| Máquinas / armazenamento | 1 · 20 GB | 3 · 200 GB |
+
+Tudo isso vai no snapshot `licencas.recursos` (snake_case) — o desktop lê daí e bloqueia o que não pode.
+
 ## 2. O painel web do fotógrafo (`apps/fotografo`)
 
 Princípio: **enxuto**. Tudo que envolve arquivo, edição, agenda, contrato e financeiro do estúdio
@@ -114,7 +126,9 @@ Layout: menu lateral fixo (mesma linguagem do desktop: item ativo vinho, seçõe
 | preço por foto / pacote / entrega | **desktop**, ao publicar | `galerias.modo_venda`, `preco_*` |
 | quem paga a taxa do provedor | web → Financeiro → Taxas | `perfis.taxas_para_cliente` → `pedidos.taxa_cliente_centavos` |
 | receber o dinheiro | web → Financeiro → Mercado Pago | `conexoes_pagamento`; sem isso a galeria publica mas **não vende** (aviso no desktop e no Início) |
+| publicar ensaio (portfólio / entrega) | precisa de plano PRO | `licencas.recursos.permite_ensaio` — no gratuito o desktop só publica **evento** |
 | galeria privada com seleção | precisa de plano PRO | `licencas.recursos.permite_galeria_privada` — o desktop só oferece a opção se a licença permite |
+| gestão do estúdio (clientes, agenda, contratos, financeiro) | precisa de plano PRO | `licencas.recursos.permite_gestao_estudio` — no gratuito o desktop mostra os módulos bloqueados |
 | pausar venda | web → Galerias | `galerias.status = pausada` (link no ar, compra bloqueada) |
 
 ---

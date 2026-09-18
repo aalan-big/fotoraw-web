@@ -3,11 +3,11 @@
 const beneficios = [
   {
     titulo: '14 dias de PRO, sem cartão',
-    texto: 'Galerias privadas com seleção do cliente, 3 máquinas, 200 GB.',
+    texto: 'Ensaios com seleção do cliente, gestão do estúdio no desktop, 3 máquinas, 200 GB.',
   },
   {
-    titulo: 'Venda fotos de evento sem mensalidade',
-    texto: 'Corrida, pedal, formatura: o cliente acha, escolhe e paga por Pix ou cartão.',
+    titulo: 'Depois, venda eventos de graça',
+    texto: 'Corrida, pedal, formatura: o cliente acha, escolhe e paga. A plataforma fica com 10%.',
   },
   {
     titulo: 'Seus originais ficam com você',

@@ -327,8 +327,8 @@ const diferenciais = [
               Sem mensalidade obrigatória. Sem subir seus originais.
             </p>
             <p class="mt-1 text-muted">
-              Comece de graça vendendo eventos. O plano PRO entra só quando você quiser entregar
-              ensaios com seleção.
+              No gratuito você vende fotos de evento e a plataforma fica com 10% por venda. O PRO
+              libera ensaios com seleção do cliente e a gestão do estúdio no desktop.
             </p>
           </div>
           <div class="flex shrink-0 gap-3">

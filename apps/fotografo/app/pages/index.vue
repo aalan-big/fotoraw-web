@@ -115,6 +115,17 @@ const trialPct = computed(() => {
   const total = 14;
   return Math.max(4, Math.min(100, Math.round((l.diasRestantes / total) * 100)));
 });
+/** O que a licença atual libera — gratuito só vende evento (10%); o resto é PRO. */
+const recursosPlano = computed(() => {
+  const r = eu.value?.licenca.recursos;
+  if (!r) return [];
+  return [
+    { rotulo: 'Vender fotos de evento (10% por venda)', ok: r.permite_evento },
+    { rotulo: 'Publicar ensaios (portfólio e entrega)', ok: r.permite_ensaio },
+    { rotulo: 'Galeria privada com seleção do cliente', ok: r.permite_galeria_privada },
+    { rotulo: 'Gestão do estúdio no desktop', ok: r.permite_gestao_estudio },
+  ];
+});
 const semLimite = '∞';
 const num = (n: number | null) => (n === null ? semLimite : n.toLocaleString('pt-BR'));
 const gb = (mb: number | null) =>
@@ -360,16 +371,44 @@ const dataBr = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
           </div>
         </dl>
 
-        <p class="mt-4 flex items-center gap-2 text-xs text-muted">
-          <span
-            class="size-1.5 rounded-full"
-            :class="eu.licenca.recursos.permite_galeria_privada ? 'bg-success' : 'bg-muted/50'"
-          />
-          Galeria privada com seleção do cliente:
-          <span class="text-text">{{
-            eu.licenca.recursos.permite_galeria_privada ? 'liberada' : 'só no PRO'
-          }}</span>
-        </p>
+        <ul class="mt-4 space-y-1.5 text-xs">
+          <li v-for="r in recursosPlano" :key="r.rotulo" class="flex items-center gap-2">
+            <span
+              class="flex size-4 shrink-0 items-center justify-center rounded-full"
+              :class="r.ok ? 'bg-success/15 text-success' : 'bg-surface-2 text-muted/60'"
+            >
+              <svg
+                v-if="r.ok"
+                viewBox="0 0 24 24"
+                class="size-3"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M5 12.5 10 17l9-10" />
+              </svg>
+              <svg
+                v-else
+                viewBox="0 0 24 24"
+                class="size-3"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+              >
+                <path d="M7 7l10 10M17 7 7 17" />
+              </svg>
+            </span>
+            <span :class="r.ok ? 'text-text' : 'text-muted'">{{ r.rotulo }}</span>
+            <span
+              v-if="!r.ok"
+              class="ml-auto rounded-full bg-wine-dim px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-wine-tint"
+              >PRO</span
+            >
+          </li>
+        </ul>
 
         <div v-if="eu.licenca.plano !== 'pro'" class="mt-auto pt-5">
           <UiBotao to="/plano" class="w-full">

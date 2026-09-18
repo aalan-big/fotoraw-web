@@ -1,4 +1,4 @@
-# Banco de dados — modelo aplicado (migrations 4–8)
+# Banco de dados — modelo aplicado (migrations 4–10)
 
 > Estado: **aplicado no Supabase** (projeto iysabguxvdgbvmjmmlgj, us-west-2) e no banco local — 21 tabelas + view `saldos_fotografo`, seed rodado.
 
@@ -90,7 +90,9 @@ Plano (catálogo) ≠ assinatura (contrato de cobrança) ≠ licença (direito d
 **`planos`**
 `codigo UNIQUE` (`gratuito`, `pro_mensal`, `pro_anual`) · `nome` · `preco_centavos` · `periodicidade: mensal | anual | nenhuma` ·
 `comissao_evento_pct numeric(5,2)` · `limite_galerias_ativas?` · `limite_fotos_por_galeria?` · `limite_armazenamento_mb?` ·
-`limite_dispositivos?` · `permite_galeria_privada bool` · `permite_evento bool` · `ativo bool` · `ordem int`
+`limite_dispositivos?` · `permite_evento bool` · `permite_ensaio bool` · `permite_galeria_privada bool` · `permite_gestao_estudio bool` · `ativo bool` · `ordem int`
+> **Regra do gratuito** (dono, 2026-09-18): só vende foto de **evento**, pagando 10% à plataforma. Ensaio (portfólio,
+> galeria privada com seleção) e a gestão do estúdio no desktop (clientes, agenda, contratos, financeiro) são PRO.
 
 **`assinaturas`**
 `conta_id` · `plano_id` · `status: trial | ativa | inadimplente | cancelada | expirada` · `inicio_em` ·
@@ -254,6 +256,8 @@ selecao.status       rascunho | enviada | aprovada          (fase 2)
 | 5 | `planos_e_licencas` | **+planos** (seed: gratuito, pro_mensal, pro_anual), `assinaturas` reestruturada, **+licencas** (índice parcial), **+faturas** |
 | 6 | `vitrine` | `galerias` (capa_key, codigo_acesso, pausada/encerrada, encerra_em, caches, excluido_em), `fotos` (thumb_key, tamanho, status), `compradores` (email unique, termos), `pedidos` (numero, desconto, comissao_pct, repasse, taxa, estornado), `pagamentos` (criado/expirado, boleto, split, manual), `downloads` (comprador_id, limite, ultimo) |
 | 7 | `operacional` | **+repasses**, **+sync_lotes**, **+auditoria**, **+configuracoes_plataforma** (seed dos valores padrão) |
+| 10 | `plano_gratuito_so_evento` | `planos.permite_ensaio`, `planos.permite_gestao_estudio`; gratuito = só evento; atualiza `licencas.recursos` já emitidos |
+| 9 | `tokens_api_dispositivo` | `tokens_api.dispositivo_id` (revogar máquina = revogar token) |
 | 8 | `auth_sessoes` | **+sessoes_web** (refresh rotativo por família), **+tokens_verificacao** (verificar e-mail, redefinir senha, trocar e-mail) |
 | fase 2 | `selecoes_e_cupons` | **+selecoes**, **+cupons** |
 
