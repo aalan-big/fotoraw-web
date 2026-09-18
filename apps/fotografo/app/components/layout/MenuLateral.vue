@@ -2,8 +2,6 @@
 defineProps<{ aberto: boolean }>();
 defineEmits<{ fechar: [] }>();
 
-const sessao = useSessao();
-
 /** Mesma organização do desktop: seções, item ativo em vinho. */
 const secoes = [
   {
@@ -53,7 +51,7 @@ const secoes = [
   <!-- fundo escuro no mobile -->
   <div v-if="aberto" class="fixed inset-0 z-30 bg-black/60 lg:hidden" @click="$emit('fechar')" />
   <aside
-    class="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border bg-surface transition-transform lg:static lg:translate-x-0"
+    class="fixed inset-y-0 left-0 z-40 flex h-dvh w-64 shrink-0 flex-col border-r border-border bg-surface transition-transform lg:sticky lg:top-0 lg:translate-x-0"
     :class="aberto ? 'translate-x-0' : '-translate-x-full'"
   >
     <div class="flex h-16 items-center px-5">
@@ -88,17 +86,5 @@ const secoes = [
         </ul>
       </div>
     </nav>
-
-    <div class="border-t border-border p-3">
-      <div class="truncate px-3 text-sm">{{ sessao.conta?.nome }}</div>
-      <div class="truncate px-3 text-xs text-muted">@{{ sessao.conta?.slug }}</div>
-      <button
-        type="button"
-        class="mt-2 w-full rounded-lg px-3 py-2 text-left text-sm text-muted hover:bg-surface-2 hover:text-text"
-        @click="sessao.sair()"
-      >
-        Sair
-      </button>
-    </div>
   </aside>
 </template>
