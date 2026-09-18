@@ -26,6 +26,7 @@ const caixa = ref<HTMLElement | null>(null);
 const iniciais = computed(() =>
   (sessao.conta?.nome ?? '?')
     .split(/\s+/)
+    .map((p) => p.replace(/[^\p{L}]/gu, ''))
     .filter(Boolean)
     .slice(0, 2)
     .map((p) => p[0]!.toUpperCase())

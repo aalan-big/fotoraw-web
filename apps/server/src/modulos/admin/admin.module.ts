@@ -5,12 +5,19 @@ import { ContasAdminController } from './contas.admin.controller.js';
 import { ContasAdminService } from './contas.admin.service.js';
 import { LicencasAdminController } from './licencas.admin.controller.js';
 import { LicencasAdminService } from './licencas.admin.service.js';
+import { PlanosAdminController } from './planos.admin.controller.js';
 import { ContasAdminRepositorio } from './repositorios/contas.admin.repositorio.js';
+import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
 
 /** Gestão da plataforma (docs/fluxos/ambiente-admin.md). Tudo aqui exige papel ADMIN. */
 @Module({
   imports: [AuthModule, LicencasModule],
-  controllers: [ContasAdminController, LicencasAdminController],
+  controllers: [
+    VisaoGeralAdminController,
+    ContasAdminController,
+    LicencasAdminController,
+    PlanosAdminController,
+  ],
   providers: [ContasAdminService, LicencasAdminService, ContasAdminRepositorio],
 })
 export class AdminModule {}
