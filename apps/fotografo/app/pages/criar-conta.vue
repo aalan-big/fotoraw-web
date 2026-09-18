@@ -51,7 +51,17 @@ const forca = computed(() => {
 });
 const corForca = ['', 'bg-danger', 'bg-warning', 'bg-info', 'bg-success'];
 
+/** Confirmação: só avisa depois que a pessoa digitou algo nos dois campos. */
+const confirmacao = ref('');
+const senhasDiferentes = computed(
+  () => confirmacao.value.length > 0 && confirmacao.value !== form.senha,
+);
+const senhasConferem = computed(
+  () => confirmacao.value.length > 0 && confirmacao.value === form.senha,
+);
+
 async function enviar() {
+  if (senhasDiferentes.value) return;
   enviando.value = true;
   erro.value = '';
   erros.value = {};
@@ -165,7 +175,26 @@ async function enviar() {
       </span>
     </label>
 
-    <UiBotao type="submit" tamanho="lg" class="w-full" :disabled="enviando">
+    <label class="block">
+      <span class="rotulo">Confirme a senha</span>
+      <input
+        v-model="confirmacao"
+        :type="mostrarSenha ? 'text' : 'password'"
+        autocomplete="new-password"
+        required
+        class="campo"
+        :class="{ 'border-danger': senhasDiferentes, 'border-success': senhasConferem }"
+        placeholder="digite a mesma senha"
+      />
+      <span v-if="senhasDiferentes" class="mt-1 block text-xs text-danger">
+        As senhas não são iguais
+      </span>
+      <span v-else-if="senhasConferem" class="mt-1 block text-xs text-success"
+        >Senhas conferem</span
+      >
+    </label>
+
+    <UiBotao type="submit" tamanho="lg" class="w-full" :disabled="enviando || senhasDiferentes">
       {{ enviando ? 'Criando…' : 'Criar conta grátis' }}
     </UiBotao>
 
