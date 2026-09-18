@@ -21,7 +21,6 @@ describe('admin (e2e)', () => {
   const emails: Email[] = [];
   const api = () => request(app.getHttpServer());
   let planoPro: string;
-  let planoGratuito: string;
 
   beforeAll(async () => {
     app = await criarApp((b) =>
@@ -38,7 +37,7 @@ describe('admin (e2e)', () => {
     await limparBanco(app);
     app.get(LimitadorTentativas).reiniciar();
     emails.length = 0;
-    const [g, p] = await Promise.all([
+    const [, p] = await Promise.all([
       prisma.plano.create({
         data: {
           codigo: 'gratuito',
@@ -67,7 +66,6 @@ describe('admin (e2e)', () => {
         },
       }),
     ]);
-    planoGratuito = g.id;
     planoPro = p.id;
     await prisma.configuracaoPlataforma.create({ data: { chave: 'trial_dias', valor: 14 } });
     // o admin nasce fora do cadastro público (scripts/criar-admin.ts)

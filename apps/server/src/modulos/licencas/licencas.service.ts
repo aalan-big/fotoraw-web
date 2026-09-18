@@ -82,7 +82,7 @@ export class LicencasService {
     const plano = await this.repo.planoPorId(dados.planoBaseId);
     if (!plano) throw new PlanoNaoEncontradoExcecao(dados.planoBaseId);
     if (dados.tipo !== 'VITALICIA' && !dados.validaAte) throw new ValidadeObrigatoriaExcecao();
-    const recursos: RecursosLicenca = { ...recursosDoPlano(plano), ...(dados.recursos ?? {}) };
+    const recursos: RecursosLicenca = { ...recursosDoPlano(plano), ...dados.recursos };
     return this.repo.emitirSubstituindo(
       {
         contaId: dados.contaId,

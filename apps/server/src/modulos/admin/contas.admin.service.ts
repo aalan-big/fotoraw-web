@@ -83,7 +83,7 @@ export class ContasAdminService {
       atorContaId: admin.id,
       ip: ctx.ip,
       antes: { status: antes.status },
-      depois: { status: dto.status, motivo: dto.motivo, ...(revogados ?? {}) },
+      depois: { status: dto.status, motivo: dto.motivo, ...revogados },
     });
     return { conta: depois, alterado: true };
   }
