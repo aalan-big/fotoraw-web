@@ -13,7 +13,7 @@ const mostrarSenha = ref(false);
 function slugDe(texto: string) {
   return texto
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[̀-ͯ]/g, '') // tira acentos
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
     .replace(/-{2,}/g, '-')
