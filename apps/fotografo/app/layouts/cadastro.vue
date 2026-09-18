@@ -19,7 +19,7 @@ const beneficios = [
 <template>
   <div class="relative min-h-dvh overflow-hidden">
     <div class="absolute inset-0 bg-[url(/imagens/fundo-login.jpg)] bg-cover bg-center" />
-    <div class="absolute inset-0 bg-gradient-to-r from-bg via-bg/85 to-bg/55" />
+    <div class="absolute inset-0 bg-linear-to-r from-bg via-bg/85 to-bg/55" />
 
     <div
       class="relative mx-auto grid min-h-dvh max-w-6xl items-center gap-10 px-5 py-8 lg:grid-cols-[1.05fr_minmax(0,26rem)] lg:gap-16 lg:px-8"
