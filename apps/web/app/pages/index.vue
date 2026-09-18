@@ -332,7 +332,7 @@ const diferenciais = [
             </p>
           </div>
           <div class="flex shrink-0 gap-3">
-            <UiBotao :to="fotografoUrl" tamanho="lg">Começar de graça</UiBotao>
+            <UiBotao :to="`${fotografoUrl}/criar-conta`" tamanho="lg">Começar de graça</UiBotao>
             <UiBotao :to="`${fotografoUrl}/entrar`" variante="secundaria" tamanho="lg">
               Já uso o FotoRAW
             </UiBotao>

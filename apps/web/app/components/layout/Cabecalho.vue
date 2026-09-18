@@ -46,7 +46,7 @@ function ativo(to: string) {
         <span class="mx-3 h-6 w-px bg-border" aria-hidden="true" />
 
         <UiBotao to="/#fotografos" variante="fantasma">Para fotógrafos</UiBotao>
-        <UiBotao :to="fotografoUrl">Sou fotógrafo</UiBotao>
+        <UiBotao :to="`${fotografoUrl}/entrar`">Sou fotógrafo</UiBotao>
       </nav>
 
       <button
@@ -76,7 +76,7 @@ function ativo(to: string) {
         </NuxtLink>
         <div class="mt-3 grid grid-cols-2 gap-3">
           <UiBotao to="/#fotografos" variante="secundaria">Para fotógrafos</UiBotao>
-          <UiBotao :to="fotografoUrl">Sou fotógrafo</UiBotao>
+          <UiBotao :to="`${fotografoUrl}/entrar`">Sou fotógrafo</UiBotao>
         </div>
       </nav>
     </div>
