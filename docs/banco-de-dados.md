@@ -1,4 +1,4 @@
-# Banco de dados — modelo aplicado (migrations 4–7)
+# Banco de dados — modelo aplicado (migrations 4–8)
 
 > Estado: **aplicado no Supabase** (projeto iysabguxvdgbvmjmmlgj, us-west-2) e no banco local — 21 tabelas + view `saldos_fotografo`, seed rodado.
 
@@ -75,6 +75,13 @@ Convenções: `id uuid PK`, `criado_em/atualizado_em timestamptz` em todas (omit
 
 **`dispositivos`** — máquinas que ativaram a licença
 `conta_id` · `fingerprint` · `nome` (hostname) · `versao_app?` · `ultimo_visto_em` · UNIQUE `(conta_id, fingerprint)`
+
+**`sessoes_web`** — refresh tokens da web (fotógrafo e admin); o desktop usa `tokens_api`
+`conta_id` · `familia uuid` · `token_hash UNIQUE` (sha256) · `user_agent?` · `ip?` · `expira_em` · `usada_em?` · `revogada_em?`
+> Rotação: cada `/auth/refresh` marca `usada_em` e cria outra sessão na mesma `familia`. Reuso de uma já usada = roubo → revoga a família.
+
+**`tokens_verificacao`** — links de uso único por e-mail
+`conta_id` · `tipo: verificar_email | redefinir_senha | trocar_email` · `token_hash UNIQUE` · `dados jsonb?` (ex.: e-mail novo) · `expira_em` · `usado_em?`
 
 ### 3.2 Planos, assinaturas e licenças (admin)
 
@@ -197,6 +204,7 @@ Gravar → responder 200 → processar em fila.
 ```
 conta.status         ativa | suspensa | bloqueada
 conta.papel          fotografo | admin
+token_verificacao.tipo verificar_email | redefinir_senha | trocar_email
 plano.periodicidade  mensal | anual | nenhuma
 assinatura.status    trial | ativa | inadimplente | cancelada | expirada
 assinatura.origem    site | admin
@@ -246,6 +254,7 @@ selecao.status       rascunho | enviada | aprovada          (fase 2)
 | 5 | `planos_e_licencas` | **+planos** (seed: gratuito, pro_mensal, pro_anual), `assinaturas` reestruturada, **+licencas** (índice parcial), **+faturas** |
 | 6 | `vitrine` | `galerias` (capa_key, codigo_acesso, pausada/encerrada, encerra_em, caches, excluido_em), `fotos` (thumb_key, tamanho, status), `compradores` (email unique, termos), `pedidos` (numero, desconto, comissao_pct, repasse, taxa, estornado), `pagamentos` (criado/expirado, boleto, split, manual), `downloads` (comprador_id, limite, ultimo) |
 | 7 | `operacional` | **+repasses**, **+sync_lotes**, **+auditoria**, **+configuracoes_plataforma** (seed dos valores padrão) |
+| 8 | `auth_sessoes` | **+sessoes_web** (refresh rotativo por família), **+tokens_verificacao** (verificar e-mail, redefinir senha, trocar e-mail) |
 | fase 2 | `selecoes_e_cupons` | **+selecoes**, **+cupons** |
 
 Cada migration vai com o SQL revisado à mão (como a 3), não só o diff — principalmente a 4 (conversão de dinheiro) e a 5 (índice parcial).

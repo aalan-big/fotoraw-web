@@ -39,6 +39,14 @@ enum PapelConta {
   @@map("papel_conta")
 }
 
+enum TipoTokenVerificacao {
+  VERIFICAR_EMAIL @map("verificar_email")
+  REDEFINIR_SENHA @map("redefinir_senha")
+  TROCAR_EMAIL    @map("trocar_email")
+
+  @@map("tipo_token_verificacao")
+}
+
 enum Periodicidade {
   MENSAL  @map("mensal")
   ANUAL   @map("anual")
@@ -266,6 +274,8 @@ model Conta {
   repasses          Repasse[]
   syncLotes         SyncLote[]
   auditorias        Auditoria[]
+  sessoesWeb        SessaoWeb[]
+  tokensVerificacao TokenVerificacao[]
 
   @@index([status])
   @@map("contas")
@@ -352,6 +362,47 @@ model Dispositivo {
 
   @@unique([contaId, fingerprint])
   @@map("dispositivos")
+}
+
+/// Refresh token da web (fotógrafo e admin). Rotação: cada /auth/refresh marca `usadaEm` e
+/// cria outra sessão na mesma `familia`; reuso de uma já usada = roubo → revoga a família.
+/// O desktop não passa por aqui (usa TokenApi).
+model SessaoWeb {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  contaId    String    @map("conta_id") @db.Uuid
+  familia    String    @db.Uuid
+  /// sha256 do refresh token; o token em claro só vive no cookie httpOnly
+  tokenHash  String    @unique @map("token_hash")
+  userAgent  String?   @map("user_agent")
+  ip         String?
+  expiraEm   DateTime  @map("expira_em")
+  usadaEm    DateTime? @map("usada_em")
+  revogadaEm DateTime? @map("revogada_em")
+  criadoEm   DateTime  @default(now()) @map("criado_em")
+
+  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  @@index([contaId])
+  @@index([familia])
+  @@map("sessoes_web")
+}
+
+/// Link de uso único enviado por e-mail (verificar e-mail, redefinir senha, trocar e-mail).
+/// `dados` guarda o que o token confirma — ex.: { email: "novo@..." } no trocar_email.
+model TokenVerificacao {
+  id        String               @id @default(uuid(7)) @db.Uuid
+  contaId   String               @map("conta_id") @db.Uuid
+  tipo      TipoTokenVerificacao
+  tokenHash String               @unique @map("token_hash")
+  dados     Json?
+  expiraEm  DateTime             @map("expira_em")
+  usadoEm   DateTime?            @map("usado_em")
+  criadoEm  DateTime             @default(now()) @map("criado_em")
+
+  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  @@index([contaId, tipo])
+  @@map("tokens_verificacao")
 }
 
 // ===========================================================================
