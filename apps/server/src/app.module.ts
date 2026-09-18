@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from './config/config.module.js';
+import { AuditoriaModule } from './infra/auditoria/auditoria.module.js';
+import { EmailModule } from './infra/email/email.module.js';
 import { PrismaModule } from './infra/prisma/prisma.module.js';
+import { AuthModule } from './modulos/auth/auth.module.js';
 import { PublicoModule } from './modulos/publico/publico.module.js';
 import { SaudeModule } from './modulos/saude/saude.module.js';
 
@@ -9,8 +12,11 @@ import { SaudeModule } from './modulos/saude/saude.module.js';
     // infra (globais)
     ConfigModule,
     PrismaModule,
+    EmailModule,
+    AuditoriaModule,
     // domínio — cada módulo novo entra aqui
     SaudeModule,
+    AuthModule,
     PublicoModule,
   ],
 })

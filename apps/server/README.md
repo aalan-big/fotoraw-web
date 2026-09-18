@@ -14,7 +14,7 @@ Depois, tudo da raiz do monorepo, um terminal só:
 
 ```bash
 npm run db:migrate    # aplica as migrations no Supabase (primeira vez / quando mudar o schema)
-npm run db:seed       # conta "estudio-luz" + galeria "corrida-2026"
+npm run db:seed       # contas "estudio-luz" e "marcosfoco" (senha: fotoraw-dev-2026) + galerias
 npm run dev           # server (3001) + web (3000)
 ```
 
@@ -50,6 +50,20 @@ aponte as duas URLs pra ele (exemplo comentado no `.env.example`).
 
 Os e2e **não** usam o Supabase: rodam no Postgres local (`npm run db`), banco `fotoraw_test`.
 Antes do primeiro e2e: `npm run db` e depois `pnpm --filter server db:migrate:test`.
+
+## Auth (docs/fluxos/ambiente-fotografo.md)
+
+| quem | como | guard |
+|---|---|---|
+| web (fotógrafo/admin) | `POST /auth/login` → `{ acesso }` (JWT 15 min) + cookie httpOnly `fr_sessao` (refresh 7 dias, rotativo, só em `/api/auth`) | `JwtGuard` (+ `PapelGuard` com `@Papel('ADMIN')`) |
+| desktop | `POST /auth/dispositivo` (e-mail + senha + fingerprint) → `{ tokenApi }` opaco, 1 ano, renova no uso | `TokenApiGuard` |
+
+Uso nos outros módulos: `@UseGuards(JwtGuard)` no controller e `@ContaAtual() conta: Conta` no handler.
+
+- Senha: argon2id (64 MB, 3 it.), mínimo 8, lista de senhas comuns.
+- Força bruta: 5 falhas / 15 min por e-mail (`LimitadorTentativas`, em memória) **e** por IP (`@Throttle`, desligado em `test`).
+- Trocar/redefinir senha revoga todas as sessões web e todos os tokens do desktop.
+- E-mails (verificar, redefinir, trocar e-mail) saem pelo Resend; sem `RESEND_API_KEY` o link é logado no console.
 
 ## Convenções
 

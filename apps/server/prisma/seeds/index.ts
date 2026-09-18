@@ -3,6 +3,7 @@
 // As capas vêm do picsum.photos — só pra dev, nunca em produção.
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { argon2id, hash } from 'argon2';
 import {
   type Categoria,
   type Modalidade,
@@ -14,6 +15,9 @@ import {
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DIRECT_URL ?? process.env.DATABASE_URL }),
 });
+
+/** Senha de todas as contas do seed (só dev): `fotoraw-dev-2026` */
+const SENHA_SEED = 'fotoraw-dev-2026';
 
 const diasAtras = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 const capa = (semente: string) => `https://picsum.photos/seed/${semente}/1200/1600`;
@@ -171,13 +175,20 @@ const galerias = [
 
 async function main() {
   const idPorSlug = new Map<string, string>();
+  const senhaHash = await hash(SENHA_SEED, {
+    type: argon2id,
+    memoryCost: 65536,
+    timeCost: 3,
+    parallelism: 1,
+  });
   for (const { cidade, uf, ...c } of contas) {
     const conta = await prisma.conta.upsert({
       where: { slug: c.slug },
-      update: { nome: c.nome },
+      update: { nome: c.nome, senhaHash, emailVerificadoEm: new Date() },
       create: {
         ...c,
-        senhaHash: 'trocar-por-hash-real',
+        senhaHash,
+        emailVerificadoEm: new Date(),
         perfil: { create: { nomeFantasia: c.nome, cidade, uf } },
       },
     });

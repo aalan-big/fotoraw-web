@@ -330,20 +330,24 @@ model ConexaoPagamento {
 
 /// Token de longa duração que o desktop usa pra sincronizar (um por máquina).
 model TokenApi {
-  id          String    @id @default(uuid(7)) @db.Uuid
-  contaId     String    @map("conta_id") @db.Uuid
+  id            String    @id @default(uuid(7)) @db.Uuid
+  contaId       String    @map("conta_id") @db.Uuid
+  /// máquina que usa o token (null = token manual, sem dispositivo)
+  dispositivoId String?   @map("dispositivo_id") @db.Uuid
   /// guarda só o hash; o token em claro aparece uma vez ("Conectar à vitrine")
-  tokenHash   String    @unique @map("token_hash")
-  nome        String
-  ultimoUsoEm DateTime? @map("ultimo_uso_em")
-  expiraEm    DateTime? @map("expira_em")
-  revogadoEm  DateTime? @map("revogado_em")
-  criadoEm    DateTime  @default(now()) @map("criado_em")
+  tokenHash     String    @unique @map("token_hash")
+  nome          String
+  ultimoUsoEm   DateTime? @map("ultimo_uso_em")
+  expiraEm      DateTime? @map("expira_em")
+  revogadoEm    DateTime? @map("revogado_em")
+  criadoEm      DateTime  @default(now()) @map("criado_em")
 
-  conta     Conta      @relation(fields: [contaId], references: [id], onDelete: Cascade)
-  syncLotes SyncLote[]
+  conta       Conta        @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  dispositivo Dispositivo? @relation(fields: [dispositivoId], references: [id], onDelete: Cascade)
+  syncLotes   SyncLote[]
 
   @@index([contaId])
+  @@index([dispositivoId])
   @@map("tokens_api")
 }
 
@@ -358,7 +362,8 @@ model Dispositivo {
   ultimoVistoEm DateTime @default(now()) @map("ultimo_visto_em")
   criadoEm      DateTime @default(now()) @map("criado_em")
 
-  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  conta     Conta      @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  tokensApi TokenApi[]
 
   @@unique([contaId, fingerprint])
   @@map("dispositivos")

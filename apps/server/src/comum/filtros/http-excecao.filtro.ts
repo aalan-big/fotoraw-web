@@ -39,7 +39,7 @@ export class HttpExcecaoFiltro implements ExceptionFilter {
       codigo: detalhes.codigo ?? (status >= 500 ? 'ERRO_INTERNO' : 'ERRO_HTTP'),
       mensagem: detalhes.mensagem ?? detalhes.message ?? 'Erro interno',
       ...(detalhes.erros ? { erros: detalhes.erros } : {}),
-      caminho: req.url,
+      caminho: req.originalUrl ?? req.url,
       horario: new Date().toISOString(),
     });
   }

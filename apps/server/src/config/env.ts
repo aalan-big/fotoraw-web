@@ -7,15 +7,26 @@ import { z } from 'zod';
 export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(0).default(3001),
+  /** vitrine (apps/web) */
   WEB_URL: z.url(),
+  /** painel do fotógrafo (apps/fotografo) — links de e-mail e CORS */
+  FOTOGRAFO_URL: z.url().default('http://localhost:3002'),
+  /** apps/admin */
+  ADMIN_URL: z.url().default('http://localhost:3003'),
 
   DATABASE_URL: z.string().min(1),
   /** conexão direta p/ migrations (Supabase); opcional, cai em DATABASE_URL */
   DIRECT_URL: z.string().min(1).optional(),
   REDIS_URL: z.string().min(1),
 
+  // auth (docs/fluxos/ambiente-fotografo.md §1)
   JWT_SECRET: z.string().min(16),
-  JWT_EXPIRES_IN: z.string().default('7d'),
+  /** token de acesso da web (curto; o refresh em cookie renova) */
+  JWT_EXPIRES_IN: z.string().default('15m'),
+  /** validade do refresh token (cookie httpOnly, rotativo) */
+  SESSAO_REFRESH_DIAS: z.coerce.number().int().min(1).default(7),
+  /** validade do token_api do desktop; renova sozinho no uso */
+  TOKEN_API_DIAS: z.coerce.number().int().min(1).default(365),
 
   STORAGE_ENDPOINT: z.url(),
   STORAGE_REGION: z.string().default('auto'),
