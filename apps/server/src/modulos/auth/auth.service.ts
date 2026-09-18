@@ -171,7 +171,7 @@ export class AuthService {
       dados: { email: novoEmail },
     });
     await this.email.enviar(
-      emailConfirmarTroca(novoEmail, conta.nome, this.link('confirmar-email', token)),
+      emailConfirmarTroca(novoEmail, conta.nome, this.link('verificar-email', token, { troca: '1' })),
     );
   }
 
@@ -413,8 +413,10 @@ export class AuthService {
     return registro;
   }
 
-  private link(rota: string, token: string): string {
-    return `${this.fotografoUrl}/${rota}?token=${token}`;
+  /** Link pro painel (apps/fotografo) que consome o token. */
+  private link(rota: string, token: string, extra: Record<string, string> = {}): string {
+    const query = new URLSearchParams({ token, ...extra });
+    return `${this.fotografoUrl}/${rota}?${query}`;
   }
 }
 

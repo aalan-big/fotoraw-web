@@ -9,6 +9,7 @@
     "dev": "pnpm -r --parallel --stream dev",
     "dev:server": "pnpm --filter server dev",
     "dev:web": "pnpm --filter web dev",
+    "dev:fotografo": "pnpm --filter fotografo dev",
     "db": "pnpm --filter server db:start",
     "db:stop": "pnpm --filter server db:stop",
     "db:migrate": "pnpm --filter server db:migrate",
