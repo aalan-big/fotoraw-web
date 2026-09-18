@@ -23,8 +23,13 @@ import {
   verificarEmailSchema,
 } from './dto/verificar-email.dto.js';
 
-/** 5 tentativas a cada 15 min por IP (o service limita por e-mail). */
-const SENSIVEL = { default: { limit: 5, ttl: 15 * 60 * 1000 } };
+/**
+ * Limite por IP nas rotas de credencial (o service limita por e-mail).
+ * Produção: 5 a cada 15 min. Dev: 30 — painel, desktop e curl batem do mesmo IP.
+ */
+const SENSIVEL = {
+  default: { limit: process.env.NODE_ENV === 'production' ? 5 : 30, ttl: 15 * 60 * 1000 },
+};
 
 /**
  * Endpoints públicos de identidade — docs/fluxos/ambiente-fotografo.md §3.

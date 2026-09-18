@@ -171,7 +171,11 @@ export class AuthService {
       dados: { email: novoEmail },
     });
     await this.email.enviar(
-      emailConfirmarTroca(novoEmail, conta.nome, this.link('verificar-email', token, { troca: '1' })),
+      emailConfirmarTroca(
+        novoEmail,
+        conta.nome,
+        this.link('verificar-email', token, { troca: '1' }),
+      ),
     );
   }
 

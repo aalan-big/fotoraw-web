@@ -2,12 +2,13 @@ import { Module, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import type { Env } from '../../config/env.js';
 import { LicencasModule } from '../licencas/licencas.module.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { JwtGuard } from './guards/jwt.guard.js';
+import { LimiteIpGuard } from './guards/limite-ip.guard.js';
 import { PapelGuard } from './guards/papel.guard.js';
 import { TokenApiGuard } from './guards/token-api.guard.js';
 import { ContasAuthRepositorio } from './repositorios/contas.repositorio.js';
@@ -54,7 +55,7 @@ import { SenhaService } from './senha/senha.service.js';
     JwtGuard,
     TokenApiGuard,
     PapelGuard,
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: LimiteIpGuard },
   ],
   exports: [
     AuthService,
