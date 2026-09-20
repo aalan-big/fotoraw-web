@@ -19,4 +19,5 @@ export function daquiA(ms: number): Date {
 }
 
 export const DIA_MS = 24 * 60 * 60 * 1000;
+export const HORA_MS = 60 * 60 * 1000;
 export const MINUTO_MS = 60 * 1000;

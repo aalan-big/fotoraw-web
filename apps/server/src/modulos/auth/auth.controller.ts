@@ -6,7 +6,12 @@ import { ZodValidationPipe } from '../../comum/pipes/zod-validation.pipe.js';
 import type { Env } from '../../config/env.js';
 import { AuthService, type Contexto, type SessaoEmitida } from './auth.service.js';
 import { Ctx } from './decorators/contexto.decorator.js';
-import { lerRefresh, limparCookieSessao, responderSessao } from './sessao-cookie.js';
+import {
+  lerRefresh,
+  limparCookieSessao,
+  type PublicoWeb,
+  responderSessao,
+} from './sessao-cookie.js';
 import { type CadastroDto, cadastroSchema } from './dto/cadastro.dto.js';
 import { type DispositivoDto, dispositivoSchema } from './dto/dispositivo.dto.js';
 import { type LoginDto, loginSchema } from './dto/login.dto.js';
@@ -35,6 +40,9 @@ const SENSIVEL = {
  * Endpoints públicos de identidade — docs/fluxos/ambiente-fotografo.md §3.
  * Web recebe { acesso, conta } + cookie httpOnly com o refresh.
  * Desktop recebe { tokenApi, conta, dispositivo } e nunca vê cookie.
+ *
+ * O admin tem login/refresh/sair próprios em `/auth/admin/*`: cookie separado
+ * (`fr_admin`, preso a esse caminho), papel ADMIN exigido aqui, sessão curta.
  */
 @Controller('auth')
 export class AuthController {
@@ -65,29 +73,48 @@ export class AuthController {
     @Ctx() ctx: Contexto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.responderSessao(res, await this.auth.login(dto, ctx));
+    return this.responderSessao(res, await this.auth.login(dto, ctx, 'fotografo'));
   }
 
   @Post('refresh')
   @HttpCode(200)
-  async refresh(
-    @Req() req: Request,
-    @Ctx() ctx: Contexto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    try {
-      return this.responderSessao(res, await this.auth.renovar(this.lerRefresh(req), ctx));
-    } catch (erro) {
-      this.limparCookie(res);
-      throw erro;
-    }
+  refresh(@Req() req: Request, @Ctx() ctx: Contexto, @Res({ passthrough: true }) res: Response) {
+    return this.renovar(req, ctx, res, 'fotografo');
   }
 
   @Post('sair')
   @HttpCode(204)
-  async sair(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    await this.auth.sair(this.lerRefresh(req));
-    this.limparCookie(res);
+  sair(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.encerrar(req, res, 'fotografo');
+  }
+
+  // ---- admin ---------------------------------------------------------------
+
+  @Post('admin/login')
+  @HttpCode(200)
+  @Throttle(SENSIVEL)
+  async loginAdmin(
+    @Body(new ZodValidationPipe(loginSchema)) dto: LoginDto,
+    @Ctx() ctx: Contexto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.responderSessao(res, await this.auth.login(dto, ctx, 'admin'), 'admin');
+  }
+
+  @Post('admin/refresh')
+  @HttpCode(200)
+  refreshAdmin(
+    @Req() req: Request,
+    @Ctx() ctx: Contexto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.renovar(req, ctx, res, 'admin');
+  }
+
+  @Post('admin/sair')
+  @HttpCode(204)
+  sairAdmin(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.encerrar(req, res, 'admin');
   }
 
   /** Desktop: e-mail + senha uma vez → token_api. */
@@ -145,15 +172,22 @@ export class AuthController {
     await this.auth.redefinirSenha(dto.token, dto.senha, ctx);
   }
 
-  private responderSessao(res: Response, sessao: SessaoEmitida) {
-    return responderSessao(res, sessao, this.cookieSeguro);
+  private async renovar(req: Request, ctx: Contexto, res: Response, publico: PublicoWeb) {
+    try {
+      const sessao = await this.auth.renovar(lerRefresh(req, publico), ctx, publico);
+      return this.responderSessao(res, sessao, publico);
+    } catch (erro) {
+      limparCookieSessao(res, publico);
+      throw erro;
+    }
   }
 
-  private limparCookie(res: Response) {
-    limparCookieSessao(res);
+  private async encerrar(req: Request, res: Response, publico: PublicoWeb) {
+    await this.auth.sair(lerRefresh(req, publico));
+    limparCookieSessao(res, publico);
   }
 
-  private lerRefresh(req: Request): string | undefined {
-    return lerRefresh(req);
+  private responderSessao(res: Response, sessao: SessaoEmitida, publico: PublicoWeb = 'fotografo') {
+    return responderSessao(res, sessao, this.cookieSeguro, publico);
   }
 }

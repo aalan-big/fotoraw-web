@@ -25,6 +25,8 @@ export const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('15m'),
   /** validade do refresh token (cookie httpOnly, rotativo) */
   SESSAO_REFRESH_DIAS: z.coerce.number().int().min(1).default(7),
+  /** validade do refresh do admin (cookie de sessão: some ao fechar o navegador) */
+  SESSAO_ADMIN_HORAS: z.coerce.number().int().min(1).default(12),
   /** validade do token_api do desktop; renova sozinho no uso */
   TOKEN_API_DIAS: z.coerce.number().int().min(1).default(365),
 

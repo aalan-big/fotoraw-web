@@ -75,3 +75,10 @@ export class SemPermissaoExcecao extends DominioExcecao {
     super('SEM_PERMISSAO', 'Você não tem permissão para isso', HttpStatus.FORBIDDEN);
   }
 }
+
+/** Conta existe e a senha bate, mas ela não pertence a este painel (admin no painel do fotógrafo ou vice-versa). */
+export class PainelErradoExcecao extends DominioExcecao {
+  constructor() {
+    super('PAINEL_ERRADO', 'Esta conta não entra por aqui', HttpStatus.FORBIDDEN);
+  }
+}

@@ -137,7 +137,7 @@ Layout: menu lateral fixo (mesma linguagem do desktop: item ativo vinho, seçõe
 
 | módulo | endpoints |
 |---|---|
-| `auth` | `POST /auth/cadastro` · `POST /auth/login` · `POST /auth/refresh` · `POST /auth/sair` · `POST /auth/dispositivo` (desktop) · `POST /auth/verificar-email` · `POST /auth/recuperar-senha` · `POST /auth/redefinir-senha` |
+| `auth` | `POST /auth/cadastro` · `POST /auth/login` · `POST /auth/refresh` · `POST /auth/sair` · `POST /auth/dispositivo` (desktop) · `POST /auth/verificar-email` · `POST /auth/recuperar-senha` · `POST /auth/redefinir-senha` · admin: `POST /auth/admin/{login,refresh,sair}` (cookie `fr_admin`) |
 | `contas` | `GET /me` · `PATCH /me` (nome, e-mail c/ reverificação) · `PUT /me/senha` · `GET/PUT /me/perfil` · `GET /me/dispositivos` · `DELETE /me/dispositivos/:id` |
 | `licencas` | `GET /licencas/atual` (desktop, a cada N dias) — devolve `recursos` + `valida_ate` |
 | `planos` | `GET /planos` · `POST /assinaturas` (Stripe Checkout) · `POST /assinaturas/cancelar` · `GET /faturas` · webhook Stripe |

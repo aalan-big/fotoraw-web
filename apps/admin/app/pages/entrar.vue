@@ -13,15 +13,13 @@ async function enviar() {
   enviando.value = true;
   erro.value = '';
   try {
-    const ok = await sessao.entrar(email.value, senha.value);
-    if (!ok) {
-      erro.value = 'Esta conta não é de administrador.';
-      return;
-    }
+    await sessao.entrar(email.value, senha.value);
     const voltar = typeof rota.query.voltar === 'string' ? rota.query.voltar : '/';
     await navigateTo(voltar.startsWith('/') ? voltar : '/');
   } catch (e) {
-    erro.value = lerErroApi(e).mensagem;
+    const falha = lerErroApi(e);
+    erro.value =
+      falha.codigo === 'PAINEL_ERRADO' ? 'Esta conta não é de administrador.' : falha.mensagem;
   } finally {
     enviando.value = false;
   }

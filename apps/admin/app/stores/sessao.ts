@@ -3,7 +3,8 @@ import type { Conta, Sessao } from '~/types/api';
 
 /**
  * Sessão do admin: mesmo esquema do painel (JWT em memória + refresh em cookie
- * httpOnly). A diferença é que só conta com `papel = ADMIN` fica logada aqui.
+ * httpOnly), mas nas rotas `/auth/admin/*`: cookie próprio (`fr_admin`, some ao
+ * fechar o navegador), papel ADMIN exigido pelo server, sessão de horas.
  */
 export const useSessao = defineStore('sessao', () => {
   const acesso = ref<string | null>(null);
@@ -26,25 +27,14 @@ export const useSessao = defineStore('sessao', () => {
       $fetch<T>(caminho, { baseURL: apiBase, credentials: 'include', ...opcoes });
   }
 
-  /** Devolve false se a conta não é admin (a sessão é encerrada). */
-  async function entrar(email: string, senha: string): Promise<boolean> {
-    const sessao = await bruto()<Sessao>('/auth/login', { method: 'POST', body: { email, senha } });
-    if (sessao.conta.papel !== 'ADMIN') {
-      await bruto()('/auth/sair', { method: 'POST' }).catch(() => null);
-      return false;
-    }
-    aplicar(sessao);
-    return true;
+  /** Conta que não é admin recebe 403 PAINEL_ERRADO do server. */
+  async function entrar(email: string, senha: string) {
+    aplicar(await bruto()<Sessao>('/auth/admin/login', { method: 'POST', body: { email, senha } }));
   }
 
   async function renovar(): Promise<boolean> {
     try {
-      const sessao = await bruto()<Sessao>('/auth/refresh', { method: 'POST' });
-      if (sessao.conta.papel !== 'ADMIN') {
-        limpar();
-        return false;
-      }
-      aplicar(sessao);
+      aplicar(await bruto()<Sessao>('/auth/admin/refresh', { method: 'POST' }));
       return true;
     } catch {
       limpar();
@@ -56,7 +46,7 @@ export const useSessao = defineStore('sessao', () => {
 
   async function sair() {
     try {
-      await bruto()('/auth/sair', { method: 'POST' });
+      await bruto()('/auth/admin/sair', { method: 'POST' });
     } finally {
       limpar();
       await navigateTo('/entrar');

@@ -11,6 +11,7 @@ import {
   EmailJaCadastradoExcecao,
   LimiteDispositivosExcecao,
   MuitasTentativasExcecao,
+  PainelErradoExcecao,
   SenhaFracaExcecao,
   SessaoInvalidaExcecao,
   SlugJaUsadoExcecao,
@@ -29,7 +30,19 @@ import { LicencasService } from '../licencas/licencas.service.js';
 import { LimitadorTentativas } from './senha/limitador-tentativas.js';
 import { SenhaService } from './senha/senha.service.js';
 import { ehSenhaComum } from './senha/senhas-comuns.js';
-import { DIA_MS, MINUTO_MS, daquiA, gerarTokenOpaco, hashToken, novaFamilia } from './tokens.js';
+import type { PublicoWeb } from './sessao-cookie.js';
+import {
+  DIA_MS,
+  HORA_MS,
+  MINUTO_MS,
+  daquiA,
+  gerarTokenOpaco,
+  hashToken,
+  novaFamilia,
+} from './tokens.js';
+
+/** Que papel cada painel web aceita. */
+const PAPEL_DO_PUBLICO: Record<PublicoWeb, PapelConta> = { fotografo: 'FOTOGRAFO', admin: 'ADMIN' };
 
 /** O que vai dentro do JWT de acesso. */
 export interface JwtPayload {
@@ -84,6 +97,7 @@ export function contaPublica(c: Conta): ContaPublica {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly refreshDias: number;
+  private readonly adminHoras: number;
   private readonly tokenApiDias: number;
   private readonly fotografoUrl: string;
 
@@ -101,6 +115,7 @@ export class AuthService {
     config: ConfigService<Env, true>,
   ) {
     this.refreshDias = config.get('SESSAO_REFRESH_DIAS');
+    this.adminHoras = config.get('SESSAO_ADMIN_HORAS');
     this.tokenApiDias = config.get('TOKEN_API_DIAS');
     this.fotografoUrl = config.get('FOTOGRAFO_URL');
   }
@@ -135,7 +150,7 @@ export class AuthService {
     await this.enviarVerificacaoEmail(conta);
 
     // já entra logado; sem verificar o e-mail só navega (não publica)
-    return this.abrirSessao(conta, ctx);
+    return this.abrirSessao(conta, ctx, 'fotografo');
   }
 
   /** Reenvio: resposta igual exista a conta ou não. */
@@ -203,9 +218,18 @@ export class AuthService {
   // Login web + refresh rotativo
   // ---------------------------------------------------------------------------
 
-  async login(dto: LoginDto, ctx: Contexto): Promise<SessaoEmitida> {
+  /**
+   * `publico` diz de qual painel veio o pedido: a conta precisa ter o papel
+   * daquele painel (admin não entra no painel do fotógrafo e vice-versa).
+   */
+  async login(
+    dto: LoginDto,
+    ctx: Contexto,
+    publico: PublicoWeb = 'fotografo',
+  ): Promise<SessaoEmitida> {
     const conta = await this.autenticar(dto.email, dto.senha);
-    return this.abrirSessao(conta, ctx);
+    if (conta.papel !== PAPEL_DO_PUBLICO[publico]) throw new PainelErradoExcecao();
+    return this.abrirSessao(conta, ctx, publico);
   }
 
   /**
@@ -213,7 +237,11 @@ export class AuthService {
    * Se a sessão apresentada JÁ tinha sido usada, alguém tem uma cópia do cookie:
    * revoga a família inteira e derruba os dois.
    */
-  async renovar(refresh: string | undefined, ctx: Contexto): Promise<SessaoEmitida> {
+  async renovar(
+    refresh: string | undefined,
+    ctx: Contexto,
+    publico: PublicoWeb = 'fotografo',
+  ): Promise<SessaoEmitida> {
     if (!refresh) throw new SessaoInvalidaExcecao();
     const sessao = await this.sessoes.porTokenHash(hashToken(refresh));
     if (!sessao || sessao.revogadaEm || sessao.expiraEm < new Date()) {
@@ -234,9 +262,11 @@ export class AuthService {
 
     const conta = await this.contas.porId(sessao.contaId);
     if (!conta || conta.status === 'BLOQUEADA') throw new SessaoInvalidaExcecao();
+    // cookie de um painel apresentado no outro (ou papel mudou depois do login)
+    if (conta.papel !== PAPEL_DO_PUBLICO[publico]) throw new SessaoInvalidaExcecao();
 
     await this.sessoes.marcarUsada(sessao.id);
-    return this.abrirSessao(conta, ctx, sessao.familia);
+    return this.abrirSessao(conta, ctx, publico, sessao.familia);
   }
 
   async sair(refresh: string | undefined): Promise<void> {
@@ -372,9 +402,16 @@ export class AuthService {
     return conta;
   }
 
-  private async abrirSessao(conta: Conta, ctx: Contexto, familia?: string): Promise<SessaoEmitida> {
+  private async abrirSessao(
+    conta: Conta,
+    ctx: Contexto,
+    publico: PublicoWeb,
+    familia?: string,
+  ): Promise<SessaoEmitida> {
     const refresh = gerarTokenOpaco();
-    const refreshExpiraEm = daquiA(this.refreshDias * DIA_MS);
+    const refreshExpiraEm = daquiA(
+      publico === 'admin' ? this.adminHoras * HORA_MS : this.refreshDias * DIA_MS,
+    );
     await this.sessoes.criar({
       contaId: conta.id,
       familia: familia ?? novaFamilia(),

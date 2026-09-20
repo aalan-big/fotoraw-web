@@ -13,7 +13,10 @@ Relação com o resto: `docs/fluxos/ambiente-fotografo.md` (o que o fotógrafo v
 
 ## 1. Identidade
 
-Mesma tabela `contas`, com `papel = admin`. Mesmo `POST /auth/login`, mesmo JWT + refresh em cookie.
+Mesma tabela `contas`, com `papel = admin`. Login próprio em `POST /auth/admin/login` (+ `refresh`, `sair`):
+mesmo JWT, mas o refresh vai num cookie separado (`fr_admin`, preso a `/api/auth/admin`, sem `expires` —
+some ao fechar o navegador) e dura horas (`SESSAO_ADMIN_HORAS`, padrão 12), não 7 dias. O server exige
+`papel = admin` nessas rotas e recusa admin no `POST /auth/login` do fotógrafo (`403 PAINEL_ERRADO`).
 O que muda:
 
 | | fotógrafo | admin |
@@ -67,7 +70,7 @@ Um admin não tem perfil público, licença nem galerias. Se um dia o dono tamb�
 | `admin/auditoria` | `GET /admin/auditoria?ator&acao&alvoTipo&alvoId&de&ate&pagina` |
 | `admin/sistema` | `GET /admin/sistema/saude` · `GET /admin/sistema/webhooks?erro=1` · `POST /admin/sistema/webhooks/:id/reprocessar` |
 | `admin/admins` | `GET /admin/admins` · `POST /admin/admins` · `PATCH /admin/admins/:id/status` |
-| `auth` (já existe) | `POST /auth/login` (mesmo) · **novo**: `POST /auth/2fa/ativar`, `POST /auth/2fa/confirmar`, login pede o código quando a conta tem 2FA |
+| `auth` (já existe) | `POST /auth/admin/login` · `refresh` · `sair` · **novo**: `POST /auth/2fa/ativar`, `POST /auth/2fa/confirmar`, login pede o código quando a conta tem 2FA |
 
 Organização no código: `src/modulos/admin/` com um controller + service por área (`contas.admin.controller.ts`…),
 reaproveitando os repositórios que já existem (`licencas`, `contas`, `auth`). O `LicencasService` ganha

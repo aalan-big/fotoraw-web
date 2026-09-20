@@ -87,7 +87,7 @@ describe('admin (e2e)', () => {
 
   async function entrarAdmin(): Promise<string> {
     const r = await api()
-      .post('/api/auth/login')
+      .post('/api/auth/admin/login')
       .send({ email: 'dono@fotoraw.local', senha: SENHA_ADMIN })
       .expect(200);
     return `Bearer ${r.body.acesso}`;

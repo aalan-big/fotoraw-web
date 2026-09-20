@@ -2,8 +2,9 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { EmailService, type Email } from '../../src/infra/email/email.service.js';
 import { PrismaService } from '../../src/infra/prisma/prisma.service.js';
-import { COOKIE_REFRESH } from '../../src/modulos/auth/sessao-cookie.js';
+import { COOKIE_REFRESH, COOKIE_REFRESH_ADMIN } from '../../src/modulos/auth/sessao-cookie.js';
 import { LimitadorTentativas } from '../../src/modulos/auth/senha/limitador-tentativas.js';
+import { SenhaService } from '../../src/modulos/auth/senha/senha.service.js';
 import { limparBanco } from '../utils/banco.js';
 import { criarApp } from '../utils/criar-app.js';
 
@@ -21,6 +22,7 @@ class EmailFalso {
   }
 }
 
+const ADMIN_SENHA = 'senha-do-admin-2026';
 const CADASTRO = {
   nome: 'Estúdio Teste',
   email: 'Contato@EstudioTeste.com',
@@ -28,11 +30,15 @@ const CADASTRO = {
   slug: 'estudio-teste',
 };
 
-function cookieRefresh(res: request.Response): string {
-  const cookies = res.headers['set-cookie'] as unknown as string[] | undefined;
-  const c = cookies?.find((v) => v.startsWith(`${COOKIE_REFRESH}=`));
+function cookieRefresh(res: request.Response, nome = COOKIE_REFRESH): string {
+  const c = setCookie(res, nome);
   if (!c) throw new Error('cookie de refresh ausente');
   return c.split(';')[0]!;
+}
+/** a linha `Set-Cookie` inteira do cookie `nome` (ou undefined) */
+function setCookie(res: request.Response, nome: string): string | undefined {
+  const cookies = res.headers['set-cookie'] as unknown as string[] | undefined;
+  return cookies?.find((v) => v.startsWith(`${nome}=`));
 }
 
 describe('auth (e2e)', () => {
@@ -59,6 +65,19 @@ describe('auth (e2e)', () => {
 
   async function cadastrar(dados = CADASTRO) {
     return api().post('/api/auth/cadastro').send(dados).expect(201);
+  }
+  /** admin nasce fora do cadastro público (scripts/criar-admin.ts) */
+  async function criarAdmin() {
+    return prisma.conta.create({
+      data: {
+        nome: 'Dono',
+        email: 'dono@fotoraw.local',
+        senhaHash: await app.get(SenhaService).hash(ADMIN_SENHA),
+        slug: 'admin-dono',
+        papel: 'ADMIN',
+        emailVerificadoEm: new Date(),
+      },
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -165,6 +184,80 @@ describe('auth (e2e)', () => {
 
     it('refresh sem cookie é 401', async () => {
       await api().post('/api/auth/refresh').expect(401);
+    });
+
+    it('admin não entra pelo painel do fotógrafo', async () => {
+      await criarAdmin();
+      await api()
+        .post('/api/auth/login')
+        .send({ email: 'dono@fotoraw.local', senha: ADMIN_SENHA })
+        .expect(403)
+        .expect((r) => expect(r.body.codigo).toBe('PAINEL_ERRADO'));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+
+  describe('sessão do admin (/auth/admin/*)', () => {
+    it('login do admin usa cookie próprio, sem expires, preso a /api/auth/admin', async () => {
+      await criarAdmin();
+      const login = await api()
+        .post('/api/auth/admin/login')
+        .send({ email: 'dono@fotoraw.local', senha: ADMIN_SENHA })
+        .expect(200);
+      expect(login.body.conta.papel).toBe('ADMIN');
+      const linha = setCookie(login, COOKIE_REFRESH_ADMIN)!;
+      expect(linha).toMatch(/Path=\/api\/auth\/admin/);
+      expect(linha).toMatch(/HttpOnly/);
+      expect(linha).not.toMatch(/Expires=/);
+      expect(setCookie(login, COOKIE_REFRESH)).toBeUndefined();
+
+      // refresh e sair na rota do admin
+      const cookie = cookieRefresh(login, COOKIE_REFRESH_ADMIN);
+      const refresh = await api().post('/api/auth/admin/refresh').set('Cookie', cookie).expect(200);
+      const cookie2 = cookieRefresh(refresh, COOKIE_REFRESH_ADMIN);
+      const sair = await api().post('/api/auth/admin/sair').set('Cookie', cookie2).expect(204);
+      expect(setCookie(sair, COOKIE_REFRESH_ADMIN)).toMatch(/fr_admin=;/);
+      await api().post('/api/auth/admin/refresh').set('Cookie', cookie2).expect(401);
+    });
+
+    it('refresh do admin dura horas, não dias', async () => {
+      await criarAdmin();
+      await api()
+        .post('/api/auth/admin/login')
+        .send({ email: 'dono@fotoraw.local', senha: ADMIN_SENHA })
+        .expect(200);
+      const sessao = await prisma.sessaoWeb.findFirstOrThrow();
+      const horas = (sessao.expiraEm.getTime() - Date.now()) / 3_600_000;
+      expect(horas).toBeLessThanOrEqual(12);
+      expect(horas).toBeGreaterThan(11);
+    });
+
+    it('fotógrafo não entra pelo admin, e o cookie de um painel não vale no outro', async () => {
+      await criarAdmin();
+      const cad = await cadastrar();
+      await api()
+        .post('/api/auth/admin/login')
+        .send({ email: CADASTRO.email, senha: CADASTRO.senha })
+        .expect(403)
+        .expect((r) => expect(r.body.codigo).toBe('PAINEL_ERRADO'));
+
+      // cookie do fotógrafo renomeado pra fr_admin (simula quem tenta forçar)
+      const valor = cookieRefresh(cad).split('=')[1]!;
+      await api()
+        .post('/api/auth/admin/refresh')
+        .set('Cookie', `${COOKIE_REFRESH_ADMIN}=${valor}`)
+        .expect(401);
+
+      const login = await api()
+        .post('/api/auth/admin/login')
+        .send({ email: 'dono@fotoraw.local', senha: ADMIN_SENHA })
+        .expect(200);
+      const valorAdmin = cookieRefresh(login, COOKIE_REFRESH_ADMIN).split('=')[1]!;
+      await api()
+        .post('/api/auth/refresh')
+        .set('Cookie', `${COOKIE_REFRESH}=${valorAdmin}`)
+        .expect(401);
     });
 
     it('e-mail inexistente e senha errada dão a mesma resposta', async () => {

@@ -17,7 +17,11 @@ async function enviar() {
     const voltar = typeof rota.query.voltar === 'string' ? rota.query.voltar : '/';
     await navigateTo(voltar.startsWith('/') ? voltar : '/');
   } catch (e) {
-    erro.value = lerErroApi(e).mensagem;
+    const falha = lerErroApi(e);
+    erro.value =
+      falha.codigo === 'PAINEL_ERRADO'
+        ? 'Esta é uma conta de administrador — entre pelo painel admin.'
+        : falha.mensagem;
   } finally {
     enviando.value = false;
   }
