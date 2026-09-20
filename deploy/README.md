@@ -26,6 +26,23 @@ encostar nele:
 O Caddy fica na frente com HTTPS (Let's Encrypt) e repassa pra essas portas. Nada além de
 80/443/22 fica exposto.
 
+## 0. Antes de tudo: diagnóstico (só leitura) e snapshot
+
+A VPS já tem um site em produção. Duas coisas antes de instalar qualquer coisa:
+
+1. **Snapshot/backup da VPS no painel da Hostinger** (VPS → Snapshots). Se qualquer coisa
+   der errado, volta em minutos. É a rede de segurança de verdade.
+2. Rodar o diagnóstico — ele **só lê**, não instala nem altera nada:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aalan-big/fotoraw-web/main/deploy/diagnostico.sh -o diagnostico.sh
+bash diagnostico.sh
+```
+
+Ele mostra portas em uso, nginx/caddy, node/pm2 existentes, Postgres, firewall, porta do SSH.
+Com isso se decide: proxy (Caddy ou o nginx que já existe), portas do FotoRAW (se 3000–3003
+estiverem ocupadas pelo outro site, trocam-se as do FotoRAW) e se o Postgres é o existente.
+
 ## 1. DNS (no registrador do domínio)
 
 Crie 5 registros **A** apontando pro IP da VPS: `@`, `www`, `api`, `painel`, `admin`.
