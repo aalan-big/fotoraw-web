@@ -14,7 +14,7 @@ Onde o trabalho parou, pra retomar sem reler o histórico. Os planos completos e
 - Desktop (`fotoraw-main`): login com a conta web (online/offline), licença em cache, módulos de gestão
   bloqueados no gratuito. **Pendente: teste visual no Tauri.**
 
-**Ambiente admin** (passos 1–5 de 6)
+**Ambiente admin** (passos 1–6 — completo)
 - Server `/admin/*` (`@SoAdmin()`): contas, licenças, visão geral, planos (editar + reemitir licenças
   ativas), configurações (catálogo tipado em `admin/configuracoes.catalogo.ts`). Tudo auditado.
 - `apps/admin` (3003): entrar, visão geral, fotógrafos (lista/detalhe/ações), licenças (lista/emitir/status),
@@ -34,6 +34,12 @@ Onde o trabalho parou, pra retomar sem reler o histórico. Os planos completos e
 - Auditoria completa (`GET /admin/auditoria` com quem/ação/alvo/período, `GET /admin/auditoria/acoes`)
   e Sistema (`GET /admin/sistema/saude`, webhooks com `reprocessar` = volta pra fila, lotes de sync).
   Rótulos das ações em `admin/resumo-conta.ts` (`ROTULO_ACAO`) — ação nova = uma linha lá.
+- 2FA TOTP do admin (migration 12): `/admin/2fa` (iniciar → QR, confirmar → 8 códigos de recuperação,
+  regenerar, desativar com senha + código); login vira duas etapas (`/auth/admin/login` devolve
+  `{ precisa2fa, desafio }` → `/auth/admin/login/2fa`). Segredo cifrado (AES-GCM com chave do JWT_SECRET).
+  `ADMIN_EXIGE_2FA` (true em produção) bloqueia `/admin/*` até ativar (guard `Exige2faGuard`, rotas
+  do próprio 2FA marcadas `@Sem2FA()`). Tela Segurança (menu do avatar) + Admins (criar, bloquear,
+  zerar 2FA de outro; nunca a própria conta).
 - `pnpm admin:criar --nome --email --senha` cria ou promove um admin.
 
 **Regra de negócio**: gratuito = só vender foto de evento (10%); ensaio, galeria privada e gestão do
@@ -43,7 +49,7 @@ estúdio no desktop são PRO (`licencas.recursos.permite_*`).
 
 - Fotógrafo passo 6: Mercado Pago (OAuth, vendas) + Stripe (assinatura) — precisa de HTTPS público.
 - Fotógrafo passo 7: Galerias/Vendas na web — depende do módulo `sync` (desktop → web), não iniciado.
-- Admin passo 6: 2FA TOTP + tela Admins — obrigatório antes de expor o `admin.` na internet.
+- **Antes de ir pro ar**: ativar o 2FA na conta do dono (aalanallvesgt@gmail.com) e `ADMIN_EXIGE_2FA=true`.
 - Comprovante de repasse (upload) depende do bucket; processador de webhooks chega com o passo 6 do fotógrafo.
 - Job de cobrança (fatura vencida + N dias → suspender licença/conta) — hoje só marca na leitura.
 - Homologação na VPS (sem Docker: Caddy + pm2 + Postgres) — precisa de domínio.

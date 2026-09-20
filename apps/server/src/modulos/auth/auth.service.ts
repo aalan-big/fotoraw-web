@@ -12,6 +12,8 @@ import {
   LimiteDispositivosExcecao,
   MuitasTentativasExcecao,
   PainelErradoExcecao,
+  Codigo2faInvalidoExcecao,
+  Desafio2faInvalidoExcecao,
   SenhaFracaExcecao,
   SessaoInvalidaExcecao,
   SlugJaUsadoExcecao,
@@ -31,6 +33,12 @@ import { LimitadorTentativas } from './senha/limitador-tentativas.js';
 import { SenhaService } from './senha/senha.service.js';
 import { ehSenhaComum } from './senha/senhas-comuns.js';
 import type { PublicoWeb } from './sessao-cookie.js';
+import {
+  decifrarSegredo,
+  hashCodigoRecuperacao,
+  pareceCodigoRecuperacao,
+  validarCodigoTotp,
+} from './totp.js';
 import {
   DIA_MS,
   HORA_MS,
@@ -59,11 +67,20 @@ export interface ContaPublica {
   papel: PapelConta;
   status: Conta['status'];
   emailVerificado: boolean;
+  /** 2FA por app autenticador ligado (só faz sentido pra admin) */
+  totpAtivo: boolean;
 }
 
 export interface Contexto {
   ip?: string | null;
   userAgent?: string | null;
+}
+
+/** Login do admin com 2FA ativo: primeiro a senha, depois o código. */
+export interface Desafio2fa {
+  precisa2fa: true;
+  /** JWT curto (5 min) que prova que a senha já passou */
+  desafio: string;
 }
 
 export interface SessaoEmitida {
@@ -85,6 +102,7 @@ export function contaPublica(c: Conta): ContaPublica {
     papel: c.papel,
     status: c.status,
     emailVerificado: c.emailVerificadoEm !== null,
+    totpAtivo: c.totpAtivadoEm !== null,
   };
 }
 
@@ -100,6 +118,7 @@ export class AuthService {
   private readonly adminHoras: number;
   private readonly tokenApiDias: number;
   private readonly fotografoUrl: string;
+  private readonly jwtSecret: string;
 
   constructor(
     private readonly contas: ContasAuthRepositorio,
@@ -118,6 +137,7 @@ export class AuthService {
     this.adminHoras = config.get('SESSAO_ADMIN_HORAS');
     this.tokenApiDias = config.get('TOKEN_API_DIAS');
     this.fotografoUrl = config.get('FOTOGRAFO_URL');
+    this.jwtSecret = config.get('JWT_SECRET');
   }
 
   // ---------------------------------------------------------------------------
@@ -226,10 +246,57 @@ export class AuthService {
     dto: LoginDto,
     ctx: Contexto,
     publico: PublicoWeb = 'fotografo',
-  ): Promise<SessaoEmitida> {
+  ): Promise<SessaoEmitida | Desafio2fa> {
     const conta = await this.autenticar(dto.email, dto.senha);
     if (conta.papel !== PAPEL_DO_PUBLICO[publico]) throw new PainelErradoExcecao();
+    if (publico === 'admin' && conta.totpAtivadoEm) {
+      const desafio = await this.jwt.signAsync({ sub: conta.id, fim: '2fa' }, { expiresIn: '5m' });
+      return { precisa2fa: true, desafio };
+    }
     return this.abrirSessao(conta, ctx, publico);
+  }
+
+  /**
+   * Segunda etapa do login do admin: código do app (6 dígitos) ou um código de
+   * recuperação (XXXX-XXXX, vale uma vez). Erros contam no limitador por e-mail.
+   */
+  async confirmar2fa(desafio: string, codigo: string, ctx: Contexto): Promise<SessaoEmitida> {
+    let sub: string;
+    try {
+      const payload = await this.jwt.verifyAsync<{ sub: string; fim?: string }>(desafio);
+      if (payload.fim !== '2fa') throw new Error('fim errado');
+      sub = payload.sub;
+    } catch {
+      throw new Desafio2faInvalidoExcecao();
+    }
+    const conta = await this.contas.porId(sub);
+    if (!conta || conta.papel !== 'ADMIN' || conta.status === 'BLOQUEADA' || !conta.totpSegredo) {
+      throw new Desafio2faInvalidoExcecao();
+    }
+    if (this.limitador.bloqueado(conta.email)) throw new MuitasTentativasExcecao();
+
+    if (pareceCodigoRecuperacao(codigo)) {
+      const hash = hashCodigoRecuperacao(codigo);
+      if (!conta.codigosRecuperacao.includes(hash)) {
+        this.limitador.registrarFalha(conta.email);
+        throw new Codigo2faInvalidoExcecao();
+      }
+      const restantes = conta.codigosRecuperacao.filter((h) => h !== hash);
+      await this.contas.consumirCodigoRecuperacao(conta.id, restantes);
+      await this.auditoria.registrar({
+        acao: '2fa.codigo_recuperacao_usado',
+        alvoTipo: 'conta',
+        alvoId: conta.id,
+        atorContaId: conta.id,
+        ip: ctx.ip,
+        depois: { restantes: restantes.length },
+      });
+    } else if (!validarCodigoTotp(decifrarSegredo(conta.totpSegredo, this.jwtSecret), codigo)) {
+      this.limitador.registrarFalha(conta.email);
+      throw new Codigo2faInvalidoExcecao();
+    }
+    this.limitador.limpar(conta.email);
+    return this.abrirSessao(conta, ctx, 'admin');
   }
 
   /**

@@ -33,6 +33,11 @@ export class ContasAuthRepositorio {
     return this.prisma.conta.update({ where: { id }, data: { emailVerificadoEm: new Date() } });
   }
 
+  /** Remove um código de recuperação já usado (hash). */
+  consumirCodigoRecuperacao(id: string, restantes: string[]): Promise<Conta> {
+    return this.prisma.conta.update({ where: { id }, data: { codigosRecuperacao: restantes } });
+  }
+
   atualizarSenha(id: string, senhaHash: string): Promise<Conta> {
     return this.prisma.conta.update({ where: { id }, data: { senhaHash } });
   }

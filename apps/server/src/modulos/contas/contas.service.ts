@@ -7,6 +7,7 @@ import {
   AuthService,
   type ContaPublica,
   type Contexto,
+  type SessaoEmitida,
   contaPublica,
 } from '../auth/auth.service.js';
 import { DispositivosRepositorio } from '../auth/repositorios/dispositivos.repositorio.js';
@@ -80,7 +81,8 @@ export class ContasService {
   /** Troca a senha e abre uma sessão nova (as antigas caem — inclusive a que fez o pedido). */
   async alterarSenha(conta: Conta, senhaAtual: string, novaSenha: string, ctx: Contexto) {
     await this.auth.alterarSenha(conta, senhaAtual, novaSenha, ctx);
-    return this.auth.login({ email: conta.email, senha: novaSenha }, ctx);
+    // fotógrafo nunca recebe desafio 2FA — o tipo é só o da sessão
+    return this.auth.login({ email: conta.email, senha: novaSenha }, ctx) as Promise<SessaoEmitida>;
   }
 
   perfil(conta: Conta): Promise<Perfil | null> {

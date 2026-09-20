@@ -30,6 +30,12 @@ export function useApi() {
       return await chamar<T>(caminho, opcoes);
     } catch (erro) {
       const status = (erro as { status?: number })?.status;
+      const codigo = (erro as { data?: { codigo?: string } })?.data?.codigo;
+      // ADMIN_EXIGE_2FA: sem 2FA só a tela de segurança funciona
+      if (status === 403 && codigo === 'SEM_2FA') {
+        await navigateTo('/seguranca?obrigatorio=1');
+        throw erro;
+      }
       const rotaDeAuth = caminho.startsWith('/auth/');
       if (status !== 401 || rotaDeAuth) throw erro;
       if (await sessao.renovar()) return chamar<T>(caminho, opcoes);

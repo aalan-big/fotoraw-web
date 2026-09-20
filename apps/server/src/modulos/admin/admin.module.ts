@@ -8,6 +8,9 @@ import { FinanceiroAdminController } from './financeiro.admin.controller.js';
 import { FinanceiroAdminService } from './financeiro.admin.service.js';
 import { SistemaAdminController } from './sistema.admin.controller.js';
 import { SistemaAdminService } from './sistema.admin.service.js';
+import { AdminsAdminController, SegurancaAdminController } from './admins.admin.controller.js';
+import { AdminsAdminService } from './admins.admin.service.js';
+import { SegurancaAdminService } from './seguranca.admin.service.js';
 import { ConfiguracoesAdminController } from './configuracoes.admin.controller.js';
 import { ConfiguracoesAdminService } from './configuracoes.admin.service.js';
 import { ContasAdminController } from './contas.admin.controller.js';
@@ -31,6 +34,8 @@ import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
     AssinaturasAdminController,
     FinanceiroAdminController,
     SistemaAdminController,
+    SegurancaAdminController,
+    AdminsAdminController,
   ],
   providers: [
     ContasAdminService,
@@ -40,6 +45,8 @@ import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
     AssinaturasAdminService,
     FinanceiroAdminService,
     SistemaAdminService,
+    SegurancaAdminService,
+    AdminsAdminService,
     ContasAdminRepositorio,
   ],
 })

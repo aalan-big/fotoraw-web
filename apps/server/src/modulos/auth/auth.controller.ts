@@ -14,7 +14,8 @@ import {
 } from './sessao-cookie.js';
 import { type CadastroDto, cadastroSchema } from './dto/cadastro.dto.js';
 import { type DispositivoDto, dispositivoSchema } from './dto/dispositivo.dto.js';
-import { type LoginDto, loginSchema } from './dto/login.dto.js';
+import { PainelErradoExcecao } from './auth.excecoes.js';
+import { type Login2faDto, type LoginDto, login2faSchema, loginSchema } from './dto/login.dto.js';
 import {
   type RecuperarSenhaDto,
   type RedefinirSenhaDto,
@@ -73,7 +74,9 @@ export class AuthController {
     @Ctx() ctx: Contexto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.responderSessao(res, await this.auth.login(dto, ctx, 'fotografo'));
+    const r = await this.auth.login(dto, ctx, 'fotografo');
+    if ('precisa2fa' in r) throw new PainelErradoExcecao(); // fotógrafo não tem 2FA (ainda)
+    return this.responderSessao(res, r);
   }
 
   @Post('refresh')
@@ -98,7 +101,26 @@ export class AuthController {
     @Ctx() ctx: Contexto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.responderSessao(res, await this.auth.login(dto, ctx, 'admin'), 'admin');
+    const r = await this.auth.login(dto, ctx, 'admin');
+    // 2FA ligado: nada de cookie ainda — o cliente volta com o código
+    if ('precisa2fa' in r) return r;
+    return this.responderSessao(res, r, 'admin');
+  }
+
+  /** Segunda etapa do login do admin (código do app ou de recuperação). */
+  @Post('admin/login/2fa')
+  @HttpCode(200)
+  @Throttle(SENSIVEL)
+  async login2fa(
+    @Body(new ZodValidationPipe(login2faSchema)) dto: Login2faDto,
+    @Ctx() ctx: Contexto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.responderSessao(
+      res,
+      await this.auth.confirmar2fa(dto.desafio, dto.codigo, ctx),
+      'admin',
+    );
   }
 
   @Post('admin/refresh')

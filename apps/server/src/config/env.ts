@@ -27,6 +27,8 @@ export const envSchema = z.object({
   SESSAO_REFRESH_DIAS: z.coerce.number().int().min(1).default(7),
   /** validade do refresh do admin (cookie de sessão: some ao fechar o navegador) */
   SESSAO_ADMIN_HORAS: z.coerce.number().int().min(1).default(12),
+  /** admin sem 2FA não acessa /admin/* (padrão: true em produção, false fora) */
+  ADMIN_EXIGE_2FA: z.enum(['true', 'false']).optional(),
   /** validade do token_api do desktop; renova sozinho no uso */
   TOKEN_API_DIAS: z.coerce.number().int().min(1).default(365),
 

@@ -69,8 +69,9 @@ Um admin não tem perfil público, licença nem galerias. Se um dia o dono tamb�
 | `admin/configuracoes` | `GET /admin/configuracoes` · `PUT /admin/configuracoes/:chave` |
 | `admin/auditoria` | `GET /admin/auditoria?ator&acao&alvoTipo&alvoId&de&ate&pagina` |
 | `admin/sistema` | `GET /admin/sistema/saude` · `GET /admin/sistema/webhooks?erro=1` · `POST /admin/sistema/webhooks/:id/reprocessar` |
-| `admin/admins` | `GET /admin/admins` · `POST /admin/admins` · `PATCH /admin/admins/:id/status` |
-| `auth` (já existe) | `POST /auth/admin/login` · `refresh` · `sair` · **novo**: `POST /auth/2fa/ativar`, `POST /auth/2fa/confirmar`, login pede o código quando a conta tem 2FA |
+| `admin/admins` | `GET /admin/admins` · `POST /admin/admins` · `PATCH /admin/admins/:id/status` · `DELETE /admin/admins/:id/2fa` |
+| `auth` | `POST /auth/admin/login` (devolve `{ precisa2fa, desafio }` quando a conta tem 2FA) · `POST /auth/admin/login/2fa` · `refresh` · `sair` |
+| `admin/2fa` | `GET /admin/2fa` · `POST /admin/2fa/iniciar` (QR) · `POST /admin/2fa/confirmar` (→ códigos de recuperação) · `POST /admin/2fa/codigos` · `DELETE /admin/2fa` (senha + código) |
 
 Organização no código: `src/modulos/admin/` com um controller + service por área (`contas.admin.controller.ts`…),
 reaproveitando os repositórios que já existem (`licencas`, `contas`, `auth`). O `LicencasService` ganha

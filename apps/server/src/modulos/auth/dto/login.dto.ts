@@ -7,3 +7,10 @@ export const loginSchema = z.object({
 });
 
 export type LoginDto = z.infer<typeof loginSchema>;
+
+export const login2faSchema = z.object({
+  desafio: z.string().min(10),
+  /** 6 dígitos do app ou código de recuperação XXXX-XXXX */
+  codigo: z.string().trim().min(6).max(12),
+});
+export type Login2faDto = z.infer<typeof login2faSchema>;

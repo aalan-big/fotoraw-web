@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { Conta, Sessao } from '~/types/api';
+import type { Conta, Desafio2fa, Sessao } from '~/types/api';
 
 /**
  * Sessão do admin: mesmo esquema do painel (JWT em memória + refresh em cookie
@@ -27,9 +27,29 @@ export const useSessao = defineStore('sessao', () => {
       $fetch<T>(caminho, { baseURL: apiBase, credentials: 'include', ...opcoes });
   }
 
-  /** Conta que não é admin recebe 403 PAINEL_ERRADO do server. */
-  async function entrar(email: string, senha: string) {
-    aplicar(await bruto()<Sessao>('/auth/admin/login', { method: 'POST', body: { email, senha } }));
+  /**
+   * Conta que não é admin recebe 403 PAINEL_ERRADO do server. Com 2FA ligado,
+   * devolve o desafio em vez de logar — a tela pede o código e chama `confirmar2fa`.
+   */
+  async function entrar(email: string, senha: string): Promise<Desafio2fa | null> {
+    const r = await bruto()<Sessao | Desafio2fa>('/auth/admin/login', {
+      method: 'POST',
+      body: { email, senha },
+    });
+    if ('precisa2fa' in r) return r;
+    aplicar(r);
+    return null;
+  }
+
+  async function confirmar2fa(desafio: string, codigo: string) {
+    aplicar(
+      await bruto()<Sessao>('/auth/admin/login/2fa', { method: 'POST', body: { desafio, codigo } }),
+    );
+  }
+
+  /** depois de ligar/desligar o 2FA, o chip do cabeçalho precisa saber */
+  function marcarTotp(ativo: boolean) {
+    if (conta.value) conta.value = { ...conta.value, totpAtivo: ativo };
   }
 
   async function renovar(): Promise<boolean> {
@@ -53,5 +73,17 @@ export const useSessao = defineStore('sessao', () => {
     }
   }
 
-  return { acesso, conta, iniciando, logado, aplicar, limpar, entrar, renovar, sair };
+  return {
+    acesso,
+    conta,
+    iniciando,
+    logado,
+    aplicar,
+    limpar,
+    entrar,
+    confirmar2fa,
+    marcarTotp,
+    renovar,
+    sair,
+  };
 });

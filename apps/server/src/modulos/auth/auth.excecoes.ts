@@ -82,3 +82,26 @@ export class PainelErradoExcecao extends DominioExcecao {
     super('PAINEL_ERRADO', 'Esta conta não entra por aqui', HttpStatus.FORBIDDEN);
   }
 }
+
+export class Desafio2faInvalidoExcecao extends DominioExcecao {
+  constructor() {
+    super('DESAFIO_2FA_INVALIDO', 'Comece o login de novo', HttpStatus.UNAUTHORIZED);
+  }
+}
+
+export class Codigo2faInvalidoExcecao extends DominioExcecao {
+  constructor() {
+    super(
+      'CODIGO_2FA_INVALIDO',
+      'Código inválido. Confira o app autenticador',
+      HttpStatus.UNAUTHORIZED,
+    );
+  }
+}
+
+/** Admin sem 2FA num ambiente que exige (ADMIN_EXIGE_2FA). */
+export class Sem2faExcecao extends DominioExcecao {
+  constructor() {
+    super('SEM_2FA', 'Ative a verificação em duas etapas pra continuar', HttpStatus.FORBIDDEN);
+  }
+}

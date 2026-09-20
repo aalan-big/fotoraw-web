@@ -4,6 +4,7 @@ import { EmailService, type Email } from '../../src/infra/email/email.service.js
 import { PrismaService } from '../../src/infra/prisma/prisma.service.js';
 import { LimitadorTentativas } from '../../src/modulos/auth/senha/limitador-tentativas.js';
 import { SenhaService } from '../../src/modulos/auth/senha/senha.service.js';
+import { Secret, TOTP } from 'otpauth';
 import { galeriaEventoFixture } from '../fixtures/galeria.fixture.js';
 import { limparBanco } from '../utils/banco.js';
 import { criarApp } from '../utils/criar-app.js';
@@ -935,6 +936,183 @@ describe('admin (e2e)', () => {
         .set('Authorization', admin)
         .expect(200);
       expect(lotes.body.itens[0]).toMatchObject({ tipo: 'PUBLICAR', itensErro: 3, conta: { id } });
+    });
+  });
+
+  describe('2FA e admins', () => {
+    const codigoDe = (segredo: string) =>
+      new TOTP({ secret: Secret.fromBase32(segredo) }).generate();
+    const loginDono = () =>
+      api().post('/api/auth/admin/login').send({ email: 'dono@fotoraw.local', senha: SENHA_ADMIN });
+
+    it('ativa 2FA (QR → código → recuperação), login vira duas etapas, recuperação vale uma vez', async () => {
+      const admin = await entrarAdmin();
+      expect(
+        (await api().get('/api/admin/2fa').set('Authorization', admin).expect(200)).body.ativo,
+      ).toBe(false);
+
+      const inicio = await api()
+        .post('/api/admin/2fa/iniciar')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(inicio.body.otpauth).toMatch(/^otpauth:\/\/totp\//);
+      expect(inicio.body.qr).toMatch(/^data:image\/png/);
+      await api()
+        .post('/api/admin/2fa/confirmar')
+        .set('Authorization', admin)
+        .send({ codigo: '000000' })
+        .expect(401);
+      const conf = await api()
+        .post('/api/admin/2fa/confirmar')
+        .set('Authorization', admin)
+        .send({ codigo: codigoDe(inicio.body.segredo) })
+        .expect(200);
+      expect(conf.body.codigos).toHaveLength(8);
+      expect(conf.body.codigos[0]).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+      const estado = await api().get('/api/admin/2fa').set('Authorization', admin).expect(200);
+      expect(estado.body).toMatchObject({ ativo: true, codigosRestantes: 8 });
+      // segredo no banco está cifrado, não em claro
+      const conta = await prisma.conta.findUniqueOrThrow({
+        where: { email: 'dono@fotoraw.local' },
+      });
+      expect(conta.totpSegredo).not.toContain(inicio.body.segredo);
+
+      // login agora pede o código
+      const etapa1 = await loginDono().expect(200);
+      expect(etapa1.body).toMatchObject({ precisa2fa: true, desafio: expect.any(String) });
+      expect(etapa1.headers['set-cookie']).toBeUndefined();
+      await api()
+        .post('/api/auth/admin/login/2fa')
+        .send({ desafio: etapa1.body.desafio, codigo: '123456' })
+        .expect(401);
+      await api()
+        .post('/api/auth/admin/login/2fa')
+        .send({ desafio: 'lixo-lixo-lixo', codigo: '123456' })
+        .expect(401);
+      const etapa2 = await api()
+        .post('/api/auth/admin/login/2fa')
+        .send({ desafio: etapa1.body.desafio, codigo: codigoDe(inicio.body.segredo) })
+        .expect(200);
+      expect(etapa2.body.conta).toMatchObject({ papel: 'ADMIN', totpAtivo: true });
+      expect(etapa2.headers['set-cookie']![0]).toMatch(/^fr_admin=/);
+
+      // código de recuperação entra uma vez só
+      const rec = conf.body.codigos[3];
+      const e1 = await loginDono().expect(200);
+      await api()
+        .post('/api/auth/admin/login/2fa')
+        .send({ desafio: e1.body.desafio, codigo: rec })
+        .expect(200);
+      const e2 = await loginDono().expect(200);
+      await api()
+        .post('/api/auth/admin/login/2fa')
+        .send({ desafio: e2.body.desafio, codigo: rec })
+        .expect(401);
+      expect(
+        (await api().get('/api/admin/2fa').set('Authorization', admin).expect(200)).body
+          .codigosRestantes,
+      ).toBe(7);
+
+      // desativar pede senha + código
+      await api()
+        .delete('/api/admin/2fa')
+        .set('Authorization', admin)
+        .send({ senha: 'errada', codigo: codigoDe(inicio.body.segredo) })
+        .expect(401);
+      await api()
+        .delete('/api/admin/2fa')
+        .set('Authorization', admin)
+        .send({ senha: SENHA_ADMIN, codigo: codigoDe(inicio.body.segredo) })
+        .expect(204);
+      const semDesafio = await loginDono().expect(200);
+      expect(semDesafio.body.acesso).toEqual(expect.any(String));
+      const acoes = (await prisma.auditoria.findMany({ where: { acao: { startsWith: '2fa.' } } }))
+        .map((a) => a.acao)
+        .sort();
+      expect(acoes).toEqual(['2fa.ativado', '2fa.codigo_recuperacao_usado', '2fa.desativado']);
+    });
+
+    it('admins: criar, bloquear derruba sessão, nada na própria conta, zerar 2FA de outro', async () => {
+      const admin = await entrarAdmin();
+      const lista = await api().get('/api/admin/admins').set('Authorization', admin).expect(200);
+      expect(lista.body).toHaveLength(1);
+      expect(lista.body[0]).toMatchObject({
+        email: 'dono@fotoraw.local',
+        totpAtivo: false,
+        ultimoLoginEm: expect.any(String),
+      });
+
+      const senhaNova = 'outra-frase-bem-longa-2026';
+      await api()
+        .post('/api/admin/admins')
+        .set('Authorization', admin)
+        .send({ nome: 'Fraca', email: 'x@y.com', senha: '12345678' })
+        .expect(422);
+      const novo = await api()
+        .post('/api/admin/admins')
+        .set('Authorization', admin)
+        .send({ nome: 'Sócia', email: 'socia@fotoraw.local', senha: senhaNova })
+        .expect(201);
+      expect(novo.body).toMatchObject({
+        email: 'socia@fotoraw.local',
+        status: 'ATIVA',
+        totpAtivo: false,
+      });
+      await api()
+        .post('/api/admin/admins')
+        .set('Authorization', admin)
+        .send({ nome: 'Dup', email: 'socia@fotoraw.local', senha: senhaNova })
+        .expect(409);
+      // entra no admin, não no painel do fotógrafo
+      const sessao = await api()
+        .post('/api/auth/admin/login')
+        .send({ email: 'socia@fotoraw.local', senha: senhaNova })
+        .expect(200);
+      await api()
+        .post('/api/auth/login')
+        .send({ email: 'socia@fotoraw.local', senha: senhaNova })
+        .expect(403);
+
+      // ninguém mexe na própria conta
+      const eu = lista.body[0].id;
+      await api()
+        .patch(`/api/admin/admins/${eu}/status`)
+        .set('Authorization', admin)
+        .send({ status: 'BLOQUEADA', motivo: 'eu mesmo' })
+        .expect(409);
+
+      // bloquear a sócia derruba a sessão dela
+      await api()
+        .patch(`/api/admin/admins/${novo.body.id}/status`)
+        .set('Authorization', admin)
+        .send({ status: 'BLOQUEADA', motivo: 'saiu da empresa' })
+        .expect(200);
+      await api()
+        .get('/api/admin/admins')
+        .set('Authorization', `Bearer ${sessao.body.acesso}`)
+        .expect(403);
+      await api()
+        .post('/api/auth/admin/login')
+        .send({ email: 'socia@fotoraw.local', senha: senhaNova })
+        .expect(403);
+      await api()
+        .patch(`/api/admin/admins/${novo.body.id}/status`)
+        .set('Authorization', admin)
+        .send({ status: 'ATIVA', motivo: 'voltou' })
+        .expect(200);
+      await api()
+        .delete(`/api/admin/admins/${novo.body.id}/2fa`)
+        .set('Authorization', admin)
+        .send({ motivo: 'perdeu o celular' })
+        .expect(204);
+      const acoes = await prisma.auditoria.count({
+        where: {
+          acao: {
+            in: ['admin.criado', 'admin.bloqueado', 'admin.reativado', '2fa.zerado_pelo_admin'],
+          },
+        },
+      });
+      expect(acoes).toBe(4);
     });
   });
 });

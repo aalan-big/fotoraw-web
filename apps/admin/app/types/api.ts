@@ -13,11 +13,33 @@ export interface Conta {
   papel: Papel;
   status: StatusConta;
   emailVerificado: boolean;
+  totpAtivo: boolean;
 }
 
 export interface Sessao {
   acesso: string;
   conta: Conta;
+}
+/** login do admin com 2FA ligado: senha passou, falta o código */
+export interface Desafio2fa {
+  precisa2fa: true;
+  desafio: string;
+}
+
+export interface Estado2fa {
+  ativo: boolean;
+  ativadoEm: string | null;
+  pendente: boolean;
+  codigosRestantes: number;
+}
+export interface AdminLista {
+  id: string;
+  nome: string;
+  email: string;
+  status: StatusConta;
+  criadoEm: string;
+  totpAtivo: boolean;
+  ultimoLoginEm: string | null;
 }
 
 export interface RecursosLicenca {

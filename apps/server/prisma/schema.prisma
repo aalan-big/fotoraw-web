@@ -248,19 +248,24 @@ enum StatusSync {
 
 /// Fotógrafo, estúdio ou admin — um por login.
 model Conta {
-  id                String      @id @default(uuid(7)) @db.Uuid
+  id                 String      @id @default(uuid(7)) @db.Uuid
   /// sempre minúsculo (normalizado na app)
-  email             String      @unique
-  senhaHash         String      @map("senha_hash")
-  nome              String
+  email              String      @unique
+  senhaHash          String      @map("senha_hash")
+  nome               String
   /// handle público: fotoraw.com.br/@slug — imutável depois de publicar
-  slug              String      @unique
-  status            StatusConta @default(ATIVA)
-  papel             PapelConta  @default(FOTOGRAFO)
-  emailVerificadoEm DateTime?   @map("email_verificado_em")
-  criadoEm          DateTime    @default(now()) @map("criado_em")
-  atualizadoEm      DateTime    @updatedAt @map("atualizado_em")
-  excluidoEm        DateTime?   @map("excluido_em")
+  slug               String      @unique
+  status             StatusConta @default(ATIVA)
+  papel              PapelConta  @default(FOTOGRAFO)
+  emailVerificadoEm  DateTime?   @map("email_verificado_em")
+  /// 2FA TOTP (admin): segredo cifrado (AES-GCM) — null = sem 2FA
+  totpSegredo        String?     @map("totp_segredo")
+  totpAtivadoEm      DateTime?   @map("totp_ativado_em")
+  /// hashes sha256 dos códigos de recuperação ainda não usados
+  codigosRecuperacao String[]    @default([]) @map("codigos_recuperacao")
+  criadoEm           DateTime    @default(now()) @map("criado_em")
+  atualizadoEm       DateTime    @updatedAt @map("atualizado_em")
+  excluidoEm         DateTime?   @map("excluido_em")
 
   perfil            Perfil?
   conexoesPagamento ConexaoPagamento[]

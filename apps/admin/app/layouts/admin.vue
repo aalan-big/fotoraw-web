@@ -58,7 +58,6 @@ const secoes: { titulo: string; itens: Item[] }[] = [
         rotulo: 'Admins',
         to: '/admins',
         icone: 'M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0zM4 21a8 8 0 0 1 16 0',
-        breve: true,
       },
     ],
   },
@@ -198,6 +197,21 @@ onBeforeUnmount(() => document.removeEventListener('click', foraDoMenu));
               <p class="truncate text-sm font-medium">{{ sessao.conta?.nome }}</p>
               <p class="truncate text-xs text-muted">{{ sessao.conta?.email }}</p>
             </div>
+            <NuxtLink
+              to="/seguranca"
+              class="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm hover:bg-surface-2"
+            >
+              Segurança (2FA)
+              <span
+                class="rounded-full px-1.5 text-[10px] font-medium"
+                :class="
+                  sessao.conta?.totpAtivo
+                    ? 'bg-success/15 text-success'
+                    : 'bg-warning/15 text-warning'
+                "
+                >{{ sessao.conta?.totpAtivo ? 'ativo' : 'desligado' }}</span
+              >
+            </NuxtLink>
             <button
               type="button"
               class="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-danger hover:bg-danger/10"
@@ -210,6 +224,15 @@ onBeforeUnmount(() => document.removeEventListener('click', foraDoMenu));
       </header>
 
       <main class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <div
+          v-if="sessao.conta && !sessao.conta.totpAtivo && rota.path !== '/seguranca'"
+          class="mx-auto mb-4 flex max-w-6xl flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-warning"
+        >
+          <span
+            >Sua conta admin está sem verificação em duas etapas. Antes de ir pro ar, ative.</span
+          >
+          <NuxtLink to="/seguranca" class="font-medium underline">Ativar 2FA</NuxtLink>
+        </div>
         <slot />
       </main>
     </div>

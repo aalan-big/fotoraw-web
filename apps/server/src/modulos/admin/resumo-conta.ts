@@ -142,6 +142,14 @@ export const ROTULO_ACAO: Record<string, string> = {
   'plano.reemitir': 'Licenças do plano reemitidas',
   'config.alterar': 'Configuração alterada',
   'webhook.reprocessar': 'Webhook devolvido à fila',
+  '2fa.ativado': 'Verificação em duas etapas ativada',
+  '2fa.desativado': 'Verificação em duas etapas desativada',
+  '2fa.codigos_regenerados': 'Códigos de recuperação regenerados',
+  '2fa.codigo_recuperacao_usado': 'Entrou com código de recuperação',
+  '2fa.zerado_pelo_admin': '2FA zerado por outro admin',
+  'admin.criado': 'Administrador criado',
+  'admin.bloqueado': 'Administrador bloqueado',
+  'admin.reativado': 'Administrador reativado',
 };
 
 export function rotuloAcao(acao: string, depois: unknown): string {
