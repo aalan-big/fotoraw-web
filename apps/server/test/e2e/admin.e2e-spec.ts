@@ -798,4 +798,143 @@ describe('admin (e2e)', () => {
       expect(acoes).toEqual(['repasse.falhou', 'repasse.gerar', 'repasse.gerar', 'repasse.pagar']);
     });
   });
+
+  describe('auditoria e sistema', () => {
+    it('auditoria lista com rótulo, filtra por quem/ação/alvo/período e agrupa ações', async () => {
+      const { id } = await cadastrarFotografo();
+      const admin = await entrarAdmin();
+      await api()
+        .patch(`/api/admin/contas/${id}/status`)
+        .set('Authorization', admin)
+        .send({ status: 'SUSPENSA', motivo: 'teste' })
+        .expect(200);
+
+      const tudo = await api().get('/api/admin/auditoria').set('Authorization', admin).expect(200);
+      expect(tudo.body.total).toBeGreaterThanOrEqual(2);
+      const suspensao = tudo.body.itens.find((a: { acao: string }) => a.acao === 'conta.suspensa');
+      expect(suspensao).toMatchObject({
+        rotulo: 'Conta suspensa pelo admin — teste',
+        alvoConta: { id, nome: FOTOGRAFO.nome },
+        ator: { papel: 'ADMIN' },
+      });
+
+      const soAdmin = await api()
+        .get('/api/admin/auditoria?ator=admin')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(
+        soAdmin.body.itens.every((a: { ator: { papel: string } }) => a.ator.papel === 'ADMIN'),
+      ).toBe(true);
+      const sistema = await api()
+        .get('/api/admin/auditoria?ator=sistema')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(sistema.body.itens.every((a: { ator: unknown }) => a.ator === null)).toBe(true);
+      const prefixo = await api()
+        .get('/api/admin/auditoria?acao=conta.')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(prefixo.body.itens.every((a: { acao: string }) => a.acao.startsWith('conta.'))).toBe(
+        true,
+      );
+      const porAlvo = await api()
+        .get(`/api/admin/auditoria?alvoTipo=conta&alvoId=${id}`)
+        .set('Authorization', admin)
+        .expect(200);
+      expect(porAlvo.body.total).toBeGreaterThanOrEqual(2);
+      const futuro = await api()
+        .get('/api/admin/auditoria?de=2099-01-01')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(futuro.body.total).toBe(0);
+
+      const acoes = await api()
+        .get('/api/admin/auditoria/acoes')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(acoes.body).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            acao: 'conta.suspensa',
+            rotulo: 'Conta suspensa pelo admin',
+            total: 1,
+          }),
+        ]),
+      );
+    });
+
+    it('saúde geral, webhooks com erro (reprocessar volta pra fila) e lotes de sync', async () => {
+      const { id } = await cadastrarFotografo();
+      const admin = await entrarAdmin();
+      const w = await prisma.webhookRecebido.create({
+        data: {
+          provedor: 'STRIPE',
+          eventoRef: 'evt_1',
+          tipo: 'invoice.paid',
+          payload: { ok: 1 },
+          erro: 'assinatura não encontrada',
+        },
+      });
+      await prisma.webhookRecebido.create({
+        data: {
+          provedor: 'MERCADOPAGO',
+          eventoRef: 'mp_1',
+          tipo: 'payment',
+          payload: {},
+          processadoEm: new Date(),
+        },
+      });
+      const token = await prisma.tokenApi
+        .findFirstOrThrow({ where: { contaId: id } })
+        .catch(async () => {
+          await tokenDesktop();
+          return prisma.tokenApi.findFirstOrThrow({ where: { contaId: id } });
+        });
+      await prisma.syncLote.create({
+        data: {
+          contaId: id,
+          tokenApiId: token.id,
+          tipo: 'PUBLICAR',
+          chaveIdempotencia: 'lote-1',
+          status: 'ERRO',
+          totalItens: 10,
+          itensOk: 7,
+          itensErro: 3,
+          erro: 'HEAD falhou em 3 chaves',
+        },
+      });
+
+      const saude = await api()
+        .get('/api/admin/sistema/saude')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(saude.body).toMatchObject({
+        banco: 'ok',
+        webhooks: { comErro: 1, pendentes: 0 },
+        sync: { comErro: 1 },
+      });
+
+      const comErro = await api()
+        .get('/api/admin/sistema/webhooks?situacao=erro')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(comErro.body.total).toBe(1);
+      await api()
+        .post(`/api/admin/sistema/webhooks/${w.id}/reprocessar`)
+        .set('Authorization', admin)
+        .expect(200);
+      const pendentes = await api()
+        .get('/api/admin/sistema/webhooks?situacao=pendente')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(pendentes.body.itens.map((x: { id: string }) => x.id)).toEqual([w.id]);
+      expect(await prisma.auditoria.count({ where: { acao: 'webhook.reprocessar' } })).toBe(1);
+
+      const lotes = await api()
+        .get('/api/admin/sistema/sync?status=ERRO')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(lotes.body.itens[0]).toMatchObject({ tipo: 'PUBLICAR', itensErro: 3, conta: { id } });
+    });
+  });
 });

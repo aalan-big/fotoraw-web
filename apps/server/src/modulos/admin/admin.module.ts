@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
 import { LicencasModule } from '../licencas/licencas.module.js';
+import { SaudeModule } from '../saude/saude.module.js';
 import { AssinaturasAdminController } from './assinaturas.admin.controller.js';
 import { AssinaturasAdminService } from './assinaturas.admin.service.js';
 import { FinanceiroAdminController } from './financeiro.admin.controller.js';
 import { FinanceiroAdminService } from './financeiro.admin.service.js';
+import { SistemaAdminController } from './sistema.admin.controller.js';
+import { SistemaAdminService } from './sistema.admin.service.js';
 import { ConfiguracoesAdminController } from './configuracoes.admin.controller.js';
 import { ConfiguracoesAdminService } from './configuracoes.admin.service.js';
 import { ContasAdminController } from './contas.admin.controller.js';
@@ -18,7 +21,7 @@ import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
 
 /** Gestão da plataforma (docs/fluxos/ambiente-admin.md). Tudo aqui exige papel ADMIN. */
 @Module({
-  imports: [AuthModule, LicencasModule],
+  imports: [AuthModule, LicencasModule, SaudeModule],
   controllers: [
     VisaoGeralAdminController,
     ContasAdminController,
@@ -27,6 +30,7 @@ import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
     ConfiguracoesAdminController,
     AssinaturasAdminController,
     FinanceiroAdminController,
+    SistemaAdminController,
   ],
   providers: [
     ContasAdminService,
@@ -35,6 +39,7 @@ import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
     ConfiguracoesAdminService,
     AssinaturasAdminService,
     FinanceiroAdminService,
+    SistemaAdminService,
     ContasAdminRepositorio,
   ],
 })

@@ -292,6 +292,52 @@ export interface Repasse {
   chavePix: string | null;
 }
 
+export interface AuditoriaItem extends Auditoria {
+  rotulo: string;
+  alvoConta: { id: string; nome: string; slug: string } | null;
+  ator: { id: string; nome: string; email: string; papel: Papel } | null;
+}
+export interface AcaoAuditoria {
+  acao: string;
+  rotulo: string;
+  total: number;
+}
+
+export interface SaudeSistema {
+  ambiente: string;
+  versaoNode: string;
+  noArHaSegundos: number;
+  memoriaMb: number;
+  banco: 'ok' | 'erro';
+  email: 'configurado' | 'so_log';
+  storage: 'configurado' | 'ausente';
+  webhooks: { comErro: number; pendentes: number; ultimoEm: string | null };
+  sync: { comErro: number; travados: number; ultimoEm: string | null };
+}
+export interface WebhookRecebido {
+  id: string;
+  provedor: 'MERCADOPAGO' | 'STRIPE' | 'MANUAL';
+  eventoRef: string;
+  tipo: string;
+  payload: unknown;
+  processadoEm: string | null;
+  erro: string | null;
+  criadoEm: string;
+}
+export interface SyncLote {
+  id: string;
+  tipo: 'PUBLICAR' | 'ATUALIZAR_FOTOS' | 'DESPUBLICAR' | 'PUXAR_PEDIDOS';
+  status: 'RECEBIDO' | 'PROCESSANDO' | 'CONCLUIDO' | 'ERRO';
+  totalItens: number;
+  itensOk: number;
+  itensErro: number;
+  erro: string | null;
+  iniciadoEm: string;
+  concluidoEm: string | null;
+  conta: { id: string; nome: string; slug: string };
+  galeria: { id: string; titulo: string; slug: string } | null;
+}
+
 export interface VisaoGeral {
   contas: {
     ativas: number;

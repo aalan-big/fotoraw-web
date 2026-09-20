@@ -110,7 +110,7 @@ export function calcularSaude(e: EntradaSaude): { nivel: NivelSaude; alertas: Al
 }
 
 /** Texto amigável pra cada ação da auditoria (o que não estiver aqui aparece como veio). */
-const ROTULO_ACAO: Record<string, string> = {
+export const ROTULO_ACAO: Record<string, string> = {
   'conta.criada': 'Conta criada',
   'conta.ativa': 'Conta reativada pelo admin',
   'conta.suspensa': 'Conta suspensa pelo admin',
@@ -138,6 +138,10 @@ const ROTULO_ACAO: Record<string, string> = {
   'repasse.gerar': 'Repasse gerado',
   'repasse.pagar': 'Repasse pago (Pix)',
   'repasse.falhou': 'Repasse falhou',
+  'plano.editar': 'Plano editado',
+  'plano.reemitir': 'Licenças do plano reemitidas',
+  'config.alterar': 'Configuração alterada',
+  'webhook.reprocessar': 'Webhook devolvido à fila',
 };
 
 export function rotuloAcao(acao: string, depois: unknown): string {

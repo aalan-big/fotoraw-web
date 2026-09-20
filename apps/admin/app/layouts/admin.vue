@@ -48,12 +48,11 @@ const secoes: { titulo: string; itens: Item[] }[] = [
         to: '/configuracoes',
         icone: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 12h2M18 12h2M12 4v2M12 18v2',
       },
-      { rotulo: 'Auditoria', to: '/auditoria', icone: 'M4 5h16v14H4zM8 9h8M8 13h5', breve: true },
+      { rotulo: 'Auditoria', to: '/auditoria', icone: 'M4 5h16v14H4zM8 9h8M8 13h5' },
       {
         rotulo: 'Sistema',
         to: '/sistema',
         icone: 'M4 6h16v5H4zM4 13h16v5H4zM7 8.5h.01M7 15.5h.01',
-        breve: true,
       },
       {
         rotulo: 'Admins',
