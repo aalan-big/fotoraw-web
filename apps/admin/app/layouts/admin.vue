@@ -31,7 +31,6 @@ const secoes: { titulo: string; itens: Item[] }[] = [
         rotulo: 'Planos',
         to: '/planos',
         icone: 'M12 3l2.5 5.5L20 9l-4 4 1 6-5-2.7L7 19l1-6-4-4 5.5-.5z',
-        breve: true,
       },
       { rotulo: 'Assinaturas', to: '/assinaturas', icone: 'M4 6h16v12H4zM4 10h16', breve: true },
       {
@@ -49,7 +48,6 @@ const secoes: { titulo: string; itens: Item[] }[] = [
         rotulo: 'Configurações',
         to: '/configuracoes',
         icone: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 12h2M18 12h2M12 4v2M12 18v2',
-        breve: true,
       },
       { rotulo: 'Auditoria', to: '/auditoria', icone: 'M4 5h16v14H4zM8 9h8M8 13h5', breve: true },
       {

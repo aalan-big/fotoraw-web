@@ -343,4 +343,122 @@ describe('admin (e2e)', () => {
       await api().get('/api/licencas/atual').set('Authorization', desktop).expect(401);
     });
   });
+
+  describe('planos', () => {
+    it('lista com comissão numérica e contagem de licenças ativas; editar audita antes/depois', async () => {
+      await cadastrarFotografo(); // ganha trial do pro_mensal
+      const admin = await entrarAdmin();
+
+      const lista = await api().get('/api/admin/planos').set('Authorization', admin).expect(200);
+      const pro = lista.body.find((p: { codigo: string }) => p.codigo === 'pro_mensal');
+      expect(pro).toMatchObject({ comissaoEventoPct: 10, licencasAtivas: 1, ativo: true });
+
+      const r = await api()
+        .patch(`/api/admin/planos/${planoPro}`)
+        .set('Authorization', admin)
+        .send({ precoCentavos: 5990, limiteDispositivos: 5, comissaoEventoPct: 8.5 })
+        .expect(200);
+      expect(r.body).toMatchObject({
+        precoCentavos: 5990,
+        limiteDispositivos: 5,
+        comissaoEventoPct: 8.5,
+      });
+
+      // codigo não se edita; corpo vazio é recusado
+      await api()
+        .patch(`/api/admin/planos/${planoPro}`)
+        .set('Authorization', admin)
+        .send({ codigo: 'outro' })
+        .expect(400);
+
+      const aud = await prisma.auditoria.findFirstOrThrow({ where: { acao: 'plano.editar' } });
+      expect(aud.antes).toMatchObject({ precoCentavos: 4990, limiteDispositivos: 3 });
+      expect(aud.depois).toMatchObject({
+        precoCentavos: 5990,
+        limiteDispositivos: 5,
+        comissaoEventoPct: 8.5,
+      });
+    });
+
+    it('editar não muda licença emitida; reemitir aplica nas ativas do plano', async () => {
+      const { bearer } = await cadastrarFotografo();
+      const admin = await entrarAdmin();
+
+      await api()
+        .patch(`/api/admin/planos/${planoPro}`)
+        .set('Authorization', admin)
+        .send({ limiteDispositivos: 7 })
+        .expect(200);
+      let me = await api().get('/api/me').set('Authorization', bearer).expect(200);
+      expect(me.body.licenca.recursos.limite_dispositivos).toBe(3);
+
+      const r = await api()
+        .post(`/api/admin/planos/${planoPro}/reemitir`)
+        .set('Authorization', admin)
+        .send({ motivo: 'mais máquinas pra todo mundo' })
+        .expect(200);
+      expect(r.body.atualizadas).toBe(1);
+      me = await api().get('/api/me').set('Authorization', bearer).expect(200);
+      expect(me.body.licenca.recursos.limite_dispositivos).toBe(7);
+      expect(me.body.licenca.tipo).toBe('TRIAL'); // mesma licença, só o snapshot mudou
+      expect(await prisma.auditoria.count({ where: { acao: 'plano.reemitir' } })).toBe(1);
+    });
+  });
+
+  describe('configurações', () => {
+    it('lista o catálogo com padrão pra chave ausente; alterar valida por chave e vale no cadastro', async () => {
+      const admin = await entrarAdmin();
+      const lista = await api()
+        .get('/api/admin/configuracoes')
+        .set('Authorization', admin)
+        .expect(200);
+      const chaves = lista.body.map((c: { chave: string }) => c.chave);
+      expect(chaves).toEqual(
+        expect.arrayContaining(['trial_dias', 'comissao_padrao_pct', 'email_suporte']),
+      );
+      expect(lista.body.find((c: { chave: string }) => c.chave === 'trial_dias')).toMatchObject({
+        valor: 14,
+        atualizadoEm: expect.any(String),
+      });
+      // sem linha no banco → padrão
+      expect(lista.body.find((c: { chave: string }) => c.chave === 'email_suporte')).toMatchObject({
+        valor: 'suporte@fotoraw.com.br',
+        atualizadoEm: null,
+      });
+
+      await api()
+        .put('/api/admin/configuracoes/trial_dias')
+        .set('Authorization', admin)
+        .send({ valor: 'trinta' })
+        .expect(400);
+      await api()
+        .put('/api/admin/configuracoes/chave_que_nao_existe')
+        .set('Authorization', admin)
+        .send({ valor: 1 })
+        .expect(404);
+      await api()
+        .put('/api/admin/configuracoes/email_suporte')
+        .set('Authorization', admin)
+        .send({ valor: 'nao-e-email' })
+        .expect(400);
+
+      await api()
+        .put('/api/admin/configuracoes/trial_dias')
+        .set('Authorization', admin)
+        .send({ valor: 30 })
+        .expect(200)
+        .expect((r) => expect(r.body.valor).toBe(30));
+      const aud = await prisma.auditoria.findFirstOrThrow({ where: { acao: 'config.alterar' } });
+      expect(aud.antes).toEqual({ valor: 14 });
+      expect(aud.depois).toEqual({ valor: 30 });
+
+      // o cadastro seguinte ganha 30 dias
+      const cad = await api().post('/api/auth/cadastro').send(FOTOGRAFO).expect(201);
+      const me = await api()
+        .get('/api/me')
+        .set('Authorization', `Bearer ${cad.body.acesso}`)
+        .expect(200);
+      expect(me.body.licenca.diasRestantes).toBe(30);
+    });
+  });
 });

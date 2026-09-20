@@ -13,6 +13,7 @@ withDefaults(
     disabled?: boolean;
     maxlength?: number;
     linhas?: number;
+    inputmode?: 'numeric' | 'decimal' | 'email' | 'text';
   }>(),
   { type: 'text' },
 );
@@ -46,6 +47,7 @@ defineEmits<{ 'update:modelValue': [valor: string] }>();
       :required="required"
       :disabled="disabled"
       :maxlength="maxlength"
+      :inputmode="inputmode"
       class="campo"
       :class="{ 'border-danger': erro }"
       @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"

@@ -9,6 +9,6 @@ import { LicencasRepositorio } from './repositorios/licencas.repositorio.js';
   imports: [forwardRef(() => AuthModule)],
   controllers: [LicencasController],
   providers: [LicencasService, LicencasRepositorio],
-  exports: [LicencasService],
+  exports: [LicencasService, LicencasRepositorio],
 })
 export class LicencasModule {}

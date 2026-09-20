@@ -68,7 +68,14 @@ export class VisaoGeralAdminController {
         where: fotografo,
         orderBy: { criadoEm: 'desc' },
         take: 5,
-        select: { id: true, nome: true, slug: true, email: true, criadoEm: true, emailVerificadoEm: true },
+        select: {
+          id: true,
+          nome: true,
+          slug: true,
+          email: true,
+          criadoEm: true,
+          emailVerificadoEm: true,
+        },
       }),
       this.prisma.auditoria.findMany({
         orderBy: { criadoEm: 'desc' },
@@ -106,7 +113,10 @@ export class VisaoGeralAdminController {
       webhooksComErro,
       dispositivosConectados,
       galeriasNoAr,
-      ultimasContas: ultimasContas.map((c) => ({ ...c, emailVerificado: c.emailVerificadoEm !== null })),
+      ultimasContas: ultimasContas.map((c) => ({
+        ...c,
+        emailVerificado: c.emailVerificadoEm !== null,
+      })),
       ultimasAuditorias,
     };
   }

@@ -83,6 +83,14 @@ export class LicencasRepositorio {
     });
   }
 
+  /** Troca o snapshot `recursos` de várias licenças de uma vez (reemissão pelo plano). */
+  atualizarRecursos(ids: string[], recursos: Prisma.InputJsonValue): Promise<number> {
+    if (ids.length === 0) return Promise.resolve(0);
+    return this.prisma.licenca
+      .updateMany({ where: { id: { in: ids } }, data: { recursos } })
+      .then((r) => r.count);
+  }
+
   listar(filtro: {
     tipo?: Licenca['tipo'];
     status?: Licenca['status'];

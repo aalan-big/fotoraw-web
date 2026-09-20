@@ -63,6 +63,7 @@ export interface Plano {
   nome: string;
   precoCentavos: number;
   periodicidade: 'MENSAL' | 'ANUAL' | 'NENHUMA';
+  comissaoEventoPct: number;
   limiteGaleriasAtivas: number | null;
   limiteFotosPorGaleria: number | null;
   limiteArmazenamentoMb: number | null;
@@ -73,6 +74,19 @@ export interface Plano {
   permiteGestaoEstudio: boolean;
   ativo: boolean;
   ordem: number;
+  /** licenças ATIVAS emitidas a partir deste plano (trial, cortesia, assinatura) */
+  licencasAtivas: number;
+}
+
+export interface Configuracao {
+  chave: string;
+  grupo: 'licencas' | 'vendas' | 'downloads' | 'contato';
+  rotulo: string;
+  descricao: string;
+  tipo: 'inteiro' | 'percentual' | 'email';
+  valor: number | string;
+  padrao: number | string;
+  atualizadoEm: string | null;
 }
 
 export interface Paginado<T> {

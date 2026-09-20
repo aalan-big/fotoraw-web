@@ -55,7 +55,7 @@ export class LicencasService {
         tipo: 'TRIAL',
         validaAte: new Date(Date.now() + dias * DIA_MS),
         recursos: { ...recursosDoPlano(pro) },
-        motivo: `trial de ${dias} dias no cadastro`,
+        motivo: `plano:${pro.id} · trial de ${dias} dias no cadastro`,
       });
     } catch (erro) {
       this.logger.error(
@@ -114,6 +114,22 @@ export class LicencasService {
     }
     const depois = await this.repo.alterarStatus(id, status, motivo);
     return { antes, depois };
+  }
+
+  /**
+   * Plano mudou e o admin quer que as licenças ATIVAS emitidas a partir dele
+   * passem a valer com os limites novos. Mantém chave, tipo e validade: só o
+   * snapshot `recursos` muda. Devolve as licenças alcançadas.
+   */
+  async reemitirDoPlano(planoId: string): Promise<{ licencas: Licenca[]; atualizadas: number }> {
+    const plano = await this.repo.planoPorId(planoId);
+    if (!plano) throw new PlanoNaoEncontradoExcecao(planoId);
+    const licencas = await this.repo.ativasDoPlano(planoId);
+    const atualizadas = await this.repo.atualizarRecursos(
+      licencas.map((l) => l.id),
+      { ...recursosDoPlano(plano) },
+    );
+    return { licencas, atualizadas };
   }
 
   historico(contaId: string): Promise<Licenca[]> {
