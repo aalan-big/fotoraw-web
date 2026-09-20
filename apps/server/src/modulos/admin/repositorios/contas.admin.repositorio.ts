@@ -227,6 +227,7 @@ export class ContasAdminRepositorio {
             { atorContaId: contaId },
             { alvoTipo: 'licenca', alvoId: { in: todasLicencas.map((l) => l.id) } },
             { alvoTipo: 'assinatura', alvoId: { in: assinaturaIds } },
+            { alvoTipo: 'repasse', depois: { path: ['contaId'], equals: contaId } },
             // a auditoria da fatura aponta pra fatura; a assinatura vai no `depois`
             ...assinaturaIds.map((id) => ({
               alvoTipo: 'fatura',

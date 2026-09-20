@@ -3,6 +3,8 @@ import { AuthModule } from '../auth/auth.module.js';
 import { LicencasModule } from '../licencas/licencas.module.js';
 import { AssinaturasAdminController } from './assinaturas.admin.controller.js';
 import { AssinaturasAdminService } from './assinaturas.admin.service.js';
+import { FinanceiroAdminController } from './financeiro.admin.controller.js';
+import { FinanceiroAdminService } from './financeiro.admin.service.js';
 import { ConfiguracoesAdminController } from './configuracoes.admin.controller.js';
 import { ConfiguracoesAdminService } from './configuracoes.admin.service.js';
 import { ContasAdminController } from './contas.admin.controller.js';
@@ -24,6 +26,7 @@ import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
     PlanosAdminController,
     ConfiguracoesAdminController,
     AssinaturasAdminController,
+    FinanceiroAdminController,
   ],
   providers: [
     ContasAdminService,
@@ -31,6 +34,7 @@ import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
     PlanosAdminService,
     ConfiguracoesAdminService,
     AssinaturasAdminService,
+    FinanceiroAdminService,
     ContasAdminRepositorio,
   ],
 })

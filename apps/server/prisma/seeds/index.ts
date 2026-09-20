@@ -195,6 +195,10 @@ async function main() {
     idPorSlug.set(c.slug, conta.id);
   }
 
+  // vendas de exemplo são recriadas do zero (itens apontam pra fotos, que são recriadas abaixo)
+  await prisma.pedido.deleteMany({ where: { contaId: { in: [...idPorSlug.values()] } } });
+  await prisma.repasse.deleteMany({ where: { contaId: { in: [...idPorSlug.values()] } } });
+
   for (const g of galerias) {
     const contaId = idPorSlug.get(g.conta)!;
     const { conta: _, fotos, ...dados } = g;
@@ -222,7 +226,87 @@ async function main() {
     }
   }
 
-  console.log(`seed ok: ${contas.length} contas, ${galerias.length} galerias`);
+  const vendas = await semearVendas(idPorSlug);
+  console.log(`seed ok: ${contas.length} contas, ${galerias.length} galerias, ${vendas} pedidos`);
+}
+
+/**
+ * Vendas de foto de evento nos últimos 45 dias, pra Financeiro/360 terem números.
+ * Comissão 10% (regra do gratuito) e taxa do provedor ~1%; tudo já pago.
+ */
+async function semearVendas(idPorSlug: Map<string, string>): Promise<number> {
+  const compradores = [
+    ['ana.souza@exemplo.local', 'Ana Souza'],
+    ['bruno.lima@exemplo.local', 'Bruno Lima'],
+    ['carla.mendes@exemplo.local', 'Carla Mendes'],
+    ['diego.rocha@exemplo.local', 'Diego Rocha'],
+    ['elisa.costa@exemplo.local', 'Elisa Costa'],
+  ] as const;
+  const ids: string[] = [];
+  for (const [email, nome] of compradores) {
+    const c = await prisma.comprador.upsert({
+      where: { email },
+      update: { nome },
+      create: { email, nome, aceitouTermosEm: diasAtras(60) },
+    });
+    ids.push(c.id);
+  }
+
+  const eventos = await prisma.galeria.findMany({
+    where: {
+      contaId: { in: [...idPorSlug.values()] },
+      modalidade: 'EVENTO',
+      totalFotos: { gt: 0 },
+    },
+    include: { fotos: { take: 6, orderBy: { ordem: 'asc' } } },
+  });
+  let total = 0;
+  let n = 0;
+  for (const g of eventos) {
+    // 4 a 6 pedidos por galeria, espalhados nos últimos 45 dias, 1 a 3 fotos cada
+    const quantos = 4 + (g.slug.length % 3);
+    for (let i = 0; i < quantos; i++) {
+      n += 1;
+      const fotos = g.fotos.slice(i % 3, (i % 3) + 1 + ((i + n) % 3));
+      if (!fotos.length) continue;
+      const preco = g.precoFotoCentavos ?? 1500;
+      const subtotal = preco * fotos.length;
+      const comissao = Math.round(subtotal * 0.1);
+      const taxa = Math.round(subtotal * 0.01);
+      const pagoEm = diasAtras(((i * 7 + n * 3) % 45) + 0.3);
+      await prisma.pedido.create({
+        data: {
+          contaId: g.contaId,
+          galeriaId: g.id,
+          compradorId: ids[(i + n) % ids.length]!,
+          status: 'PAGO',
+          subtotalCentavos: subtotal,
+          totalCentavos: subtotal,
+          comissaoPct: 10,
+          comissaoCentavos: comissao,
+          taxaProvedorCentavos: taxa,
+          repasseCentavos: subtotal - comissao - taxa,
+          pagoEm,
+          criadoEm: new Date(pagoEm.getTime() - 5 * 60 * 1000),
+          itens: {
+            create: fotos.map((f) => ({ fotoId: f.id, precoCentavos: preco })),
+          },
+          pagamentos: {
+            create: {
+              provedor: 'MERCADOPAGO',
+              metodo: 'PIX',
+              provedorPagamentoId: `seed-${g.slug}-${i}`,
+              status: 'APROVADO',
+              valorCentavos: subtotal,
+              aprovadoEm: pagoEm,
+            },
+          },
+        },
+      });
+      total += 1;
+    }
+  }
+  return total;
 }
 
 main()

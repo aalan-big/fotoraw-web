@@ -135,6 +135,9 @@ const ROTULO_ACAO: Record<string, string> = {
   'assinatura.cancelar_no_fim': 'Assinatura encerra no fim do período',
   'assinatura.observacao': 'Observação da assinatura alterada',
   'fatura.marcar_paga': 'Fatura marcada como paga',
+  'repasse.gerar': 'Repasse gerado',
+  'repasse.pagar': 'Repasse pago (Pix)',
+  'repasse.falhou': 'Repasse falhou',
 };
 
 export function rotuloAcao(acao: string, depois: unknown): string {

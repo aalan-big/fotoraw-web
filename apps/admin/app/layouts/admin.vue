@@ -37,7 +37,6 @@ const secoes: { titulo: string; itens: Item[] }[] = [
         rotulo: 'Financeiro',
         to: '/financeiro',
         icone: 'M3 7h18v10H3zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5',
-        breve: true,
       },
     ],
   },

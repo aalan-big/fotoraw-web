@@ -4,6 +4,7 @@ import { EmailService, type Email } from '../../src/infra/email/email.service.js
 import { PrismaService } from '../../src/infra/prisma/prisma.service.js';
 import { LimitadorTentativas } from '../../src/modulos/auth/senha/limitador-tentativas.js';
 import { SenhaService } from '../../src/modulos/auth/senha/senha.service.js';
+import { galeriaEventoFixture } from '../fixtures/galeria.fixture.js';
 import { limparBanco } from '../utils/banco.js';
 import { criarApp } from '../utils/criar-app.js';
 
@@ -658,6 +659,143 @@ describe('admin (e2e)', () => {
         mrrCentavos: 4990,
         faturasVencidas: 0,
       });
+    });
+  });
+
+  describe('financeiro', () => {
+    const DIA = 24 * 3600 * 1000;
+    /** pedido pago: 10% de comissão, 1% de taxa, o resto é do fotógrafo */
+    async function venda(contaId: string, totalCentavos: number, pagoEm: Date) {
+      const galeria = await prisma.galeria.create({ data: galeriaEventoFixture(contaId) });
+      const comprador = await prisma.comprador.upsert({
+        where: { email: 'comprador@x.com' },
+        update: {},
+        create: { email: 'comprador@x.com', nome: 'Comprador', aceitouTermosEm: new Date() },
+      });
+      const comissao = Math.round(totalCentavos * 0.1);
+      const taxa = Math.round(totalCentavos * 0.01);
+      return prisma.pedido.create({
+        data: {
+          contaId,
+          galeriaId: galeria.id,
+          compradorId: comprador.id,
+          status: 'PAGO',
+          subtotalCentavos: totalCentavos,
+          totalCentavos,
+          comissaoPct: 10,
+          comissaoCentavos: comissao,
+          taxaProvedorCentavos: taxa,
+          repasseCentavos: totalCentavos - comissao - taxa,
+          pagoEm,
+        },
+      });
+    }
+
+    it('resumo do período, saldos por fotógrafo e fila de repasses (gerar → pagar / falhou)', async () => {
+      const { id } = await cadastrarFotografo();
+      const admin = await entrarAdmin();
+      await venda(id, 10000, new Date(Date.now() - 2 * DIA));
+      await venda(id, 5000, new Date(Date.now() - 1 * DIA));
+      await venda(id, 20000, new Date(Date.now() - 90 * DIA)); // fora do período
+      const hoje = new Date();
+      const de = new Date(hoje.getTime() - 7 * DIA).toISOString().slice(0, 10);
+      const ate = hoje.toISOString().slice(0, 10);
+
+      const r = await api()
+        .get(`/api/admin/financeiro/resumo?de=${de}&ate=${ate}`)
+        .set('Authorization', admin)
+        .expect(200);
+      expect(r.body.vendas).toMatchObject({
+        pedidos: 2,
+        totalCentavos: 15000,
+        comissaoCentavos: 1500,
+        taxasCentavos: 150,
+        repasseCentavos: 13350,
+      });
+      expect(r.body.porDia).toHaveLength(2);
+      expect(r.body.porConta[0]).toMatchObject({ pedidos: 2, totalCentavos: 15000 });
+      // saldo considera TODAS as vendas pagas (inclusive a antiga)
+      expect(r.body.aRepassar).toMatchObject({ contas: 1, totalCentavos: 13350 + 17800 });
+      await api()
+        .get('/api/admin/financeiro/resumo?de=2026-02-01&ate=2026-01-01')
+        .set('Authorization', admin)
+        .expect(400);
+
+      const saldos = await api()
+        .get('/api/admin/financeiro/saldos')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(saldos.body[0]).toMatchObject({
+        conta: { id },
+        pedidosPagos: 3,
+        vendidoCentavos: 35000,
+        devidoCentavos: 31150,
+        repassadoCentavos: 0,
+        saldoCentavos: 31150,
+        repassesAbertos: 0,
+      });
+
+      // gera parcial, tenta gerar outro (409), paga, gera o resto, marca falhou → saldo volta
+      const parcial = await api()
+        .post('/api/admin/repasses')
+        .set('Authorization', admin)
+        .send({ contaId: id, valorCentavos: 10000 })
+        .expect(201);
+      expect(parcial.body).toMatchObject({
+        status: 'ABERTO',
+        metodo: 'PIX_MANUAL',
+        valorCentavos: 10000,
+      });
+      await api()
+        .post('/api/admin/repasses')
+        .set('Authorization', admin)
+        .send({ contaId: id })
+        .expect(409);
+      await api()
+        .patch(`/api/admin/repasses/${parcial.body.id}/pagar`)
+        .set('Authorization', admin)
+        .send({ referencia: 'E2E123' })
+        .expect(200)
+        .expect((x) =>
+          expect(x.body).toMatchObject({ status: 'PAGO', provedorTransferenciaId: 'E2E123' }),
+        );
+
+      let s = await api()
+        .get('/api/admin/financeiro/saldos')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(s.body[0]).toMatchObject({ repassadoCentavos: 10000, saldoCentavos: 21150 });
+
+      await api()
+        .post('/api/admin/repasses')
+        .set('Authorization', admin)
+        .send({ contaId: id, valorCentavos: 99999 })
+        .expect(422);
+      const resto = await api()
+        .post('/api/admin/repasses')
+        .set('Authorization', admin)
+        .send({ contaId: id })
+        .expect(201);
+      expect(resto.body.valorCentavos).toBe(21150);
+      await api()
+        .patch(`/api/admin/repasses/${resto.body.id}/falhou`)
+        .set('Authorization', admin)
+        .send({ motivo: 'chave pix inválida' })
+        .expect(200);
+      s = await api().get('/api/admin/financeiro/saldos').set('Authorization', admin).expect(200);
+      expect(s.body[0]).toMatchObject({ saldoCentavos: 21150, repassesAbertos: 0 });
+
+      const lista = await api()
+        .get('/api/admin/repasses?status=PAGO')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(lista.body.total).toBe(1);
+      const acoes = (
+        await prisma.auditoria.findMany({ where: { acao: { startsWith: 'repasse.' } } })
+      )
+        .map((a) => a.acao)
+        .sort();
+      expect(acoes).toEqual(['repasse.falhou', 'repasse.gerar', 'repasse.gerar', 'repasse.pagar']);
     });
   });
 });

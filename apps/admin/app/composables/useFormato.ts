@@ -39,7 +39,17 @@ export const rotuloStatusFatura: Record<string, string> = {
   CANCELADA: 'Cancelada',
   ESTORNADA: 'Estornada',
 };
+export const rotuloStatusRepasse: Record<string, string> = {
+  ABERTO: 'Aberto',
+  SOLICITADO: 'Solicitado',
+  PAGO: 'Pago',
+  FALHOU: 'Falhou',
+};
 export const corStatus: Record<string, string> = {
+  ABERTO: 'bg-warning/15 text-warning',
+  SOLICITADO: 'bg-info/15 text-info',
+  PAGO: 'bg-success/15 text-success',
+  FALHOU: 'bg-danger/15 text-danger',
   ATIVA: 'bg-success/15 text-success',
   PAGA: 'bg-success/15 text-success',
   PENDENTE: 'bg-info/15 text-info',

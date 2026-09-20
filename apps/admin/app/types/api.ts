@@ -240,6 +240,58 @@ export interface AssinaturaDetalhe extends Omit<AssinaturaLista, 'proximaFatura'
   }[];
 }
 
+export interface FinanceiroResumo {
+  periodo: { de: string; ate: string };
+  vendas: {
+    pedidos: number;
+    totalCentavos: number;
+    comissaoCentavos: number;
+    taxasCentavos: number;
+    repasseCentavos: number;
+    estornos: number;
+    estornadoCentavos: number;
+  };
+  assinaturas: { faturasPagas: number; recebidoCentavos: number };
+  aRepassar: { contas: number; totalCentavos: number; repassesAbertos: number };
+  porDia: { dia: string; pedidos: number; totalCentavos: number; comissaoCentavos: number }[];
+  porConta: {
+    conta: { id: string; nome: string; slug: string };
+    pedidos: number;
+    totalCentavos: number;
+    comissaoCentavos: number;
+    repasseCentavos: number;
+  }[];
+}
+
+export interface SaldoConta {
+  conta: { id: string; nome: string; slug: string; email: string; status: StatusConta };
+  chavePix: string | null;
+  pedidosPagos: number;
+  vendidoCentavos: number;
+  comissaoCentavos: number;
+  devidoCentavos: number;
+  repassadoCentavos: number;
+  saldoCentavos: number;
+  repassesAbertos: number;
+  ultimaVendaEm: string | null;
+  ultimoRepasseEm: string | null;
+}
+
+export type StatusRepasse = 'ABERTO' | 'SOLICITADO' | 'PAGO' | 'FALHOU';
+export interface Repasse {
+  id: string;
+  status: StatusRepasse;
+  metodo: 'SPLIT_AUTOMATICO' | 'PIX_MANUAL';
+  valorCentavos: number;
+  periodoInicio: string;
+  periodoFim: string;
+  pagoEm: string | null;
+  provedorTransferenciaId: string | null;
+  criadoEm: string;
+  conta: { id: string; nome: string; slug: string };
+  chavePix: string | null;
+}
+
 export interface VisaoGeral {
   contas: {
     ativas: number;
