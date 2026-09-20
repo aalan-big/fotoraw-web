@@ -7,6 +7,8 @@ set -euo pipefail
 if [[ $EUID -eq 0 ]]; then
   exec sudo -u fotoraw -H bash /home/fotoraw/fotoraw/deploy/publicar.sh "$@"
 fi
+# node 22 isolado (instalar-vps.sh) — não depende do node do sistema
+[[ -d /opt/node22/bin ]] && export PATH="/opt/node22/bin:$PATH"
 cd "$(dirname "$0")/.."
 
 if [[ ! -f apps/server/.env ]]; then

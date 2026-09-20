@@ -4,9 +4,15 @@ Sem Docker: **Node 22 + pnpm + PostgreSQL + Caddy (HTTPS automático) + pm2**. T
 Ubuntu 22.04 / 24.04. Uma VPS de 2 vCPU / 8 GB (Hostinger KVM 2) sobra: os 4 processos Node
 usam ~150 MB cada, o Postgres uns 300 MB.
 
-A VPS pode já ter outro projeto. O roteiro não mexe no que está lá: só instala o que falta,
-cria um usuário `fotoraw` e um banco próprio. O único ponto de atenção é a porta 80/443 —
-ver "Já tem nginx/Apache na VPS?" abaixo.
+**A VPS pode já ter outro projeto rodando (um site que vende).** O roteiro foi feito pra não
+encostar nele:
+
+- não roda `apt upgrade` — nginx/node/postgres do outro site continuam na versão que estão;
+- o Node 22 do FotoRAW fica isolado em `/opt/node22`, só no PATH do usuário `fotoraw`;
+- o pm2 é do usuário `fotoraw` (daemon próprio) — o pm2 de root, se houver, não é tocado;
+- Postgres: se já existir, só cria a role e o banco `fotoraw`; se não, instala;
+- Caddy só é instalado se 80/443 estiverem livres; se houver nginx, usa-se o nginx (abaixo);
+- firewall: não liga o `ufw`; se já estiver ativo, só libera 80/443.
 
 ## O que sobe
 
@@ -34,24 +40,30 @@ curl -fsSL https://raw.githubusercontent.com/aalan-big/fotoraw-web/main/deploy/i
 sudo bash instalar-vps.sh
 ```
 
-O que ele faz: atualiza o sistema, instala Node 22 (NodeSource), pnpm, PostgreSQL, Caddy e
-pm2; cria o usuário de sistema `fotoraw` e o banco `fotoraw` (senha gerada e impressa no
-final — anote); **clona o projeto em `/home/fotoraw/fotoraw`** com atalho `/root/fotoraw`;
-abre só 22/80/443 no `ufw`.
+O que ele faz: instala Node 22 (isolado em `/opt/node22`), pnpm, pm2, PostgreSQL (se não
+houver) e Caddy (se 80/443 estiverem livres); cria o usuário de sistema `fotoraw` e o banco
+`fotoraw` (senha gerada e impressa no final — anote); **clona o projeto em
+`/home/fotoraw/fotoraw`** com atalho `/root/fotoraw`.
 
 Depois disso, logado como root: `cd fotoraw` já está dentro do projeto. Atalhos no root:
 `publicar` (atualiza tudo), `pm2f status`, `logs`.
 
 ### Já tem nginx/Apache na VPS?
 
-`sudo ss -tlnp | grep -E ':80 |:443 '` mostra quem está nas portas. Se for **nginx** de
-outro projeto, você tem duas saídas:
+O instalador detecta. Se as portas estão livres, Caddy (HTTPS sozinho, zero manutenção). Se
+for **nginx** do outro site, o Caddy nem é instalado — os domínios do FotoRAW entram como um
+site a mais no nginx, sem mexer nos blocos existentes:
 
-- **Caddy em portas altas atrás do nginx** — mais trabalho; ou
-- **usar o próprio nginx** pros domínios do FotoRAW: `deploy/nginx.conf.exemplo` tem os
-  server blocks; certificado com `certbot --nginx -d SEU-DOMINIO -d www.SEU-DOMINIO -d api.SEU-DOMINIO -d painel.SEU-DOMINIO -d admin.SEU-DOMINIO`.
+```bash
+cp /root/fotoraw/deploy/nginx.conf.exemplo /etc/nginx/sites-available/fotoraw
+sed -i 's/SEU-DOMINIO/meudominio.com.br/g' /etc/nginx/sites-available/fotoraw
+ln -s /etc/nginx/sites-available/fotoraw /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+apt-get install -yq certbot python3-certbot-nginx   # se ainda não tiver
+certbot --nginx -d meudominio.com.br -d www.meudominio.com.br -d api.meudominio.com.br -d painel.meudominio.com.br -d admin.meudominio.com.br
+```
 
-Se as portas estão livres, siga com o Caddy (recomendado: HTTPS sozinho, zero manutenção).
+(`nginx -t` antes do reload garante que, se algo estiver errado, o site atual continua no ar.)
 
 ## 3. Código e configuração
 

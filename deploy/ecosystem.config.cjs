@@ -1,11 +1,15 @@
 // pm2 — os 4 processos do FotoRAW web. `pm2 start deploy/ecosystem.config.cjs`
 // O server lê apps/server/.env (dotenv); os apps Nuxt recebem as URLs no build (deploy/.env.nuxt).
 const path = require('node:path');
+const fs = require('node:fs');
 const raiz = path.resolve(__dirname, '..');
+// node 22 isolado em /opt/node22 (instalar-vps.sh); fora da VPS usa o node do PATH
+const interpreter = fs.existsSync('/opt/node22/bin/node') ? '/opt/node22/bin/node' : 'node';
 const nuxt = (nome, porta) => ({
   name: nome,
   cwd: path.join(raiz, 'apps', nome),
   script: '.output/server/index.mjs',
+  interpreter,
   env: { NODE_ENV: 'production', PORT: porta, HOST: '127.0.0.1', NITRO_PORT: porta, NITRO_HOST: '127.0.0.1' },
   instances: 1,
   autorestart: true,
@@ -19,6 +23,7 @@ module.exports = {
       name: 'server',
       cwd: path.join(raiz, 'apps/server'),
       script: 'dist/main.js',
+      interpreter,
       env: { NODE_ENV: 'production', PORT: 3001 },
       // o limitador de tentativas de login é em memória: 1 instância
       instances: 1,
