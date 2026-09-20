@@ -65,6 +65,7 @@ import { SenhaService } from './senha/senha.service.js';
     JwtModule,
     ContasAuthRepositorio,
     DispositivosRepositorio,
+    SenhaService,
   ],
 })
 export class AuthModule {}

@@ -1,0 +1,14 @@
+{
+  "name": "@fotoraw/contratos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tipos TS e schemas compartilhados (server, web e desktop)",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./galerias": "./src/galerias/galerias.ts",
+    "./sync": "./src/sync/sync.ts"
+  }
+}
