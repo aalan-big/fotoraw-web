@@ -17,9 +17,19 @@ apt-get install -yq curl git ufw ca-certificates gnupg build-essential
 
 echo "==> node 22 + pnpm"
 if ! command -v node >/dev/null || [[ "$(node -v | cut -d. -f1)" != "v22" ]]; then
-  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-  apt-get install -yq nodejs
+  # 1º: repositório NodeSource; se o Ubuntu for novo demais pra ele, 2º: binário oficial
+  if curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -yq nodejs      && [[ "$(node -v | cut -d. -f1)" == "v22" ]]; then
+    echo "    node via NodeSource"
+  else
+    echo "    NodeSource não serviu — instalando binário oficial do nodejs.org"
+    VERSAO=$(curl -fsSL https://nodejs.org/dist/latest-v22.x/ | grep -oE 'node-v22\.[0-9]+\.[0-9]+-linux-x64\.tar\.xz' | head -1)
+    curl -fsSL "https://nodejs.org/dist/latest-v22.x/$VERSAO" -o /tmp/node.tar.xz
+    tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1
+    rm -f /tmp/node.tar.xz
+    hash -r
+  fi
 fi
+node -v
 corepack enable
 corepack prepare pnpm@10.32.1 --activate
 npm install -g pm2@latest >/dev/null
