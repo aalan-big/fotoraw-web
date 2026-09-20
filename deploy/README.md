@@ -18,13 +18,15 @@ encostar nele:
 
 | processo | porta interna | domínio público |
 |---|---|---|
-| `apps/server` (API NestJS) | 3001 | `api.SEU-DOMINIO` |
-| `apps/web` (vitrine, SSR) | 3000 | `SEU-DOMINIO` e `www.` |
-| `apps/fotografo` (painel, SPA) | 3002 | `painel.SEU-DOMINIO` |
-| `apps/admin` (admin, SPA) | 3003 | `admin.SEU-DOMINIO` |
+| `apps/server` (API NestJS) | 4001 | `api.SEU-DOMINIO` |
+| `apps/web` (vitrine, SSR) | 4000 | `SEU-DOMINIO` e `www.` |
+| `apps/fotografo` (painel, SPA) | 4002 | `painel.SEU-DOMINIO` |
+| `apps/admin` (admin, SPA) | 4003 | `admin.SEU-DOMINIO` |
+| banco (container Docker `db_fotoraw`) | 127.0.0.1:5433 | — |
 
-O Caddy fica na frente com HTTPS (Let's Encrypt) e repassa pra essas portas. Nada além de
-80/443/22 fica exposto.
+Portas 4000–4003 (o SeuPercurso já usa 3000–3003); mudam em `deploy/.env.nuxt` se precisar.
+O proxy (nginx existente ou Caddy) fica na frente com HTTPS e repassa pra essas portas. As
+portas internas só escutam em 127.0.0.1.
 
 ## 0. Antes de tudo: diagnóstico (só leitura) e snapshot
 
@@ -57,10 +59,13 @@ curl -fsSL https://raw.githubusercontent.com/aalan-big/fotoraw-web/main/deploy/i
 sudo bash instalar-vps.sh
 ```
 
-O que ele faz: instala Node 22 (isolado em `/opt/node22`), pnpm, pm2, PostgreSQL (se não
-houver) e Caddy (se 80/443 estiverem livres); cria o usuário de sistema `fotoraw` e o banco
-`fotoraw` (senha gerada e impressa no final — anote); **clona o projeto em
-`/home/fotoraw/fotoraw`** com atalho `/root/fotoraw`.
+O que ele faz: instala Node 22 (isolado em `/opt/node22`), pnpm e pm2; sobe o banco num
+**container Docker próprio** `db_fotoraw` (Postgres 17, porta 5433 só em 127.0.0.1, volume
+`fotoraw_pg` — não encosta no `db_seupercurso`); Caddy só se 80/443 estiverem livres; cria o
+usuário de sistema `fotoraw`; **clona o projeto em `/home/fotoraw/fotoraw`** com atalho
+`/root/fotoraw`. A `DATABASE_URL` sai impressa no final — anote.
+
+Sem Docker na VPS: `MODO_BANCO=apt` instala o Postgres do sistema. Supabase: `MODO_BANCO=nenhum`.
 
 Depois disso, logado como root: `cd fotoraw` já está dentro do projeto. Atalhos no root:
 `publicar` (atualiza tudo), `pm2f status`, `logs`.
@@ -138,12 +143,12 @@ sudo -iu fotoraw crontab -e
 # 0 2 * * * /home/fotoraw/fotoraw/deploy/backup-banco.sh
 ```
 
-Restaurar: `psql fotoraw < arquivo.sql`.
+Restaurar: `zcat arquivo.sql.gz | docker exec -i db_fotoraw psql -U fotoraw fotoraw`.
 
 ## Se quiser manter o Supabase em vez do Postgres local
 
 Só troque `DATABASE_URL`/`DIRECT_URL` no `.env` pelas URLs do projeto Supabase (sa-east-1,
-de preferência) e pule a parte do banco no instalador (`SEM_POSTGRES=1 bash instalar-vps.sh`).
+de preferência) e pule a parte do banco no instalador (`MODO_BANCO=nenhum bash instalar-vps.sh`).
 Latência São Paulo ↔ VPS conta: se a VPS está no Brasil, o Postgres local é mais rápido.
 
 ## Pendências conhecidas pra produção

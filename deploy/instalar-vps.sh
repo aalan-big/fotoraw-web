@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Prepara uma VPS Ubuntu (22.04+) pro FotoRAW web SEM mexer no que já roda nela.
 #   sudo bash instalar-vps.sh
-#   SEM_POSTGRES=1 sudo bash instalar-vps.sh   # se for usar Supabase
+#   MODO_BANCO=nenhum sudo bash instalar-vps.sh   # se for usar Supabase (MODO_BANCO=docker|apt|nenhum)
 #
 # Regras de convivência com outro projeto na mesma VPS:
 #  - não roda `apt upgrade` (não atualiza nginx/node/postgres de ninguém)
@@ -51,28 +51,49 @@ for arq in /home/$USUARIO/.profile /home/$USUARIO/.bashrc; do
   chown $USUARIO:$USUARIO "$arq"
 done
 
-if [[ "${SEM_POSTGRES:-0}" != "1" ]]; then
-  echo "==> postgresql"
-  if ! command -v psql >/dev/null 2>&1; then
-    apt-get install -yq postgresql postgresql-contrib
-  else
-    echo "    já instalado ($(psql --version)) — só criando role e banco"
-  fi
-  systemctl enable --now postgresql >/dev/null 2>&1 || true
-  SENHA_BANCO="${SENHA_BANCO:-$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)}"
-  if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$USUARIO'" | grep -q 1; then
-    sudo -u postgres psql -qc "CREATE ROLE $USUARIO LOGIN PASSWORD '$SENHA_BANCO';"
-    echo "    role '$USUARIO' criada"
-  else
-    sudo -u postgres psql -qc "ALTER ROLE $USUARIO WITH PASSWORD '$SENHA_BANCO';"
-    echo "    role '$USUARIO' já existia — senha redefinida"
-  fi
-  if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$BANCO'" | grep -q 1; then
-    sudo -u postgres createdb -O "$USUARIO" "$BANCO"
-    echo "    banco '$BANCO' criado"
-  fi
-  PORTA_PG=$(sudo -u postgres psql -tAc "SHOW port" 2>/dev/null || echo 5432)
+# ---- banco --------------------------------------------------------------------
+# MODO_BANCO=docker (padrão se houver Docker): container próprio `db_fotoraw` na 127.0.0.1:5433,
+#              volume `fotoraw_pg`, isolado de qualquer outro Postgres (do sistema ou de outro container).
+# MODO_BANCO=apt    : PostgreSQL do sistema (só se não houver nenhum Postgres na VPS).
+# MODO_BANCO=nenhum : usa banco externo (Supabase) — nada instalado.
+BANCO_MODO="${MODO_BANCO:-auto}"
+if [[ "$BANCO_MODO" == "auto" ]]; then
+  if command -v docker >/dev/null 2>&1; then BANCO_MODO=docker
+  elif ! ss -tlnH 2>/dev/null | grep -qE ':5432 '; then BANCO_MODO=apt
+  else BANCO_MODO=nenhum; fi
 fi
+SENHA_BANCO="${SENHA_BANCO:-$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)}"
+case "$BANCO_MODO" in
+  docker)
+    echo "==> banco: container docker db_fotoraw (127.0.0.1:5433)"
+    if docker ps -a --format '{{.Names}}' | grep -qx db_fotoraw; then
+      echo "    já existe — mantendo (senha não alterada)"
+      docker start db_fotoraw >/dev/null 2>&1 || true
+      SENHA_BANCO="(a mesma de antes — veja apps/server/.env)"
+    else
+      docker run -d --name db_fotoraw --restart unless-stopped         -p 127.0.0.1:5433:5432         -e POSTGRES_USER=fotoraw -e POSTGRES_PASSWORD="$SENHA_BANCO" -e POSTGRES_DB=fotoraw         -v fotoraw_pg:/var/lib/postgresql/data         --memory=1g         postgres:17-alpine >/dev/null
+      echo "    criado (postgres 17, volume fotoraw_pg, só escuta em 127.0.0.1)"
+    fi
+    URL_BANCO="postgresql://fotoraw:$SENHA_BANCO@127.0.0.1:5433/fotoraw"
+    ;;
+  apt)
+    echo "==> banco: postgresql do sistema"
+    apt-get install -yq postgresql postgresql-contrib
+    systemctl enable --now postgresql >/dev/null 2>&1 || true
+    if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$USUARIO'" | grep -q 1; then
+      sudo -u postgres psql -qc "CREATE ROLE $USUARIO LOGIN PASSWORD '$SENHA_BANCO';"
+    else
+      sudo -u postgres psql -qc "ALTER ROLE $USUARIO WITH PASSWORD '$SENHA_BANCO';"
+    fi
+    sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$BANCO'" | grep -q 1       || sudo -u postgres createdb -O "$USUARIO" "$BANCO"
+    PORTA_PG=$(sudo -u postgres psql -tAc "SHOW port" 2>/dev/null || echo 5432)
+    URL_BANCO="postgresql://$USUARIO:$SENHA_BANCO@localhost:$PORTA_PG/$BANCO"
+    ;;
+  *)
+    echo "==> banco: nenhum instalado (use a URL do Supabase no .env)"
+    URL_BANCO="(Supabase)"
+    ;;
+esac
 
 echo "==> portas 80/443"
 OCUPANTE=$(ss -tlnp 2>/dev/null | grep -E ':(80|443) ' | grep -oE 'users:\(\("[^"]+"' | grep -oE '"[^"]+"' | tr -d '"' | sort -u | tr '\n' ' ' || true)
@@ -120,10 +141,8 @@ fi
 echo
 echo "================================================================"
 echo " pronto — nada do que já rodava na VPS foi alterado."
-if [[ "${SEM_POSTGRES:-0}" != "1" ]]; then
-  echo "   DATABASE_URL=postgresql://$USUARIO:$SENHA_BANCO@localhost:${PORTA_PG:-5432}/$BANCO"
-  echo "   (anote — vai no apps/server/.env)"
-fi
+echo "   DATABASE_URL=$URL_BANCO"
+echo "   (anote — vai em DATABASE_URL e DIRECT_URL do apps/server/.env)"
 echo "   proxy: $PROXY"
 echo " próximo:  source ~/.bashrc ; cd fotoraw  →  README passo 3 (.env)  →  publicar"
 echo "================================================================"

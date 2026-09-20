@@ -20,8 +20,8 @@ nproc | xargs -I{} echo "cpus: {}"
 linha "portas em uso (quem escuta onde)"
 ss -tlnpH 2>/dev/null | awk '{print $4, $6}' | sed 's/users:(("//; s/",pid=/ pid=/; s/,fd=.*//' | sort -t: -k2 -n | uniq
 
-linha "conflito com as portas que o FotoRAW quer (3000 3001 3002 3003 5432)"
-for p in 3000 3001 3002 3003 5432; do
+linha "portas que o FotoRAW quer (4000 4001 4002 4003 e 5433 pro banco)"
+for p in 4000 4001 4002 4003 5433; do
   q=$(ss -tlnpH 2>/dev/null | grep -E "[:.]$p " | grep -oE '"[^"]+"' | head -1 | tr -d '"')
   [[ -n "$q" ]] && echo "  $p: OCUPADA por $q" || echo "  $p: livre"
 done

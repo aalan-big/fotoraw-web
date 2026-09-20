@@ -15,7 +15,7 @@
 # vitrine (SSR)
 SEU-DOMINIO, www.SEU-DOMINIO {
 	import comum
-	reverse_proxy 127.0.0.1:3000
+	reverse_proxy 127.0.0.1:4000
 }
 
 # API — o server lê o IP real pelo X-Forwarded-For (trust proxy ligado em produção)
@@ -24,13 +24,13 @@ api.SEU-DOMINIO {
 	request_body {
 		max_size 50MB
 	}
-	reverse_proxy 127.0.0.1:3001
+	reverse_proxy 127.0.0.1:4001
 }
 
 # painel do fotógrafo (SPA)
 painel.SEU-DOMINIO {
 	import comum
-	reverse_proxy 127.0.0.1:3002
+	reverse_proxy 127.0.0.1:4002
 }
 
 # admin (SPA) — só o dono usa
@@ -38,5 +38,5 @@ admin.SEU-DOMINIO {
 	import comum
 	header X-Frame-Options DENY
 	header X-Robots-Tag "noindex, nofollow"
-	reverse_proxy 127.0.0.1:3003
+	reverse_proxy 127.0.0.1:4003
 }

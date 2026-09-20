@@ -49,6 +49,6 @@ pm2 save >/dev/null
 echo
 pm2 status
 echo
-echo "saúde: curl -s http://localhost:3001/api/saude"
-curl -s --max-time 10 http://localhost:3001/api/saude || true
+echo "saúde: curl -s http://localhost:${PORTA_API:-4001}/api/saude"
+curl -s --max-time 10 "http://localhost:${PORTA_API:-4001}/api/saude" || true
 echo

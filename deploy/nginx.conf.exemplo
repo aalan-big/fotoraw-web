@@ -4,11 +4,11 @@
 # (o certbot reescreve estes blocos com o listen 443 + ssl.)
 
 map $host $fotoraw_porta {
-    SEU-DOMINIO         3000;
-    www.SEU-DOMINIO     3000;
-    api.SEU-DOMINIO     3001;
-    painel.SEU-DOMINIO  3002;
-    admin.SEU-DOMINIO   3003;
+    SEU-DOMINIO         4000;
+    www.SEU-DOMINIO     4000;
+    api.SEU-DOMINIO     4001;
+    painel.SEU-DOMINIO  4002;
+    admin.SEU-DOMINIO   4003;
 }
 
 server {
