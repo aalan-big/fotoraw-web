@@ -36,7 +36,11 @@ sudo bash instalar-vps.sh
 
 O que ele faz: atualiza o sistema, instala Node 22 (NodeSource), pnpm, PostgreSQL, Caddy e
 pm2; cria o usuário de sistema `fotoraw` e o banco `fotoraw` (senha gerada e impressa no
-final — anote); abre só 22/80/443 no `ufw`.
+final — anote); **clona o projeto em `/home/fotoraw/fotoraw`** com atalho `/root/fotoraw`;
+abre só 22/80/443 no `ufw`.
+
+Depois disso, logado como root: `cd fotoraw` já está dentro do projeto. Atalhos no root:
+`publicar` (atualiza tudo), `pm2f status`, `logs`.
 
 ### Já tem nginx/Apache na VPS?
 
@@ -52,13 +56,12 @@ Se as portas estão livres, siga com o Caddy (recomendado: HTTPS sozinho, zero m
 ## 3. Código e configuração
 
 ```bash
-sudo -iu fotoraw
-git clone https://github.com/aalan-big/fotoraw-web.git ~/fotoraw-web
-cd ~/fotoraw-web
+cd fotoraw
 cp deploy/env.producao.exemplo apps/server/.env
 nano apps/server/.env      # domínio, senha do banco, JWT_SECRET (gere: openssl rand -base64 48)
 cp deploy/env.nuxt.exemplo deploy/.env.nuxt
 nano deploy/.env.nuxt      # só o domínio
+chown fotoraw:fotoraw apps/server/.env deploy/.env.nuxt
 ```
 
 Variáveis que **precisam** mudar no `apps/server/.env`: `WEB_URL`, `FOTOGRAFO_URL`,
@@ -70,18 +73,18 @@ entrar; deixe os placeholders.
 ## 4. Primeira publicação
 
 ```bash
-cd ~/fotoraw-web
-bash deploy/publicar.sh          # instala deps, gera prisma, build dos 4 apps, migra o banco, sobe no pm2
-pnpm admin:criar --nome "Alan" --email seu@email --senha "uma frase longa"
-pm2 save && pm2 startup           # copie e rode a linha que o pm2 imprimir (com sudo)
+cd fotoraw
+publicar                          # instala deps, gera prisma, build dos 4 apps, migra o banco, sobe no pm2
+sudo -iu fotoraw bash -c 'cd ~/fotoraw && pnpm admin:criar --nome "Alan" --email seu@email --senha "uma frase longa"'
+sudo -iu fotoraw pm2 startup      # copie e rode a linha que ele imprimir
 ```
 
-Depois, **como root**, o Caddy:
+O Caddy (ainda como root):
 
 ```bash
-sudo cp /home/fotoraw/fotoraw-web/deploy/Caddyfile /etc/caddy/Caddyfile
-sudo sed -i 's/SEU-DOMINIO/meudominio.com.br/g' /etc/caddy/Caddyfile
-sudo systemctl reload caddy
+cp /root/fotoraw/deploy/Caddyfile /etc/caddy/Caddyfile
+sed -i 's/SEU-DOMINIO/meudominio.com.br/g' /etc/caddy/Caddyfile
+systemctl reload caddy
 ```
 
 Conferir: `curl -s https://api.SEU-DOMINIO/api/saude` → `{"status":"ok","banco":"ok"}`.
@@ -91,12 +94,11 @@ produção `ADMIN_EXIGE_2FA` é `true` por padrão: sem 2FA o admin só abre a t
 ## 5. Atualizar (toda vez)
 
 ```bash
-sudo -iu fotoraw
-cd ~/fotoraw-web && bash deploy/publicar.sh
+publicar        # como root, de qualquer pasta (ou: cd fotoraw && bash deploy/publicar.sh)
 ```
 
 `git pull` → `pnpm install` → build → `prisma migrate deploy` → `pm2 reload` (sem derrubar).
-Logs: `pm2 logs`, `pm2 logs server`. Status: `pm2 status`.
+Logs: `logs` ou `pm2f logs server`. Status: `pm2f status`.
 
 ## Backup do banco
 
@@ -104,7 +106,7 @@ Diário, 2h da manhã, guarda 14 dias em `/home/fotoraw/backups`:
 
 ```bash
 sudo -iu fotoraw crontab -e
-# 0 2 * * * /home/fotoraw/fotoraw-web/deploy/backup-banco.sh
+# 0 2 * * * /home/fotoraw/fotoraw/deploy/backup-banco.sh
 ```
 
 Restaurar: `psql fotoraw < arquivo.sql`.

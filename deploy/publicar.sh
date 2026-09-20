@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Publica (ou atualiza) o FotoRAW web na VPS. Rodar como o usuário `fotoraw`, dentro do repo:
-#   cd ~/fotoraw-web && bash deploy/publicar.sh
+#   cd fotoraw && bash deploy/publicar.sh   (ou só `publicar`, como root)
 # Faz: git pull → pnpm install → prisma generate → build dos 4 apps → migrate deploy → pm2 reload.
 set -euo pipefail
+# rodou como root? repassa pro usuário dono do projeto (pm2 e node_modules são dele)
+if [[ $EUID -eq 0 ]]; then
+  exec sudo -u fotoraw -H bash /home/fotoraw/fotoraw/deploy/publicar.sh "$@"
+fi
 cd "$(dirname "$0")/.."
 
 if [[ ! -f apps/server/.env ]]; then

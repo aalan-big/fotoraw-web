@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Dump diário do Postgres local, guarda 14 dias. Cron do usuário fotoraw:
-#   0 2 * * * /home/fotoraw/fotoraw-web/deploy/backup-banco.sh
+#   0 2 * * * /home/fotoraw/fotoraw/deploy/backup-banco.sh
 set -euo pipefail
 DIR="$HOME/backups"
 mkdir -p "$DIR"

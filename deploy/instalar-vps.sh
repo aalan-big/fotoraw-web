@@ -57,6 +57,25 @@ if ! command -v caddy >/dev/null; then
 fi
 systemctl enable --now caddy
 
+echo "==> projeto em /home/$USUARIO/fotoraw (+ atalho /root/fotoraw)"
+REPO="${REPO:-https://github.com/aalan-big/fotoraw-web.git}"
+if [[ ! -d /home/$USUARIO/fotoraw/.git ]]; then
+  sudo -u "$USUARIO" -H git clone -q "$REPO" /home/$USUARIO/fotoraw
+fi
+ln -sfn /home/$USUARIO/fotoraw /root/fotoraw
+# como root: `cd fotoraw` entra no projeto; `pm2f`/`publicar` agem como o usuário fotoraw
+if ! grep -q "fotoraw-atalhos" /root/.bashrc 2>/dev/null; then
+  cat >> /root/.bashrc <<'ATALHOS'
+
+# --- fotoraw-atalhos ---
+alias pm2f='sudo -iu fotoraw pm2'
+alias publicar='bash /home/fotoraw/fotoraw/deploy/publicar.sh'
+alias logs='sudo -iu fotoraw pm2 logs'
+# `cd fotoraw` funciona de qualquer pasta
+cd() { if [[ "${1:-}" == "fotoraw" && ! -d "fotoraw" ]]; then builtin cd /root/fotoraw; else builtin cd "$@"; fi; }
+ATALHOS
+fi
+
 echo "==> firewall (22, 80, 443)"
 ufw allow OpenSSH >/dev/null
 ufw allow 80/tcp >/dev/null
@@ -71,5 +90,5 @@ if [[ "${SEM_POSTGRES:-0}" != "1" ]]; then
   echo "   DATABASE_URL=postgresql://$USUARIO:$SENHA_BANCO@localhost:5432/$BANCO"
   echo "   (anote — vai no apps/server/.env)"
 fi
-echo " próximo: sudo -iu $USUARIO ; git clone … ; ver deploy/README.md passo 3"
+echo " próximo:  cd fotoraw  →  ver deploy/README.md passo 3 (.env) e depois:  publicar"
 echo "================================================================"
