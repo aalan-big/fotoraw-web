@@ -130,6 +130,11 @@ const ROTULO_ACAO: Record<string, string> = {
   'licenca.suspensa': 'Licença suspensa',
   'licenca.revogada': 'Licença revogada',
   'perfil.taxas_para_cliente': 'Mudou quem paga as taxas',
+  'assinatura.criar': 'Assinatura manual criada',
+  'assinatura.cancelar': 'Assinatura cancelada na hora',
+  'assinatura.cancelar_no_fim': 'Assinatura encerra no fim do período',
+  'assinatura.observacao': 'Observação da assinatura alterada',
+  'fatura.marcar_paga': 'Fatura marcada como paga',
 };
 
 export function rotuloAcao(acao: string, depois: unknown): string {
@@ -140,8 +145,10 @@ export function rotuloAcao(acao: string, depois: unknown): string {
       ? d.nome
       : typeof d.motivo === 'string'
         ? d.motivo.replace(/^plano:[^ ]+ · /, '')
-        : typeof d.tipo === 'string'
-          ? d.tipo.toLowerCase()
-          : null;
+        : typeof d.plano === 'string'
+          ? d.plano
+          : typeof d.tipo === 'string'
+            ? d.tipo.toLowerCase()
+            : null;
   return extra ? `${base} — ${extra}` : base;
 }

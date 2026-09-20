@@ -502,4 +502,162 @@ describe('admin (e2e)', () => {
       expect(me.body.licenca.diasRestantes).toBe(30);
     });
   });
+
+  describe('assinaturas manuais', () => {
+    const DIA = 24 * 3600 * 1000;
+    const dataUtc = (iso: string) => iso.slice(0, 10);
+
+    it('criar já paga emite licença ASSINATURA e gera a próxima fatura; marcar paga estende', async () => {
+      const { id, bearer } = await cadastrarFotografo();
+      const admin = await entrarAdmin();
+
+      const criada = await api()
+        .post('/api/admin/assinaturas')
+        .set('Authorization', admin)
+        .send({
+          contaId: id,
+          planoId: planoPro,
+          inicioEm: '2026-09-01',
+          jaPaga: true,
+          observacao: 'pix',
+        })
+        .expect(201);
+      expect(criada.body).toMatchObject({ status: 'ATIVA', provedor: 'MANUAL', origem: 'ADMIN' });
+      expect(dataUtc(criada.body.periodoAtualInicio)).toBe('2026-09-01');
+      expect(dataUtc(criada.body.periodoAtualFim)).toBe('2026-10-01');
+      const faturas = criada.body.faturas.map(
+        (f: { status: string; vencimento: string }) => `${f.status}:${dataUtc(f.vencimento)}`,
+      );
+      expect(faturas).toEqual(['PENDENTE:2026-10-01', 'PAGA:2026-09-01']);
+      expect(criada.body.licencas[0]).toMatchObject({ status: 'ATIVA' });
+      expect(dataUtc(criada.body.licencas[0].validaAte)).toBe('2026-10-01');
+
+      // painel do fotógrafo vê PRO por assinatura; o trial virou revogada
+      const me = await api().get('/api/me').set('Authorization', bearer).expect(200);
+      expect(me.body.licenca).toMatchObject({ plano: 'pro', tipo: 'ASSINATURA' });
+      const hist = await api()
+        .get(`/api/admin/contas/${id}/licencas`)
+        .set('Authorization', admin)
+        .expect(200);
+      expect(
+        hist.body.map((l: { tipo: string; status: string }) => `${l.tipo}:${l.status}`),
+      ).toEqual(['ASSINATURA:ATIVA', 'TRIAL:REVOGADA']);
+
+      // paga a 2ª fatura: mesma licença, validade estendida, 3ª fatura nasce
+      const pendente = criada.body.faturas.find((f: { status: string }) => f.status === 'PENDENTE');
+      const paga = await api()
+        .patch(`/api/admin/faturas/${pendente.id}/marcar-paga`)
+        .set('Authorization', admin)
+        .send({ pagaEm: '2026-09-28T12:00:00Z' })
+        .expect(200);
+      expect(dataUtc(paga.body.periodoAtualFim)).toBe('2026-11-01');
+      expect(paga.body.licencas).toHaveLength(1);
+      expect(dataUtc(paga.body.licencas[0].validaAte)).toBe('2026-11-01');
+      expect(
+        paga.body.faturas.filter((f: { status: string }) => f.status === 'PENDENTE'),
+      ).toHaveLength(1);
+      await api()
+        .patch(`/api/admin/faturas/${pendente.id}/marcar-paga`)
+        .set('Authorization', admin)
+        .send({})
+        .expect(422);
+
+      // segunda assinatura na mesma conta é recusada; plano gratuito também
+      await api()
+        .post('/api/admin/assinaturas')
+        .set('Authorization', admin)
+        .send({ contaId: id, planoId: planoPro })
+        .expect(409);
+
+      const acoes = (
+        await prisma.auditoria.findMany({ where: { acao: { startsWith: 'assinatura.' } } })
+      ).map((a) => a.acao);
+      expect(acoes).toContain('assinatura.criar');
+      expect(await prisma.auditoria.count({ where: { acao: 'fatura.marcar_paga' } })).toBe(2);
+    });
+
+    it('cancelar no fim mantém a licença até vencer; cancelar agora revoga e cai no gratuito', async () => {
+      const { id, bearer } = await cadastrarFotografo();
+      const admin = await entrarAdmin();
+      const hoje = new Date().toISOString().slice(0, 10);
+      const a = await api()
+        .post('/api/admin/assinaturas')
+        .set('Authorization', admin)
+        .send({ contaId: id, planoId: planoPro, inicioEm: hoje, jaPaga: true })
+        .expect(201);
+
+      const fim = await api()
+        .patch(`/api/admin/assinaturas/${a.body.id}/cancelar`)
+        .set('Authorization', admin)
+        .send({ noFimDoPeriodo: true, motivo: 'pediu pra parar' })
+        .expect(200);
+      expect(fim.body).toMatchObject({ status: 'ATIVA', cancelaNoFimDoPeriodo: true });
+      expect(fim.body.faturas.map((f: { status: string }) => f.status)).toEqual([
+        'CANCELADA',
+        'PAGA',
+      ]);
+      let me = await api().get('/api/me').set('Authorization', bearer).expect(200);
+      expect(me.body.licenca.plano).toBe('pro');
+
+      const agora = await api()
+        .patch(`/api/admin/assinaturas/${a.body.id}/cancelar`)
+        .set('Authorization', admin)
+        .send({ noFimDoPeriodo: false, motivo: 'chargeback' })
+        .expect(200);
+      expect(agora.body.status).toBe('CANCELADA');
+      expect(agora.body.licencas[0].status).toBe('REVOGADA');
+      me = await api().get('/api/me').set('Authorization', bearer).expect(200);
+      expect(me.body.licenca.plano).toBe('gratuito');
+      await api()
+        .patch(`/api/admin/assinaturas/${a.body.id}/cancelar`)
+        .set('Authorization', admin)
+        .send({ noFimDoPeriodo: false, motivo: 'de novo' })
+        .expect(422);
+    });
+
+    it('fatura pendente vencida vira VENCIDA e a assinatura INADIMPLENTE na leitura; pagar volta', async () => {
+      const { id } = await cadastrarFotografo();
+      const admin = await entrarAdmin();
+      const passado = new Date(Date.now() - 40 * DIA).toISOString().slice(0, 10);
+      const a = await api()
+        .post('/api/admin/assinaturas')
+        .set('Authorization', admin)
+        .send({ contaId: id, planoId: planoPro, inicioEm: passado, jaPaga: false })
+        .expect(201);
+      expect(a.body.status).toBe('INADIMPLENTE');
+      expect(a.body.faturas[0].status).toBe('VENCIDA');
+      expect(a.body.licencas).toHaveLength(0);
+
+      const lista = await api()
+        .get('/api/admin/assinaturas?vencidas=true')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(lista.body.total).toBe(1);
+      expect(lista.body.numeros).toMatchObject({ ativas: 0, faturasVencidas: 1 });
+
+      const paga = await api()
+        .patch(`/api/admin/faturas/${a.body.faturas[0].id}/marcar-paga`)
+        .set('Authorization', admin)
+        .send({})
+        .expect(200);
+      expect(paga.body.status).toBe('ATIVA');
+      expect(paga.body.licencas[0].status).toBe('ATIVA');
+      // pagou depois do período acabar: o período novo começa hoje
+      const hoje = new Date();
+      expect(paga.body.periodoAtualInicio.slice(0, 10)).toBe(
+        new Date(Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()))
+          .toISOString()
+          .slice(0, 10),
+      );
+      const numeros = await api()
+        .get('/api/admin/assinaturas')
+        .set('Authorization', admin)
+        .expect(200);
+      expect(numeros.body.numeros).toMatchObject({
+        ativas: 1,
+        mrrCentavos: 4990,
+        faturasVencidas: 0,
+      });
+    });
+  });
 });

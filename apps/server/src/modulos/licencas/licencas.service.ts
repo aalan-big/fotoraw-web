@@ -97,6 +97,56 @@ export class LicencasService {
     );
   }
 
+  /**
+   * Fatura paga: a licença da assinatura passa a valer até o fim do período.
+   * Se a assinatura ainda não tem licença ativa (1ª fatura, ou voltou de
+   * inadimplência), emite uma nova substituindo o que a conta tinha (trial…).
+   */
+  async renovarPorAssinatura(dados: {
+    assinaturaId: string;
+    contaId: string;
+    planoId: string;
+    validaAte: Date;
+    motivo: string;
+    emitidaPorId?: string;
+  }): Promise<{ licenca: Licenca; nova: boolean }> {
+    const plano = await this.repo.planoPorId(dados.planoId);
+    if (!plano) throw new PlanoNaoEncontradoExcecao(dados.planoId);
+    const recursos = { ...recursosDoPlano(plano) };
+    const atual = await this.repo.ativaDaAssinatura(dados.assinaturaId);
+    if (atual) {
+      return {
+        licenca: await this.repo.estenderValidade(atual.id, dados.validaAte, recursos),
+        nova: false,
+      };
+    }
+    const { nova } = await this.repo.emitirSubstituindo(
+      {
+        contaId: dados.contaId,
+        assinaturaId: dados.assinaturaId,
+        chave: gerarChaveLicenca(),
+        tipo: 'ASSINATURA',
+        validaAte: dados.validaAte,
+        recursos,
+        motivo: `plano:${plano.id} · ${dados.motivo}`,
+        emitidaPorId: dados.emitidaPorId ?? null,
+      },
+      'substituída pela assinatura',
+    );
+    return { licenca: nova, nova: true };
+  }
+
+  /** Assinatura cancelada/inadimplente: derruba a licença dela (se estiver ativa). */
+  async encerrarDaAssinatura(
+    assinaturaId: string,
+    status: 'SUSPENSA' | 'REVOGADA',
+    motivo: string,
+  ): Promise<Licenca | null> {
+    const atual = await this.repo.ativaDaAssinatura(assinaturaId);
+    if (!atual) return null;
+    return this.repo.alterarStatus(atual.id, status, motivo);
+  }
+
   /** suspensa ↔ ativa, ou revogada (definitivo). Reativar só se não houver outra ativa. */
   async alterarStatus(
     id: string,

@@ -14,12 +14,18 @@ Onde o trabalho parou, pra retomar sem reler o histórico. Os planos completos e
 - Desktop (`fotoraw-main`): login com a conta web (online/offline), licença em cache, módulos de gestão
   bloqueados no gratuito. **Pendente: teste visual no Tauri.**
 
-**Ambiente admin** (passos 1–3 de 6)
+**Ambiente admin** (passos 1–3 de 6, mais metade do 4)
 - Server `/admin/*` (`@SoAdmin()`): contas, licenças, visão geral, planos (editar + reemitir licenças
   ativas), configurações (catálogo tipado em `admin/configuracoes.catalogo.ts`). Tudo auditado.
 - `apps/admin` (3003): entrar, visão geral, fotógrafos (lista/detalhe/ações), licenças (lista/emitir/status),
   planos (edição inline, tirar de venda, reemitir), configurações (salvar por campo).
 - Licença guarda de que plano veio no `motivo` (`plano:<id> · …`) — é assim que o admin conta/reemite.
+- Painel 360 na lista de fotógrafos (`GET /admin/contas/:id/resumo`): saúde, uso contra o plano,
+  ações rápidas, linha do tempo unificada. Regras em `admin/resumo-conta.ts`.
+- Assinaturas manuais (Pix): `POST /admin/assinaturas`, `PATCH /admin/faturas/:id/marcar-paga`
+  (renova período + licença `ASSINATURA` + próxima fatura), `PATCH /admin/assinaturas/:id/cancelar`
+  (no fim do período ou agora). Fatura vencida vira `VENCIDA`/`INADIMPLENTE` na leitura (sem job ainda).
+  Pagamento depois do período acabar reinicia o período no dia do pagamento. Telas em `apps/admin/pages/assinaturas/`.
 - `pnpm admin:criar --nome --email --senha` cria ou promove um admin.
 
 **Regra de negócio**: gratuito = só vender foto de evento (10%); ensaio, galeria privada e gestão do
@@ -29,7 +35,8 @@ estúdio no desktop são PRO (`licencas.recursos.permite_*`).
 
 - Fotógrafo passo 6: Mercado Pago (OAuth, vendas) + Stripe (assinatura) — precisa de HTTPS público.
 - Fotógrafo passo 7: Galerias/Vendas na web — depende do módulo `sync` (desktop → web), não iniciado.
-- Admin passos 4–6: assinaturas/faturas + financeiro/repasses; auditoria + sistema; 2FA + admins.
+- Admin passo 4b: financeiro/repasses; passos 5–6: auditoria + sistema; 2FA + admins.
+- Job de cobrança (fatura vencida + N dias → suspender licença/conta) — hoje só marca na leitura.
 - Homologação na VPS (sem Docker: Caddy + pm2 + Postgres) — precisa de domínio.
 
 ## Decisões em aberto

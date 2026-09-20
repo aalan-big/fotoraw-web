@@ -135,11 +135,15 @@ export class ContasAdminRepositorio {
   async materiaPrimaResumo(contaId: string, limite: number) {
     const ha30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     // a auditoria das licenças aponta pro id da licença, não da conta
-    const todasLicencas = await this.prisma.licenca.findMany({
-      where: { contaId },
-      orderBy: { emitidaEm: 'desc' },
-      select: { id: true, tipo: true, emitidaEm: true, motivo: true, validaAte: true },
-    });
+    const [todasLicencas, assinaturas] = await Promise.all([
+      this.prisma.licenca.findMany({
+        where: { contaId },
+        orderBy: { emitidaEm: 'desc' },
+        select: { id: true, tipo: true, emitidaEm: true, motivo: true, validaAte: true },
+      }),
+      this.prisma.assinatura.findMany({ where: { contaId }, select: { id: true } }),
+    ]);
+    const assinaturaIds = assinaturas.map((a) => a.id);
     const [
       conta,
       galerias,
@@ -222,6 +226,12 @@ export class ContasAdminRepositorio {
             { alvoTipo: 'conta', alvoId: contaId },
             { atorContaId: contaId },
             { alvoTipo: 'licenca', alvoId: { in: todasLicencas.map((l) => l.id) } },
+            { alvoTipo: 'assinatura', alvoId: { in: assinaturaIds } },
+            // a auditoria da fatura aponta pra fatura; a assinatura vai no `depois`
+            ...assinaturaIds.map((id) => ({
+              alvoTipo: 'fatura',
+              depois: { path: ['assinaturaId'], equals: id },
+            })),
           ],
         },
         orderBy: { criadoEm: 'desc' },

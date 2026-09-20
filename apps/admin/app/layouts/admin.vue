@@ -32,7 +32,7 @@ const secoes: { titulo: string; itens: Item[] }[] = [
         to: '/planos',
         icone: 'M12 3l2.5 5.5L20 9l-4 4 1 6-5-2.7L7 19l1-6-4-4 5.5-.5z',
       },
-      { rotulo: 'Assinaturas', to: '/assinaturas', icone: 'M4 6h16v12H4zM4 10h16', breve: true },
+      { rotulo: 'Assinaturas', to: '/assinaturas', icone: 'M4 6h16v12H4zM4 10h16' },
       {
         rotulo: 'Financeiro',
         to: '/financeiro',

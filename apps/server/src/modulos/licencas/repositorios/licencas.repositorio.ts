@@ -83,6 +83,14 @@ export class LicencasRepositorio {
     });
   }
 
+  ativaDaAssinatura(assinaturaId: string): Promise<Licenca | null> {
+    return this.prisma.licenca.findFirst({ where: { assinaturaId, status: 'ATIVA' } });
+  }
+
+  estenderValidade(id: string, validaAte: Date, recursos: Prisma.InputJsonValue): Promise<Licenca> {
+    return this.prisma.licenca.update({ where: { id }, data: { validaAte, recursos } });
+  }
+
   /** Troca o snapshot `recursos` de várias licenças de uma vez (reemissão pelo plano). */
   atualizarRecursos(ids: string[], recursos: Prisma.InputJsonValue): Promise<number> {
     if (ids.length === 0) return Promise.resolve(0);

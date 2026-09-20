@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
 import { LicencasModule } from '../licencas/licencas.module.js';
+import { AssinaturasAdminController } from './assinaturas.admin.controller.js';
+import { AssinaturasAdminService } from './assinaturas.admin.service.js';
 import { ConfiguracoesAdminController } from './configuracoes.admin.controller.js';
 import { ConfiguracoesAdminService } from './configuracoes.admin.service.js';
 import { ContasAdminController } from './contas.admin.controller.js';
@@ -21,12 +23,14 @@ import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
     LicencasAdminController,
     PlanosAdminController,
     ConfiguracoesAdminController,
+    AssinaturasAdminController,
   ],
   providers: [
     ContasAdminService,
     LicencasAdminService,
     PlanosAdminService,
     ConfiguracoesAdminService,
+    AssinaturasAdminService,
     ContasAdminRepositorio,
   ],
 })

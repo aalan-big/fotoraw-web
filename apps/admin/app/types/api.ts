@@ -189,6 +189,57 @@ export interface ResumoConta {
   linhaDoTempo: { quando: string; tipo: string; texto: string; ator?: string | null }[];
 }
 
+export type StatusAssinatura = 'TRIAL' | 'ATIVA' | 'INADIMPLENTE' | 'CANCELADA' | 'EXPIRADA';
+export type StatusFatura = 'PENDENTE' | 'PAGA' | 'VENCIDA' | 'CANCELADA' | 'ESTORNADA';
+
+export interface Fatura {
+  id: string;
+  valorCentavos: number;
+  vencimento: string;
+  status: StatusFatura;
+  pagaEm: string | null;
+  urlBoletoPix: string | null;
+  criadoEm: string;
+}
+
+export interface AssinaturaLista {
+  id: string;
+  status: StatusAssinatura;
+  inicioEm: string;
+  periodoAtualInicio: string;
+  periodoAtualFim: string;
+  canceladaEm: string | null;
+  cancelaNoFimDoPeriodo: boolean;
+  provedor: 'MERCADOPAGO' | 'STRIPE' | 'MANUAL';
+  origem: 'SITE' | 'ADMIN';
+  observacaoAdmin: string | null;
+  criadoEm: string;
+  conta: { id: string; nome: string; email: string; slug: string; status: StatusConta };
+  plano: {
+    id: string;
+    codigo: string;
+    nome: string;
+    precoCentavos: number;
+    periodicidade: 'MENSAL' | 'ANUAL' | 'NENHUMA';
+  };
+  proximaFatura: Pick<Fatura, 'id' | 'valorCentavos' | 'vencimento' | 'status'> | null;
+}
+
+export interface AssinaturasPaginado extends Paginado<AssinaturaLista> {
+  numeros: { ativas: number; mrrCentavos: number; faturasVencidas: number };
+}
+
+export interface AssinaturaDetalhe extends Omit<AssinaturaLista, 'proximaFatura'> {
+  faturas: Fatura[];
+  licencas: {
+    id: string;
+    chave: string;
+    status: StatusLicenca;
+    validaAte: string | null;
+    emitidaEm: string;
+  }[];
+}
+
 export interface VisaoGeral {
   contas: {
     ativas: number;
