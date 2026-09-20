@@ -1,0 +1,42 @@
+# Caddy — HTTPS automático (Let's Encrypt) e proxy pros 4 processos do FotoRAW.
+# Troque SEU-DOMINIO pelo domínio real:  sed -i 's/SEU-DOMINIO/meudominio.com.br/g' Caddyfile
+# Instalar em /etc/caddy/Caddyfile e `systemctl reload caddy`.
+
+(comum) {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
+
+# vitrine (SSR)
+SEU-DOMINIO, www.SEU-DOMINIO {
+	import comum
+	reverse_proxy 127.0.0.1:3000
+}
+
+# API — o server lê o IP real pelo X-Forwarded-For (trust proxy ligado em produção)
+api.SEU-DOMINIO {
+	import comum
+	request_body {
+		max_size 50MB
+	}
+	reverse_proxy 127.0.0.1:3001
+}
+
+# painel do fotógrafo (SPA)
+painel.SEU-DOMINIO {
+	import comum
+	reverse_proxy 127.0.0.1:3002
+}
+
+# admin (SPA) — só o dono usa
+admin.SEU-DOMINIO {
+	import comum
+	header X-Frame-Options DENY
+	header X-Robots-Tag "noindex, nofollow"
+	reverse_proxy 127.0.0.1:3003
+}

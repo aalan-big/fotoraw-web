@@ -1,0 +1,30 @@
+# Alternativa ao Caddy quando a VPS já tem nginx em 80/443 (outro projeto).
+# /etc/nginx/sites-available/fotoraw  →  ln -s em sites-enabled  →  nginx -t  →  systemctl reload nginx
+# Certificado: certbot --nginx -d SEU-DOMINIO -d www.SEU-DOMINIO -d api.SEU-DOMINIO -d painel.SEU-DOMINIO -d admin.SEU-DOMINIO
+# (o certbot reescreve estes blocos com o listen 443 + ssl.)
+
+map $host $fotoraw_porta {
+    SEU-DOMINIO         3000;
+    www.SEU-DOMINIO     3000;
+    api.SEU-DOMINIO     3001;
+    painel.SEU-DOMINIO  3002;
+    admin.SEU-DOMINIO   3003;
+}
+
+server {
+    listen 80;
+    server_name SEU-DOMINIO www.SEU-DOMINIO api.SEU-DOMINIO painel.SEU-DOMINIO admin.SEU-DOMINIO;
+
+    client_max_body_size 50m;
+
+    location / {
+        proxy_pass         http://127.0.0.1:$fotoraw_porta;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        "upgrade";
+    }
+}

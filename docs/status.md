@@ -52,7 +52,8 @@ estúdio no desktop são PRO (`licencas.recursos.permite_*`).
 - **Antes de ir pro ar**: ativar o 2FA na conta do dono (aalanallvesgt@gmail.com) e `ADMIN_EXIGE_2FA=true`.
 - Comprovante de repasse (upload) depende do bucket; processador de webhooks chega com o passo 6 do fotógrafo.
 - Job de cobrança (fatura vencida + N dias → suspender licença/conta) — hoje só marca na leitura.
-- Homologação na VPS (sem Docker: Caddy + pm2 + Postgres) — precisa de domínio.
+- Homologação na VPS: roteiro pronto em `deploy/README.md` (instalar-vps.sh, publicar.sh, Caddyfile,
+  pm2, backup). Falta o usuário rodar na VPS (Hostinger KVM 2) com o domínio novo.
 
 ## Decisões em aberto
 

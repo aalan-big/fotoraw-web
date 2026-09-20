@@ -27,7 +27,8 @@ export class SistemaAdminService {
     config: ConfigService<Env, true>,
   ) {
     this.emailConfigurado = (config.get('RESEND_API_KEY') ?? '').length > 0;
-    this.storageConfigurado = (config.get('STORAGE_ACCESS_KEY') ?? '').length > 0;
+    const chaveStorage = config.get('STORAGE_ACCESS_KEY') ?? '';
+    this.storageConfigurado = chaveStorage.length > 0 && chaveStorage !== 'placeholder';
     this.ambiente = config.get('NODE_ENV');
   }
 
