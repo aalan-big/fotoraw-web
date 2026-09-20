@@ -320,6 +320,47 @@ describe('admin (e2e)', () => {
       expect(acoes).toEqual(expect.arrayContaining(['conta.bloqueada', 'conta.ativa']));
     });
 
+    it('resumo 360: saúde, uso contra o plano e linha do tempo unificada', async () => {
+      const { id } = await cadastrarFotografo();
+      const admin = await entrarAdmin();
+      let r = await api()
+        .get(`/api/admin/contas/${id}/resumo`)
+        .set('Authorization', admin)
+        .expect(200);
+      expect(r.body.conta).toMatchObject({ id, emailVerificado: false });
+      expect(r.body.licenca.plano).toBe('trial');
+      expect(r.body.saude.nivel).toBe('atencao');
+      expect(r.body.saude.alertas.map((a: { codigo: string }) => a.codigo)).toContain(
+        'email_nao_confirmado',
+      );
+      expect(r.body.uso).toMatchObject({ dispositivosConectados: 0, limiteDispositivos: 3 });
+      const textos = r.body.linhaDoTempo.map((e: { texto: string }) => e.texto);
+      expect(textos).toEqual(
+        expect.arrayContaining(['Conta criada', expect.stringMatching(/^Licença trial emitida/)]),
+      );
+
+      // desktop conecta e o admin suspende: os dois aparecem na linha do tempo
+      await tokenDesktop();
+      await api()
+        .patch(`/api/admin/contas/${id}/status`)
+        .set('Authorization', admin)
+        .send({ status: 'SUSPENSA', motivo: 'teste' })
+        .expect(200);
+      r = await api().get(`/api/admin/contas/${id}/resumo`).set('Authorization', admin).expect(200);
+      expect(r.body.saude.nivel).toBe('critico');
+      expect(r.body.uso.dispositivosConectados).toBe(1);
+      expect(r.body.linhaDoTempo[0]).toMatchObject({
+        tipo: 'admin',
+        texto: 'Conta suspensa pelo admin — teste',
+        ator: 'Dono',
+      });
+      expect(r.body.linhaDoTempo.map((e: { tipo: string }) => e.tipo)).toContain('desktop');
+      await api()
+        .get('/api/admin/contas/00000000-0000-7000-8000-000000000000/resumo')
+        .set('Authorization', admin)
+        .expect(404);
+    });
+
     it('reenviar verificação e revogar dispositivo', async () => {
       const { id } = await cadastrarFotografo();
       const desktop = await tokenDesktop();

@@ -158,6 +158,37 @@ export interface ContaDetalhe {
   auditorias: Auditoria[];
 }
 
+export interface ResumoConta {
+  conta: {
+    id: string;
+    nome: string;
+    email: string;
+    slug: string;
+    status: StatusConta;
+    emailVerificado: boolean;
+    criadoEm: string;
+  };
+  licenca: LicencaAtual;
+  saude: {
+    nivel: 'ok' | 'atencao' | 'critico';
+    alertas: { codigo: string; nivel: 'atencao' | 'critico'; texto: string }[];
+  };
+  uso: {
+    galeriasAtivas: number;
+    limiteGalerias: number | null;
+    fotos: number;
+    armazenamentoMb: number;
+    limiteArmazenamentoMb: number | null;
+    dispositivosConectados: number;
+    limiteDispositivos: number | null;
+    vendas30d: { pedidos: number; totalCentavos: number; comissaoCentavos: number };
+    ultimoLoginEm: string | null;
+    ultimoDesktopEm: string | null;
+    ultimaPublicacaoEm: string | null;
+  };
+  linhaDoTempo: { quando: string; tipo: string; texto: string; ator?: string | null }[];
+}
+
 export interface VisaoGeral {
   contas: {
     ativas: number;

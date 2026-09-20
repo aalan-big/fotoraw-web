@@ -33,6 +33,12 @@ export class ContasAdminController {
     return this.contas.detalhe(id);
   }
 
+  /** Painel lateral 360: saúde, uso e linha do tempo. */
+  @Get(':id/resumo')
+  resumo(@Param('id', new ZodValidationPipe(idSchema)) id: string) {
+    return this.contas.resumo(id);
+  }
+
   @Get(':id/licencas')
   licencasDaConta(@Param('id', new ZodValidationPipe(idSchema)) id: string) {
     return this.licencas.historico(id);

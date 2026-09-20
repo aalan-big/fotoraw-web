@@ -131,6 +131,118 @@ export class ContasAdminRepositorio {
     });
   }
 
+  /** Tudo que o painel 360 precisa, em paralelo. `limite` = quantos eventos por fonte. */
+  async materiaPrimaResumo(contaId: string, limite: number) {
+    const ha30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    // a auditoria das licenças aponta pro id da licença, não da conta
+    const todasLicencas = await this.prisma.licenca.findMany({
+      where: { contaId },
+      orderBy: { emitidaEm: 'desc' },
+      select: { id: true, tipo: true, emitidaEm: true, motivo: true, validaAte: true },
+    });
+    const [
+      conta,
+      galerias,
+      armazenamento,
+      dispositivos,
+      logins,
+      galeriasPublicadas,
+      vendas,
+      vendas30d,
+      auditorias,
+    ] = await Promise.all([
+      this.prisma.conta.findFirst({
+        where: { id: contaId, papel: 'FOTOGRAFO' },
+        select: {
+          id: true,
+          nome: true,
+          email: true,
+          slug: true,
+          status: true,
+          emailVerificadoEm: true,
+          criadoEm: true,
+        },
+      }),
+      this.prisma.galeria.groupBy({
+        by: ['status'],
+        where: { contaId, excluidoEm: null },
+        _count: { _all: true },
+        _max: { publicadaEm: true },
+      }),
+      this.prisma.foto.aggregate({
+        where: { galeria: { contaId, excluidoEm: null } },
+        _sum: { tamanhoAltaBytes: true },
+        _count: { _all: true },
+      }),
+      this.prisma.dispositivo.findMany({
+        where: { contaId },
+        orderBy: { ultimoVistoEm: 'desc' },
+        select: {
+          id: true,
+          nome: true,
+          criadoEm: true,
+          ultimoVistoEm: true,
+          tokensApi: { where: { revogadoEm: null }, take: 1, select: { id: true } },
+        },
+      }),
+      // uma família de refresh = um login (as rotações ficam na mesma família)
+      this.prisma.sessaoWeb.groupBy({
+        by: ['familia'],
+        where: { contaId },
+        _min: { criadoEm: true },
+        orderBy: { _min: { criadoEm: 'desc' } },
+        take: limite,
+      }),
+      this.prisma.galeria.findMany({
+        where: { contaId, excluidoEm: null, publicadaEm: { not: null } },
+        orderBy: { publicadaEm: 'desc' },
+        take: limite,
+        select: { id: true, titulo: true, publicadaEm: true, totalFotos: true },
+      }),
+      this.prisma.pedido.findMany({
+        where: { contaId, status: 'PAGO' },
+        orderBy: { pagoEm: 'desc' },
+        take: limite,
+        select: {
+          id: true,
+          numero: true,
+          totalCentavos: true,
+          pagoEm: true,
+          galeria: { select: { titulo: true } },
+        },
+      }),
+      this.prisma.pedido.aggregate({
+        where: { contaId, status: 'PAGO', pagoEm: { gte: ha30d } },
+        _count: { _all: true },
+        _sum: { totalCentavos: true, comissaoCentavos: true },
+      }),
+      this.prisma.auditoria.findMany({
+        where: {
+          OR: [
+            { alvoTipo: 'conta', alvoId: contaId },
+            { atorContaId: contaId },
+            { alvoTipo: 'licenca', alvoId: { in: todasLicencas.map((l) => l.id) } },
+          ],
+        },
+        orderBy: { criadoEm: 'desc' },
+        take: limite,
+        include: { ator: { select: { nome: true, papel: true } } },
+      }),
+    ]);
+    return {
+      conta,
+      galerias,
+      armazenamento,
+      dispositivos,
+      logins,
+      licencas: todasLicencas.slice(0, limite),
+      galeriasPublicadas,
+      vendas,
+      vendas30d,
+      auditorias,
+    };
+  }
+
   alterarStatus(id: string, status: Conta['status']): Promise<Conta> {
     return this.prisma.conta.update({ where: { id }, data: { status } });
   }

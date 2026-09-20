@@ -50,6 +50,18 @@ function buscar() {
   filtro.pagina = 1;
   refresh();
 }
+
+// --- painel 360 (drawer) ----------------------------------------------------
+const contaAberta = ref<string | null>(
+  typeof rota.query.conta === 'string' ? rota.query.conta : null,
+);
+watch(contaAberta, (id) => router.replace({ query: { ...rota.query, conta: id ?? undefined } }));
+function navegar(direcao: -1 | 1) {
+  const itens = lista.value?.itens ?? [];
+  const i = itens.findIndex((c) => c.id === contaAberta.value);
+  const alvo = itens[i + direcao];
+  if (alvo) contaAberta.value = alvo.id;
+}
 </script>
 
 <template>
@@ -103,11 +115,21 @@ function buscar() {
           <th class="px-4 py-2.5">Cadastro</th>
         </tr>
       </template>
-      <tr v-for="c in lista?.itens" :key="c.id" class="hover:bg-surface-2/60">
+      <tr
+        v-for="c in lista?.itens"
+        :key="c.id"
+        class="cursor-pointer hover:bg-surface-2/60"
+        :class="{ 'bg-wine-dim/40': contaAberta === c.id }"
+        @click="contaAberta = c.id"
+      >
         <td class="px-4 py-2.5">
-          <NuxtLink :to="`/fotografos/${c.id}`" class="block font-medium hover:text-wine-tint">{{
-            c.nome
-          }}</NuxtLink>
+          <NuxtLink
+            :to="`/fotografos/${c.id}`"
+            class="block font-medium hover:text-wine-tint"
+            title="Abrir a página completa"
+            @click.stop
+            >{{ c.nome }}</NuxtLink
+          >
           <span class="block text-xs text-muted"
             >@{{ c.slug }} · {{ c.email
             }}<span v-if="!c.emailVerificado" class="text-warning">
@@ -143,6 +165,13 @@ function buscar() {
       v-model:pagina="filtro.pagina"
       :por-pagina="lista.porPagina"
       :total="lista.total"
+    />
+
+    <FotografoDrawer
+      :conta-id="contaAberta"
+      @fechar="contaAberta = null"
+      @navegar="navegar"
+      @alterado="refresh()"
     />
   </div>
 </template>
