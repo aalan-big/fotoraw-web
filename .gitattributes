@@ -1,5 +1,3 @@
-* text=auto eol=lf
-*.png binary
-*.jpg binary
-*.ico binary
-*.woff2 binary
+# scripts e configs de servidor sempre com LF (Windows converte pra CRLF e quebra o bash)
+*.sh text eol=lf
+deploy/** text eol=lf
