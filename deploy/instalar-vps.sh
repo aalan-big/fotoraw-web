@@ -18,6 +18,10 @@ BANCO=fotoraw
 NODE_DIR=/opt/node22
 REPO="${REPO:-https://github.com/aalan-big/fotoraw-web.git}"
 export DEBIAN_FRONTEND=noninteractive
+# needrestart (Ubuntu) reinicia serviços "desatualizados" depois de um apt install —
+# aqui ele só lista, nunca reinicia nada (nginx/docker do outro site ficam como estão)
+export NEEDRESTART_MODE=l
+export NEEDRESTART_SUSPEND=1
 
 echo "==> pacotes básicos (sem upgrade do sistema)"
 apt-get update -q
