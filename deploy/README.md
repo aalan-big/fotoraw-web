@@ -140,11 +140,11 @@ Logs: `logs` ou `pm2f logs server`. Status: `pm2f status`.
 
 ## Backup do banco
 
-Diário, 2h da manhã, guarda 14 dias em `/home/fotoraw/backups`:
+Diário, 2h da manhã, guarda 14 dias em `/home/fotoraw/backups`. Vai no cron do **root** (o
+usuário `fotoraw` não tem acesso ao docker). O comando acrescenta a linha sem apagar as que já existem:
 
 ```bash
-sudo -iu fotoraw crontab -e
-# 0 2 * * * /home/fotoraw/fotoraw/deploy/backup-banco.sh
+(crontab -l 2>/dev/null; echo '0 2 * * * bash /home/fotoraw/fotoraw/deploy/backup-banco.sh >> /var/log/fotoraw-backup.log 2>&1') | crontab -
 ```
 
 Restaurar: `zcat arquivo.sql.gz | docker exec -i db_fotoraw psql -U fotoraw fotoraw`.

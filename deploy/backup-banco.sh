@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Dump diário do banco do FotoRAW, guarda 14 dias. Cron do usuário fotoraw:
-#   0 2 * * * /home/fotoraw/fotoraw/deploy/backup-banco.sh
+# Dump diário do banco do FotoRAW, guarda 14 dias. Cron do ROOT (o usuário fotoraw não tem acesso ao docker):
+#   0 2 * * * bash /home/fotoraw/fotoraw/deploy/backup-banco.sh >> /var/log/fotoraw-backup.log 2>&1
 set -euo pipefail
-DIR="$HOME/backups"
+DIR=/home/fotoraw/backups
 mkdir -p "$DIR"
 ARQ="$DIR/fotoraw-$(date +%F).sql.gz"
 # banco no container db_fotoraw (padrão) ou Postgres do sistema
