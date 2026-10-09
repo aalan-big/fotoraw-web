@@ -19,6 +19,7 @@ export class FinanceiroService {
     private readonly config: ConfigService<Env, true>,
   ) {
     this.chaveCifra =
+      // em produção a validação do env exige a chave; o fallback só existe em dev/teste
       this.config.get('CHAVE_CIFRA_TOKENS') || 'chave-secreta-padrao-dev-fotoraw-2026';
     this.fotografoUrl = this.config.get('FOTOGRAFO_URL');
   }

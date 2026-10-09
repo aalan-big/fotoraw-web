@@ -1,7 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { DominioExcecao } from '../../comum/excecoes/dominio.excecao.js';
-import type { Env } from '../../config/env.js';
 import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
 import type { Conta, Plano } from '../../infra/prisma/gerado/client.js';
 import type { Contexto } from '../auth/auth.service.js';
@@ -50,6 +48,8 @@ export interface AssinaturaResumo {
   periodoAtualFim: string;
   cancelaNoFimDoPeriodo: boolean;
   canceladaEm: string | null;
+  /** pedida mas nenhuma fatura paga ainda — o PRO não está liberado */
+  aguardandoPagamento: boolean;
 }
 
 export type StatusFaturaFotografo =
@@ -78,16 +78,11 @@ export interface StatusPlanoFotografo {
 
 @Injectable()
 export class PlanosService {
-  private readonly stripeKey: string;
-
   constructor(
     private readonly repo: PlanosRepositorio,
     private readonly licencas: LicencasService,
     private readonly auditoria: AuditoriaService,
-    config: ConfigService<Env, true>,
-  ) {
-    this.stripeKey = config.get('STRIPE_SECRET_KEY') ?? '';
-  }
+  ) {}
 
   paraCatalogo(p: Plano): PlanoCatalogo {
     return {
@@ -137,6 +132,7 @@ export class PlanosService {
         periodoAtualFim: assinaturaAtiva.periodoAtualFim.toISOString(),
         cancelaNoFimDoPeriodo: assinaturaAtiva.cancelaNoFimDoPeriodo,
         canceladaEm: assinaturaAtiva.canceladaEm ? assinaturaAtiva.canceladaEm.toISOString() : null,
+        aguardandoPagamento: !assinaturaAtiva.faturas.some((f) => f.status === 'PAGA'),
       };
     }
 
@@ -168,36 +164,28 @@ export class PlanosService {
       throw new PlanoNaoEncontradoExcecao(dto.planoCodigo);
     }
 
-    // Em ambiente local / dev / sem chave Stripe configurada:
-    // Processa a assinatura diretamente e renova a licença
-    const novaAssinatura = await this.repo.criarOuRenovarAssinatura({
-      contaId: conta.id,
-      plano,
-      origem: 'SITE',
-      provedor: this.stripeKey ? 'STRIPE' : 'MANUAL',
-      observacao: `Assinatura ${plano.codigo} contratada pelo fotógrafo`,
-    });
+    const aberta = await this.repo.assinaturaAtivaDaConta(conta.id);
+    if (aberta?.faturas.some((f) => f.status === 'PAGA')) {
+      // troca de plano com assinatura já paga: ajuste proporcional fica com o suporte por enquanto
+      throw new DominioExcecao(
+        'TROCA_DE_PLANO_PELO_SUPORTE',
+        'Você já tem uma assinatura paga. Para trocar de plano, fale com o suporte.',
+        HttpStatus.CONFLICT,
+      );
+    }
+    if (aberta?.planoId === plano.id) return this.obterStatus(conta.id);
 
-    // Renova / emite a licença de assinatura com os novos limites
-    await this.licencas.renovarPorAssinatura({
-      assinaturaId: novaAssinatura.id,
-      contaId: conta.id,
-      planoId: plano.id,
-      validaAte: novaAssinatura.periodoAtualFim,
-      motivo: `Assinatura ${plano.codigo} contratada no painel web`,
-    });
+    // Sem cobrança automática ainda (Mercado Pago entra no passo 6): o pedido nasce com a
+    // fatura PENDENTE e o PRO só é liberado quando ela for paga — nunca na hora.
+    const novaAssinatura = await this.repo.criarAssinaturaAguardandoPagamento(conta.id, plano);
 
     await this.auditoria.registrar({
-      acao: 'assinatura.assinar_site',
+      acao: 'assinatura.pedido_site',
       alvoTipo: 'assinatura',
       alvoId: novaAssinatura.id,
       atorContaId: conta.id,
       ip: ctx.ip,
-      depois: {
-        plano: plano.codigo,
-        precoCentavos: plano.precoCentavos,
-        periodoFim: novaAssinatura.periodoAtualFim.toISOString(),
-      },
+      depois: { plano: plano.codigo, precoCentavos: plano.precoCentavos },
     });
 
     return this.obterStatus(conta.id);

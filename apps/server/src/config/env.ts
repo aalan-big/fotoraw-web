@@ -60,9 +60,20 @@ export const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+/** Em produção, segredos sem default de dev — falta = não sobe. */
+const envProducao = envSchema.superRefine((env, ctx) => {
+  if (env.NODE_ENV !== 'production') return;
+  if (Buffer.from(env.CHAVE_CIFRA_TOKENS, 'base64').length < 32)
+    ctx.addIssue({
+      code: 'custom',
+      path: ['CHAVE_CIFRA_TOKENS'],
+      message: 'obrigatória em produção (gere: openssl rand -base64 32)',
+    });
+});
+
 /** Usado pelo ConfigModule (`validate`). Lança com a lista de campos inválidos. */
 export function validarEnv(config: Record<string, unknown>): Env {
-  const resultado = envSchema.safeParse(config);
+  const resultado = envProducao.safeParse(config);
   if (!resultado.success) {
     const problemas = resultado.error.issues
       .map((i) => `  - ${i.path.join('.')}: ${i.message}`)

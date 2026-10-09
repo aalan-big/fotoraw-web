@@ -311,6 +311,8 @@ export interface AssinaturaResumo {
   periodoAtualFim: string;
   cancelaNoFimDoPeriodo: boolean;
   canceladaEm: string | null;
+  /** pedida mas nenhuma fatura paga ainda — o PRO não está liberado */
+  aguardandoPagamento: boolean;
 }
 
 export type StatusFaturaFotografo =

@@ -125,19 +125,28 @@ describe('planos e assinaturas do fotógrafo (e2e)', () => {
       .expect(200);
 
     expect(resAssinar.body.assinatura).toBeDefined();
-    expect(resAssinar.body.assinatura.status).toBe('ATIVA');
     expect(resAssinar.body.assinatura.planoCodigo).toBe('pro_mensal');
     expect(resAssinar.body.assinatura.precoCentavos).toBe(4990);
     expect(resAssinar.body.assinatura.cancelaNoFimDoPeriodo).toBe(false);
 
-    // Licença foi renovada para ASSINATURA / PRO
-    expect(resAssinar.body.licenca.plano).toBe('pro');
-    expect(resAssinar.body.licenca.tipo).toBe('ASSINATURA');
+    // Sem pagamento, nada de PRO: a licença segue a do trial e a assinatura aguarda o pagamento
+    expect(resAssinar.body.assinatura.aguardandoPagamento).toBe(true);
+    expect(resAssinar.body.licenca.plano).toBe('trial');
+    expect(resAssinar.body.licenca.tipo).toBe('TRIAL');
 
-    // Faturas: 1 PAGA (imediata) e 1 PENDENTE (próximo mês)
-    expect(resAssinar.body.faturas).toHaveLength(2);
-    expect(resAssinar.body.faturas.some((f: { status: string }) => f.status === 'PAGA')).toBe(true);
-    expect(resAssinar.body.faturas.some((f: { status: string }) => f.status === 'PENDENTE')).toBe(true);
+    // Fatura: 1 PENDENTE (a do 1º período), nenhuma PAGA
+    expect(resAssinar.body.faturas).toHaveLength(1);
+    expect(resAssinar.body.faturas[0].status).toBe('PENDENTE');
+    expect(resAssinar.body.faturas[0].valorCentavos).toBe(4990);
+
+    // Clicar de novo no mesmo plano não duplica o pedido
+    const resRepetido = await api()
+      .post('/api/planos/assinar')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ planoCodigo: 'pro_mensal' })
+      .expect(200);
+    expect(resRepetido.body.assinatura.id).toBe(resAssinar.body.assinatura.id);
+    expect(resRepetido.body.faturas).toHaveLength(1);
 
     // 5. Cancela assinatura no fim do período
     const resCancelar = await api()
@@ -168,5 +177,29 @@ describe('planos e assinaturas do fotógrafo (e2e)', () => {
     expect(resUpgrade.body.assinatura.planoCodigo).toBe('pro_anual');
     expect(resUpgrade.body.assinatura.precoCentavos).toBe(49900);
     expect(resUpgrade.body.assinatura.periodicidade).toBe('ANUAL');
+    expect(resUpgrade.body.assinatura.aguardandoPagamento).toBe(true);
+    // o pedido mensal não pago foi substituído: só a fatura anual fica em aberto
+    expect(
+      resUpgrade.body.faturas.filter((f: { status: string }) => f.status === 'PENDENTE'),
+    ).toHaveLength(1);
+    expect(resUpgrade.body.licenca.plano).toBe('trial');
+  });
+
+  it('assinatura já paga não troca de plano pelo painel', async () => {
+    const resCad = await api().post('/api/auth/cadastro').send(FOTOGRAFO).expect(201);
+    const token = resCad.body.acesso;
+    await api()
+      .post('/api/planos/assinar')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ planoCodigo: 'pro_mensal' })
+      .expect(200);
+    await prisma.fatura.updateMany({ data: { status: 'PAGA', pagaEm: new Date() } });
+
+    const res = await api()
+      .post('/api/planos/assinar')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ planoCodigo: 'pro_anual' })
+      .expect(409);
+    expect(res.body.codigo).toBe('TROCA_DE_PLANO_PELO_SUPORTE');
   });
 });

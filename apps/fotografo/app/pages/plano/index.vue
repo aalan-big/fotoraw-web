@@ -69,7 +69,7 @@ async function assinarPlano(codigo: 'pro_mensal' | 'pro_anual') {
     await sessao.carregarEu();
 
     const nomePlano = codigo === 'pro_anual' ? 'PRO Anual' : 'PRO Mensal';
-    alertaSucesso.value = `Parabéns! Sua assinatura do plano ${nomePlano} foi confirmada com sucesso.`;
+    alertaSucesso.value = `Pedido do plano ${nomePlano} registrado. O PRO é liberado assim que o pagamento for confirmado.`;
   } catch (err: unknown) {
     const fetchErr = err as { data?: { message?: string } };
     alertaErro.value =
@@ -238,6 +238,12 @@ const recursosLicenca = computed(() => {
           Dispensar
         </button>
       </div>
+    </UiAlerta>
+
+    <UiAlerta v-if="assinatura?.aguardandoPagamento" tipo="aviso">
+      <strong>Assinatura {{ assinatura.planoNome }} aguardando pagamento</strong>
+      ({{ moeda(assinatura.precoCentavos) }}). A equipe FotoRAW vai te enviar as instruções do Pix;
+      assim que o pagamento for confirmado, o PRO é liberado aqui e no desktop.
     </UiAlerta>
 
     <!-- Banner de Status do Plano Atual -->

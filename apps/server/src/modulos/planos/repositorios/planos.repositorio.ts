@@ -65,80 +65,50 @@ export class PlanosRepositorio {
     });
   }
 
-  async criarOuRenovarAssinatura(dados: {
-    contaId: string;
-    plano: Plano;
-    origem: 'SITE' | 'ADMIN';
-    provedor: 'MANUAL' | 'STRIPE';
-    observacao?: string;
-  }): Promise<AssinaturaComPlanoEFaturas> {
+  /**
+   * Assinatura pedida pelo painel enquanto não há cobrança automática: nasce com a 1ª fatura
+   * PENDENTE e SEM licença. O PRO só é liberado quando a fatura é paga (admin → marcar paga;
+   * depois, o webhook do Mercado Pago). Pedido anterior ainda não pago é substituído.
+   */
+  async criarAssinaturaAguardandoPagamento(contaId: string, plano: Plano) {
     const agora = new Date();
-    const fim = somarPeriodo(agora, dados.plano.periodicidade);
-
     return this.prisma.$transaction(async (tx) => {
-      // 1. Encerra qualquer assinatura anterior em aberto
-      const ativasAnteriores = await tx.assinatura.findMany({
+      const naoPagas = await tx.assinatura.findMany({
         where: {
-          contaId: dados.contaId,
+          contaId,
           status: { in: ['TRIAL', 'ATIVA', 'INADIMPLENTE'] },
+          faturas: { none: { status: 'PAGA' } },
         },
+        select: { id: true },
       });
-
-      for (const antiga of ativasAnteriores) {
+      for (const { id } of naoPagas) {
         await tx.assinatura.update({
-          where: { id: antiga.id },
+          where: { id },
           data: {
             status: 'CANCELADA',
             canceladaEm: agora,
-            observacaoAdmin: `Substituída por nova assinatura do plano ${dados.plano.codigo}`,
+            observacaoAdmin: `Pedido substituído pelo plano ${plano.codigo} antes do pagamento`,
           },
         });
         await tx.fatura.updateMany({
-          where: {
-            assinaturaId: antiga.id,
-            status: { in: ['PENDENTE', 'VENCIDA'] },
-          },
+          where: { assinaturaId: id, status: { in: ['PENDENTE', 'VENCIDA'] } },
           data: { status: 'CANCELADA' },
         });
       }
-
-      // 2. Cria a nova assinatura
-      const nova = await tx.assinatura.create({
+      return tx.assinatura.create({
         data: {
-          contaId: dados.contaId,
-          planoId: dados.plano.id,
+          contaId,
+          planoId: plano.id,
           status: 'ATIVA',
           inicioEm: agora,
           periodoAtualInicio: agora,
-          periodoAtualFim: fim,
-          provedor: dados.provedor,
-          origem: dados.origem,
-          observacaoAdmin: dados.observacao ?? null,
-          faturas: {
-            create: [
-              {
-                valorCentavos: dados.plano.precoCentavos,
-                vencimento: agora,
-                status: 'PAGA',
-                pagaEm: agora,
-              },
-              {
-                valorCentavos: dados.plano.precoCentavos,
-                vencimento: fim,
-                status: 'PENDENTE',
-              },
-            ],
-          },
-        },
-        include: {
-          plano: true,
-          faturas: {
-            orderBy: { vencimento: 'desc' },
-          },
+          periodoAtualFim: somarPeriodo(agora, plano.periodicidade),
+          provedor: 'MANUAL',
+          origem: 'SITE',
+          observacaoAdmin: 'Pedido pelo painel — aguardando pagamento',
+          faturas: { create: { valorCentavos: plano.precoCentavos, vencimento: agora } },
         },
       });
-
-      return nova;
     });
   }
 
