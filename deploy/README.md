@@ -76,16 +76,20 @@ O instalador detecta. Se as portas estão livres, Caddy (HTTPS sozinho, zero man
 for **nginx** do outro site, o Caddy nem é instalado — os domínios do FotoRAW entram como um
 site a mais no nginx, sem mexer nos blocos existentes:
 
+O domínio fica no **Cloudflare** (proxy laranja, SSL/TLS em **Full (strict)**). O HTTPS entre
+Cloudflare e VPS usa o **certificado de origem do Cloudflare** (SSL/TLS → Origin Server → Create
+certificate, 15 anos) — sem certbot, sem `apt install`. Cole o certificado e a chave em
+`/etc/ssl/fotoraw/origem.pem` e `/etc/ssl/fotoraw/origem.key` (`chmod 600` na chave) e:
+
 ```bash
 cp /root/fotoraw/deploy/nginx.conf.exemplo /etc/nginx/sites-available/fotoraw
 sed -i 's/SEU-DOMINIO/meudominio.com.br/g' /etc/nginx/sites-available/fotoraw
 ln -s /etc/nginx/sites-available/fotoraw /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
-apt-get install -yq certbot python3-certbot-nginx   # se ainda não tiver
-certbot --nginx -d meudominio.com.br -d www.meudominio.com.br -d api.meudominio.com.br -d painel.meudominio.com.br -d admin.meudominio.com.br
 ```
 
-(`nginx -t` antes do reload garante que, se algo estiver errado, o site atual continua no ar.)
+(`nginx -t` antes do reload garante que, se algo estiver errado, o site atual continua no ar. O
+arquivo também lê o IP real do visitante do cabeçalho `CF-Connecting-IP`, só pros domínios do FotoRAW.)
 
 ## 3. Código e configuração
 

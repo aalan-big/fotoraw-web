@@ -1,7 +1,11 @@
-# Alternativa ao Caddy quando a VPS já tem nginx em 80/443 (outro projeto).
+# Site do FotoRAW no nginx que já existe na VPS (outro projeto usa 80/443), atrás do Cloudflare.
 # /etc/nginx/sites-available/fotoraw  →  ln -s em sites-enabled  →  nginx -t  →  systemctl reload nginx
-# Certificado: certbot --nginx -d SEU-DOMINIO -d www.SEU-DOMINIO -d api.SEU-DOMINIO -d painel.SEU-DOMINIO -d admin.SEU-DOMINIO
-# (o certbot reescreve estes blocos com o listen 443 + ssl.)
+#
+# HTTPS: Cloudflare em "Full (strict)" + certificado de origem do Cloudflare (SSL/TLS → Origin Server →
+# Create certificate, 15 anos). Salve em /etc/ssl/fotoraw/origem.pem e /etc/ssl/fotoraw/origem.key.
+# Sem certbot. Se os arquivos não existirem, `nginx -t` falha e o reload não acontece (o outro site segue no ar).
+#
+# Tudo aqui vale só pros server_name do FotoRAW — nenhum bloco do outro site é alterado.
 
 map $host $fotoraw_porta {
     SEU-DOMINIO         4000;
@@ -13,7 +17,44 @@ map $host $fotoraw_porta {
 
 server {
     listen 80;
+    listen [::]:80;
     server_name SEU-DOMINIO www.SEU-DOMINIO api.SEU-DOMINIO painel.SEU-DOMINIO admin.SEU-DOMINIO;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name SEU-DOMINIO www.SEU-DOMINIO api.SEU-DOMINIO painel.SEU-DOMINIO admin.SEU-DOMINIO;
+
+    ssl_certificate     /etc/ssl/fotoraw/origem.pem;
+    ssl_certificate_key /etc/ssl/fotoraw/origem.key;
+
+    # IP real do visitante (o throttle de login e a auditoria usam req.ip).
+    # Faixas do Cloudflare: https://www.cloudflare.com/ips/
+    set_real_ip_from 173.245.48.0/20;
+    set_real_ip_from 103.21.244.0/22;
+    set_real_ip_from 103.22.200.0/22;
+    set_real_ip_from 103.31.4.0/22;
+    set_real_ip_from 141.101.64.0/18;
+    set_real_ip_from 108.162.192.0/18;
+    set_real_ip_from 190.93.240.0/20;
+    set_real_ip_from 188.114.96.0/20;
+    set_real_ip_from 197.234.240.0/22;
+    set_real_ip_from 198.41.128.0/17;
+    set_real_ip_from 162.158.0.0/15;
+    set_real_ip_from 104.16.0.0/13;
+    set_real_ip_from 104.24.0.0/14;
+    set_real_ip_from 172.64.0.0/13;
+    set_real_ip_from 131.0.72.0/22;
+    set_real_ip_from 2400:cb00::/32;
+    set_real_ip_from 2606:4700::/32;
+    set_real_ip_from 2803:f800::/32;
+    set_real_ip_from 2405:b500::/32;
+    set_real_ip_from 2405:8100::/32;
+    set_real_ip_from 2a06:98c0::/29;
+    set_real_ip_from 2c0f:f248::/32;
+    real_ip_header CF-Connecting-IP;
 
     client_max_body_size 50m;
 
@@ -22,8 +63,9 @@ server {
         proxy_http_version 1.1;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
+        # só o IP real (o que o cliente mandar no X-Forwarded-For é descartado)
+        proxy_set_header   X-Forwarded-For   $remote_addr;
+        proxy_set_header   X-Forwarded-Proto https;
         proxy_set_header   Upgrade           $http_upgrade;
         proxy_set_header   Connection        "upgrade";
     }

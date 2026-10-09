@@ -7,6 +7,8 @@ import { z } from 'zod';
 export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(0).default(3001),
+  /** interface de escuta; em produção 127.0.0.1 (só o nginx alcança). Vazio = todas */
+  HOST: z.string().optional(),
   /** vitrine (apps/web) */
   WEB_URL: z.url(),
   /** painel do fotógrafo (apps/fotografo) — links de e-mail e CORS */

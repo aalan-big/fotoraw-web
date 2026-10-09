@@ -32,7 +32,7 @@ module.exports = {
       cwd: path.join(raiz, 'apps/server'),
       script: 'dist/main.js',
       interpreter,
-      env: { NODE_ENV: 'production', PORT: PORTAS.api },
+      env: { NODE_ENV: 'production', PORT: PORTAS.api, HOST: '127.0.0.1' },
       // o limitador de tentativas de login é em memória: 1 instância
       instances: 1,
       autorestart: true,

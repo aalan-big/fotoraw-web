@@ -23,7 +23,9 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   const porta = config.get('PORT');
-  await app.listen(porta);
+  const host = config.get('HOST');
+  if (host) await app.listen(porta, host);
+  else await app.listen(porta);
   Logger.log(`API no ar em http://localhost:${porta}/api`, 'Bootstrap');
 }
 
