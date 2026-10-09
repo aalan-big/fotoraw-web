@@ -9,6 +9,8 @@ if [[ $EUID -eq 0 ]]; then
 fi
 # node 22 isolado (instalar-vps.sh) — não depende do node do sistema
 [[ -d /opt/node22/bin ]] && export PATH="/opt/node22/bin:$PATH"
+# sem perguntas no meio do deploy (download do pnpm pelo corepack, telemetria do Nuxt)
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0 NUXT_TELEMETRY_DISABLED=1
 cd "$(dirname "$0")/.."
 
 if [[ ! -f apps/server/.env ]]; then
