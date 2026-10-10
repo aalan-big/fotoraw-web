@@ -66,9 +66,9 @@ export class PlanosRepositorio {
   }
 
   /**
-   * Assinatura pedida pelo painel enquanto não há cobrança automática: nasce com a 1ª fatura
-   * PENDENTE e SEM licença. O PRO só é liberado quando a fatura é paga (admin → marcar paga;
-   * depois, o webhook do Mercado Pago). Pedido anterior ainda não pago é substituído.
+   * Assinatura pedida pelo painel: nasce com a 1ª fatura PENDENTE e SEM licença. O plano só
+   * é liberado quando a fatura é paga (webhook do Mercado Pago, ou o admin marca paga).
+   * Pedido anterior ainda não pago é substituído.
    */
   async criarAssinaturaAguardandoPagamento(contaId: string, plano: Plano) {
     const agora = new Date();
@@ -110,6 +110,24 @@ export class PlanosRepositorio {
         },
       });
     });
+  }
+
+  /** Pedido que nunca foi pago e o fotógrafo desistiu: encerra de vez. */
+  async cancelarPedidoNaoPago(assinaturaId: string, motivo?: string): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.fatura.updateMany({
+        where: { assinaturaId, status: { in: ['PENDENTE', 'VENCIDA'] } },
+        data: { status: 'CANCELADA' },
+      }),
+      this.prisma.assinatura.update({
+        where: { id: assinaturaId },
+        data: {
+          status: 'CANCELADA',
+          canceladaEm: new Date(),
+          observacaoAdmin: motivo ? `Pedido cancelado antes do pagamento: ${motivo}` : 'Pedido cancelado antes do pagamento',
+        },
+      }),
+    ]);
   }
 
   async cancelarNoFimDoPeriodo(assinaturaId: string, motivo?: string): Promise<Assinatura> {

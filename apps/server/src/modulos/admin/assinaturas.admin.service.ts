@@ -1,10 +1,15 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { DominioExcecao, NaoEncontradoExcecao } from '../../comum/excecoes/dominio.excecao.js';
 import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
-import type { Conta, Fatura, Plano, Prisma } from '../../infra/prisma/gerado/client.js';
+import type { Conta, Fatura, Prisma } from '../../infra/prisma/gerado/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import type { Contexto } from '../auth/auth.service.js';
 import { LicencasService } from '../licencas/licencas.service.js';
+import {
+  AssinaturaEncerradaExcecao,
+  CobrancaAssinaturasService,
+} from '../pagamentos/cobranca-assinaturas.service.js';
+import { inicioDoDia, somarPeriodo } from '../pagamentos/periodo.js';
 import type {
   CancelarAssinaturaDto,
   CriarAssinaturaDto,
@@ -26,20 +31,6 @@ export class PlanoSemCobrancaExcecao extends DominioExcecao {
     super('PLANO_SEM_COBRANCA', 'Este plano não tem cobrança (gratuito ou fora de venda)');
   }
 }
-export class FaturaNaoPendenteExcecao extends DominioExcecao {
-  constructor(status: string) {
-    super(
-      'FATURA_NAO_PENDENTE',
-      `Esta fatura está ${status.toLowerCase()}, não dá pra marcar paga`,
-    );
-  }
-}
-export class AssinaturaEncerradaExcecao extends DominioExcecao {
-  constructor(status: string) {
-    super('ASSINATURA_ENCERRADA', `Esta assinatura já está ${status.toLowerCase()}`);
-  }
-}
-
 const RESUMO_CONTA = { select: { id: true, nome: true, email: true, slug: true, status: true } };
 const RESUMO_PLANO = {
   select: { id: true, codigo: true, nome: true, precoCentavos: true, periodicidade: true },
@@ -47,11 +38,8 @@ const RESUMO_PLANO = {
 
 /**
  * Assinaturas cobradas fora do sistema (Pix, transferência) — docs/fluxos/ambiente-admin.md.
- * A Stripe (passo 6 do fotógrafo) vai gravar nas mesmas tabelas pelos webhooks; a lógica
- * de "fatura paga → período renovado → licença até o fim do período" é a mesma e mora aqui.
- *
- * Regra do período: a fatura com `vencimento = V` paga o período [V, V + periodicidade).
- * Ao pagar, a próxima fatura (vencimento = fim do período) nasce PENDENTE.
+ * O Mercado Pago grava nas mesmas tabelas pelo webhook; a regra de "fatura paga → período
+ * renovado → licença até o fim do período" mora em CobrancaAssinaturasService (as duas usam).
  */
 @Injectable()
 export class AssinaturasAdminService {
@@ -59,6 +47,7 @@ export class AssinaturasAdminService {
     private readonly prisma: PrismaService,
     private readonly licencas: LicencasService,
     private readonly auditoria: AuditoriaService,
+    private readonly cobranca: CobrancaAssinaturasService,
   ) {}
 
   async listar(filtro: ListarAssinaturasDto) {
@@ -188,93 +177,17 @@ export class AssinaturasAdminService {
     return this.detalhe(assinatura.id);
   }
 
-  /**
-   * Dinheiro entrou: fatura PAGA → período da assinatura = o que a fatura cobre →
-   * licença ASSINATURA válida até o fim dele → próxima fatura PENDENTE.
-   */
+  /** Dinheiro entrou por fora (Pix, transferência): o admin marca a fatura paga. */
   async marcarFaturaPaga(admin: Conta, faturaId: string, dto: MarcarFaturaPagaDto, ctx: Contexto) {
-    const fatura = await this.prisma.fatura.findUnique({
-      where: { id: faturaId },
-      include: { assinatura: { include: { plano: true } } },
-    });
-    if (!fatura) throw new NaoEncontradoExcecao('Fatura', faturaId);
-    if (fatura.status !== 'PENDENTE' && fatura.status !== 'VENCIDA') {
-      throw new FaturaNaoPendenteExcecao(fatura.status);
-    }
-    const { assinatura } = fatura;
-    if (assinatura.status === 'CANCELADA' || assinatura.status === 'EXPIRADA') {
-      throw new AssinaturaEncerradaExcecao(assinatura.status);
-    }
-
-    const pagaEm = dto.pagaEm ?? new Date();
-    // paga no prazo (ou pouco atrasada): cobre o período original. Paga depois do
-    // período acabar: o período novo começa no dia do pagamento — ninguém paga por
-    // um mês que já passou.
-    let inicio = inicioDoDia(fatura.vencimento);
-    let fim = somarPeriodo(inicio, assinatura.plano.periodicidade);
-    const diaPagamento = inicioDoDia(pagaEm, !dto.pagaEm);
-    if (fim <= diaPagamento) {
-      inicio = diaPagamento;
-      fim = somarPeriodo(inicio, assinatura.plano.periodicidade);
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.fatura.update({ where: { id: fatura.id }, data: { status: 'PAGA', pagaEm } }),
-      this.prisma.assinatura.update({
-        where: { id: assinatura.id },
-        data: {
-          status: 'ATIVA',
-          periodoAtualInicio: inicio,
-          periodoAtualFim: fim,
-          ...(dto.observacao ? { observacaoAdmin: dto.observacao } : {}),
-        },
-      }),
-      // a próxima só nasce se ninguém pediu cancelamento no fim do período
-      ...(assinatura.cancelaNoFimDoPeriodo
-        ? []
-        : [
-            this.prisma.fatura.create({
-              data: {
-                assinaturaId: assinatura.id,
-                valorCentavos: assinatura.plano.precoCentavos,
-                vencimento: fim,
-              },
-            }),
-          ]),
-    ]);
-
-    const { licenca, nova } = await this.licencas.renovarPorAssinatura({
-      assinaturaId: assinatura.id,
-      contaId: assinatura.contaId,
-      planoId: assinatura.planoId,
-      validaAte: fim,
-      motivo: `assinatura ${assinatura.plano.codigo} (manual)`,
-      emitidaPorId: admin.id,
-    });
-    // a conta estava suspensa por inadimplência? volta.
-    await this.prisma.conta.updateMany({
-      where: { id: assinatura.contaId, status: 'SUSPENSA' },
-      data: { status: 'ATIVA' },
-    });
-
-    await this.auditoria.registrar({
-      acao: 'fatura.marcar_paga',
-      alvoTipo: 'fatura',
-      alvoId: fatura.id,
+    const { assinaturaId } = await this.cobranca.registrarPagamento({
+      faturaId,
+      pagaEm: dto.pagaEm,
+      observacao: dto.observacao,
       atorContaId: admin.id,
       ip: ctx.ip,
-      antes: { status: fatura.status },
-      depois: {
-        status: 'PAGA',
-        pagaEm: pagaEm.toISOString(),
-        assinaturaId: assinatura.id,
-        periodo: [inicio.toISOString(), fim.toISOString()],
-        licenca: licenca.chave,
-        licencaNova: nova,
-        observacao: dto.observacao ?? null,
-      },
+      origem: 'manual',
     });
-    return this.detalhe(assinatura.id);
+    return this.detalhe(assinaturaId);
   }
 
   async cancelar(admin: Conta, id: string, dto: CancelarAssinaturaDto, ctx: Contexto) {
@@ -380,21 +293,6 @@ export class AssinaturasAdminService {
   }
 }
 
-/**
- * Datas de período/vencimento são "dias de calendário" guardados como DATE (meia-noite
- * UTC no Prisma). `new Date()` vem no fuso local: usa as partes locais pra achar o dia.
- */
-function inicioDoDia(d: Date, deLocal = false): Date {
-  return deLocal
-    ? new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-    : new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-}
-function somarPeriodo(inicio: Date, periodicidade: Plano['periodicidade']): Date {
-  const fim = new Date(inicio);
-  if (periodicidade === 'ANUAL') fim.setUTCFullYear(fim.getUTCFullYear() + 1);
-  else fim.setUTCMonth(fim.getUTCMonth() + 1);
-  return fim;
-}
 function anexar(atual: string | null, texto: string): string {
   const linha = `${new Date().toLocaleDateString('pt-BR')}: ${texto}`;
   return atual ? `${atual}\n${linha}` : linha;

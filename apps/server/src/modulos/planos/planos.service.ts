@@ -5,6 +5,7 @@ import type { Conta, Plano } from '../../infra/prisma/gerado/client.js';
 import type { Contexto } from '../auth/auth.service.js';
 import { PlanoNaoEncontradoExcecao } from '../licencas/licencas.excecoes.js';
 import { type LicencaAtual, LicencasService } from '../licencas/licencas.service.js';
+import { AssinaturasMercadoPagoService } from '../pagamentos/assinaturas-mercadopago.service.js';
 import type { AssinarPlanoDto, CancelarAssinaturaDto } from './dto/planos.dto.js';
 import { PlanosRepositorio } from './repositorios/planos.repositorio.js';
 
@@ -50,6 +51,10 @@ export interface AssinaturaResumo {
   canceladaEm: string | null;
   /** pedida mas nenhuma fatura paga ainda — o PRO não está liberado */
   aguardandoPagamento: boolean;
+  /** cobrada todo mês no cartão pelo Mercado Pago (false = manual, o admin marca paga) */
+  cobrancaAutomatica: boolean;
+  /** checkout do MP pra cadastrar o cartão, enquanto aguarda o 1º pagamento */
+  linkPagamento: string | null;
 }
 
 export type StatusFaturaFotografo =
@@ -82,6 +87,7 @@ export class PlanosService {
     private readonly repo: PlanosRepositorio,
     private readonly licencas: LicencasService,
     private readonly auditoria: AuditoriaService,
+    private readonly mp: AssinaturasMercadoPagoService,
   ) {}
 
   paraCatalogo(p: Plano): PlanoCatalogo {
@@ -119,6 +125,7 @@ export class PlanosService {
 
     let assinaturaResumo: AssinaturaResumo | null = null;
     if (assinaturaAtiva) {
+      const aguardandoPagamento = !assinaturaAtiva.faturas.some((f) => f.status === 'PAGA');
       assinaturaResumo = {
         id: assinaturaAtiva.id,
         planoId: assinaturaAtiva.planoId,
@@ -132,7 +139,12 @@ export class PlanosService {
         periodoAtualFim: assinaturaAtiva.periodoAtualFim.toISOString(),
         cancelaNoFimDoPeriodo: assinaturaAtiva.cancelaNoFimDoPeriodo,
         canceladaEm: assinaturaAtiva.canceladaEm ? assinaturaAtiva.canceladaEm.toISOString() : null,
-        aguardandoPagamento: !assinaturaAtiva.faturas.some((f) => f.status === 'PAGA'),
+        aguardandoPagamento,
+        cobrancaAutomatica: assinaturaAtiva.provedor === 'MERCADOPAGO',
+        linkPagamento: aguardandoPagamento
+          ? (assinaturaAtiva.faturas.find((f) => f.status === 'PENDENTE' || f.status === 'VENCIDA')
+              ?.urlBoletoPix ?? null)
+          : null,
       };
     }
 
@@ -174,11 +186,24 @@ export class PlanosService {
         HttpStatus.CONFLICT,
       );
     }
-    if (aberta?.planoId === plano.id) return this.obterStatus(conta.id);
+    if (aberta?.planoId === plano.id) {
+      // mesmo plano de novo: se o checkout do MP não chegou a ser criado (MP fora do ar
+      // no 1º clique), tenta outra vez; senão só devolve o link que já existe
+      const pendente = aberta.faturas.find((f) => f.status === 'PENDENTE' || f.status === 'VENCIDA');
+      if (this.mp.ativo && pendente && !pendente.urlBoletoPix) await this.mp.iniciarCheckout(aberta.id);
+      return this.obterStatus(conta.id);
+    }
 
-    // Sem cobrança automática ainda (Mercado Pago entra no passo 6): o pedido nasce com a
-    // fatura PENDENTE e o PRO só é liberado quando ela for paga — nunca na hora.
+    // O pedido nasce com a fatura PENDENTE e o plano só é liberado quando ela for paga —
+    // nunca na hora. Com o MP configurado, o pagamento é a assinatura no cartão (checkout);
+    // sem ele (dev/teste), o admin marca paga.
+    const substituida = aberta?.provedorAssinaturaId ?? null;
     const novaAssinatura = await this.repo.criarAssinaturaAguardandoPagamento(conta.id, plano);
+    if (substituida) {
+      // o pedido anterior (nunca pago) também morre no MP; se falhar, só fica pendente lá
+      await this.mp.cancelarNoProvedor(substituida).catch(() => undefined);
+    }
+    await this.mp.iniciarCheckout(novaAssinatura.id);
 
     await this.auditoria.registrar({
       acao: 'assinatura.pedido_site',
@@ -208,6 +233,26 @@ export class PlanosService {
 
     if (assinatura.cancelaNoFimDoPeriodo) {
       return this.obterStatus(conta.id);
+    }
+
+    // no MP primeiro: se ele não parar de cobrar, nada muda aqui
+    if (assinatura.provedor === 'MERCADOPAGO' && assinatura.provedorAssinaturaId) {
+      const foiPaga = assinatura.faturas.some((f) => f.status === 'PAGA');
+      if (!foiPaga) {
+        // desistiu antes de pagar: o pedido morre (no MP e aqui)
+        await this.mp.cancelarNoProvedor(assinatura.provedorAssinaturaId);
+        await this.repo.cancelarPedidoNaoPago(assinatura.id, dto.motivo);
+        await this.auditoria.registrar({
+          acao: 'assinatura.pedido_cancelado',
+          alvoTipo: 'assinatura',
+          alvoId: assinatura.id,
+          atorContaId: conta.id,
+          ip: ctx.ip,
+          depois: { motivo: dto.motivo ?? null },
+        });
+        return this.obterStatus(conta.id);
+      }
+      await this.mp.pausar(assinatura.provedorAssinaturaId);
     }
 
     await this.repo.cancelarNoFimDoPeriodo(assinatura.id, dto.motivo);
@@ -241,6 +286,9 @@ export class PlanosService {
       return this.obterStatus(conta.id);
     }
 
+    if (assinatura.provedor === 'MERCADOPAGO' && assinatura.provedorAssinaturaId) {
+      await this.mp.retomar(assinatura.provedorAssinaturaId);
+    }
     await this.repo.reativarAssinatura(assinatura);
 
     await this.auditoria.registrar({

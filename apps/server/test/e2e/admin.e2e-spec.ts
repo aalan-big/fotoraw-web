@@ -512,6 +512,11 @@ describe('admin (e2e)', () => {
     it('criar já paga emite licença ASSINATURA e gera a próxima fatura; marcar paga estende', async () => {
       const { id, bearer } = await cadastrarFotografo();
       const admin = await entrarAdmin();
+      // datas relativas a hoje: começa no dia 1º deste mês (pago hoje = dentro do período)
+      const hoje = new Date();
+      const mes = (n: number) =>
+        new Date(Date.UTC(hoje.getFullYear(), hoje.getMonth() + n, 1)).toISOString().slice(0, 10);
+      const [m0, m1, m2] = [mes(0), mes(1), mes(2)];
 
       const criada = await api()
         .post('/api/admin/assinaturas')
@@ -519,20 +524,20 @@ describe('admin (e2e)', () => {
         .send({
           contaId: id,
           planoId: planoPro,
-          inicioEm: '2026-09-01',
+          inicioEm: m0,
           jaPaga: true,
           observacao: 'pix',
         })
         .expect(201);
       expect(criada.body).toMatchObject({ status: 'ATIVA', provedor: 'MANUAL', origem: 'ADMIN' });
-      expect(dataUtc(criada.body.periodoAtualInicio)).toBe('2026-09-01');
-      expect(dataUtc(criada.body.periodoAtualFim)).toBe('2026-10-01');
+      expect(dataUtc(criada.body.periodoAtualInicio)).toBe(m0);
+      expect(dataUtc(criada.body.periodoAtualFim)).toBe(m1);
       const faturas = criada.body.faturas.map(
         (f: { status: string; vencimento: string }) => `${f.status}:${dataUtc(f.vencimento)}`,
       );
-      expect(faturas).toEqual(['PENDENTE:2026-10-01', 'PAGA:2026-09-01']);
+      expect(faturas).toEqual([`PENDENTE:${m1}`, `PAGA:${m0}`]);
       expect(criada.body.licencas[0]).toMatchObject({ status: 'ATIVA' });
-      expect(dataUtc(criada.body.licencas[0].validaAte)).toBe('2026-10-01');
+      expect(dataUtc(criada.body.licencas[0].validaAte)).toBe(m1);
 
       // painel do fotógrafo vê PRO por assinatura; o trial virou revogada
       const me = await api().get('/api/me').set('Authorization', bearer).expect(200);
@@ -550,11 +555,11 @@ describe('admin (e2e)', () => {
       const paga = await api()
         .patch(`/api/admin/faturas/${pendente.id}/marcar-paga`)
         .set('Authorization', admin)
-        .send({ pagaEm: '2026-09-28T12:00:00Z' })
+        .send({ pagaEm: `${m0}T12:00:00Z` })
         .expect(200);
-      expect(dataUtc(paga.body.periodoAtualFim)).toBe('2026-11-01');
+      expect(dataUtc(paga.body.periodoAtualFim)).toBe(m2);
       expect(paga.body.licencas).toHaveLength(1);
-      expect(dataUtc(paga.body.licencas[0].validaAte)).toBe('2026-11-01');
+      expect(dataUtc(paga.body.licencas[0].validaAte)).toBe(m2);
       expect(
         paga.body.faturas.filter((f: { status: string }) => f.status === 'PENDENTE'),
       ).toHaveLength(1);

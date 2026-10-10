@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
 import { LicencasModule } from '../licencas/licencas.module.js';
+import { PagamentosModule } from '../pagamentos/pagamentos.module.js';
 import { SaudeModule } from '../saude/saude.module.js';
 import { AssinaturasAdminController } from './assinaturas.admin.controller.js';
 import { AssinaturasAdminService } from './assinaturas.admin.service.js';
@@ -24,7 +25,7 @@ import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
 
 /** Gestão da plataforma (docs/fluxos/ambiente-admin.md). Tudo aqui exige papel ADMIN. */
 @Module({
-  imports: [AuthModule, LicencasModule, SaudeModule],
+  imports: [AuthModule, LicencasModule, PagamentosModule, SaudeModule],
   controllers: [
     VisaoGeralAdminController,
     ContasAdminController,

@@ -25,6 +25,22 @@ const assinatura = computed(() => statusPlano.value?.assinatura ?? null);
 const faturas = computed<FaturaResumo[]>(() => statusPlano.value?.faturas ?? []);
 const planos = computed<PlanoCatalogo[]>(() => statusPlano.value?.planosDisponiveis ?? []);
 
+const rota = useRoute();
+const voltouDoMercadoPago = ref(rota.query.retorno === 'mercadopago');
+
+onMounted(async () => {
+  if (!voltouDoMercadoPago.value) return;
+  for (let i = 0; i < 6 && assinatura.value?.aguardandoPagamento; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    await refreshStatus();
+  }
+  if (!assinatura.value?.aguardandoPagamento) {
+    await sessao.carregarEu();
+    voltouDoMercadoPago.value = false;
+    if (assinatura.value) alertaSucesso.value = `Pagamento confirmado! O plano ${assinatura.value.planoNome} está liberado.`;
+  }
+});
+
 const planoDaLicenca = computed(() =>
   planos.value.find((p) => p.codigo === licenca.value?.planoCodigo),
 );
@@ -82,14 +98,20 @@ async function assinarPlano(codigo: string) {
     });
 
     statusPlano.value = atualizado;
+    // com o Mercado Pago: vai pro checkout cadastrar o cartão (volta em /plano?retorno=mercadopago)
+    const link = atualizado.assinatura?.aguardandoPagamento ? atualizado.assinatura.linkPagamento : null;
+    if (link) {
+      window.location.href = link;
+      return;
+    }
     await sessao.carregarEu();
 
     const nomePlano = planos.value.find((p) => p.codigo === codigo)?.nome ?? codigo;
     alertaSucesso.value = `Pedido do plano ${nomePlano} registrado. O plano é liberado assim que o pagamento for confirmado.`;
   } catch (err: unknown) {
-    const fetchErr = err as { data?: { message?: string } };
+    const fetchErr = err as { data?: { mensagem?: string; message?: string } };
     alertaErro.value =
-      fetchErr?.data?.message ?? 'Não foi possível concluir a assinatura. Tente novamente.';
+      fetchErr?.data?.mensagem ?? fetchErr?.data?.message ?? 'Não foi possível concluir a assinatura. Tente novamente.';
   } finally {
     assinandoCodigo.value = null;
   }
@@ -110,12 +132,13 @@ async function confirmarCancelamento() {
     await sessao.carregarEu();
     modalCancelarAberto.value = false;
     motivoCancelamento.value = '';
-    alertaSucesso.value =
-      'Cancelamento agendado. Você continua com os recursos do seu plano até o fim do período já pago.';
+    alertaSucesso.value = atualizado.assinatura
+      ? 'Cancelamento agendado. Você continua com os recursos do seu plano até o fim do período já pago.'
+      : 'Pedido cancelado. Nada foi cobrado.';
   } catch (err: unknown) {
-    const fetchErr = err as { data?: { message?: string } };
+    const fetchErr = err as { data?: { mensagem?: string; message?: string } };
     alertaErro.value =
-      fetchErr?.data?.message ?? 'Erro ao agendar cancelamento da assinatura.';
+      fetchErr?.data?.mensagem ?? fetchErr?.data?.message ?? 'Erro ao agendar cancelamento da assinatura.';
   } finally {
     cancelando.value = false;
   }
@@ -135,9 +158,9 @@ async function reativarAssinatura() {
     await sessao.carregarEu();
     alertaSucesso.value = 'Sua assinatura foi reativada com sucesso! A renovação automática continuará normalmente.';
   } catch (err: unknown) {
-    const fetchErr = err as { data?: { message?: string } };
+    const fetchErr = err as { data?: { mensagem?: string; message?: string } };
     alertaErro.value =
-      fetchErr?.data?.message ?? 'Erro ao reativar assinatura.';
+      fetchErr?.data?.mensagem ?? fetchErr?.data?.message ?? 'Erro ao reativar assinatura.';
   } finally {
     reativando.value = false;
   }
@@ -289,9 +312,26 @@ const recursosLicenca = computed(() => {
     </UiAlerta>
 
     <UiAlerta v-if="assinatura?.aguardandoPagamento" tipo="aviso">
-      <strong>Assinatura {{ assinatura.planoNome }} aguardando pagamento</strong>
-      ({{ moeda(assinatura.precoCentavos) }}). Assim que o pagamento for confirmado,
-      o plano é liberado aqui e no desktop.
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <span>
+          <strong>Assinatura {{ assinatura.planoNome }} aguardando pagamento</strong>
+          ({{ moeda(assinatura.precoCentavos) }}/mês).
+          <template v-if="voltouDoMercadoPago">
+            Recebemos sua volta do Mercado Pago — a confirmação costuma levar alguns segundos.
+          </template>
+          <template v-else>
+            Assim que o pagamento for confirmado, o plano é liberado aqui e no desktop.
+          </template>
+        </span>
+        <span class="flex shrink-0 gap-2">
+          <UiBotao v-if="assinatura.linkPagamento" :to="assinatura.linkPagamento" variante="primaria" class="text-xs">
+            Cadastrar cartão no Mercado Pago
+          </UiBotao>
+          <UiBotao variante="secundaria" class="text-xs" :disabled="cancelando" @click="modalCancelarAberto = true">
+            Cancelar pedido
+          </UiBotao>
+        </span>
+      </div>
     </UiAlerta>
 
     <!-- Banner de Status do Plano Atual -->
@@ -361,7 +401,8 @@ const recursosLicenca = computed(() => {
             Cancelamento agendado: sua assinatura permanecerá ativa até <strong>{{ dataCurta(assinatura.periodoAtualFim) }}</strong>. Nenhuma nova cobrança será realizada.
           </p>
           <p v-else class="mt-1 text-sm text-muted">
-            Próxima renovação automática em <strong class="text-text">{{ dataCurta(assinatura.periodoAtualFim) }}</strong>.
+            {{ assinatura.cobrancaAutomatica ? 'Próxima cobrança no cartão em' : 'Próxima renovação em' }}
+            <strong class="text-text">{{ dataCurta(assinatura.periodoAtualFim) }}</strong>.
           </p>
         </div>
 
@@ -646,9 +687,13 @@ const recursosLicenca = computed(() => {
                 <span v-if="fatura.status === 'PAGA'" class="text-success font-medium">
                   Liquidada ✓
                 </span>
-                <span v-else-if="fatura.urlBoletoPix" class="text-wine-tint hover:underline cursor-pointer">
-                  Pagar Pix / Boleto
-                </span>
+                <a
+                  v-else-if="fatura.urlBoletoPix && (fatura.status === 'PENDENTE' || fatura.status === 'VENCIDA')"
+                  :href="fatura.urlBoletoPix"
+                  class="text-wine-tint hover:underline"
+                >
+                  Pagar no Mercado Pago
+                </a>
                 <span v-else>—</span>
               </td>
             </tr>
@@ -686,13 +731,22 @@ const recursosLicenca = computed(() => {
             </svg>
           </div>
           <div>
-            <h3 class="text-base font-semibold text-text">Cancelar a renovação do plano?</h3>
-            <p class="text-xs text-muted">Seu acesso continuará até o fim do período já pago.</p>
+            <h3 class="text-base font-semibold text-text">
+              {{ assinatura?.aguardandoPagamento ? 'Cancelar o pedido?' : 'Cancelar a renovação do plano?' }}
+            </h3>
+            <p class="text-xs text-muted">
+              {{ assinatura?.aguardandoPagamento ? 'Nada foi cobrado ainda.' : 'Seu acesso continuará até o fim do período já pago.' }}
+            </p>
           </div>
         </div>
 
         <p class="text-xs text-muted leading-relaxed">
-          Ao cancelar, os recursos do seu plano continuam liberados até <strong class="text-text">{{ dataCurta(assinatura?.periodoAtualFim) }}</strong>. Nenhuma nova cobrança será realizada. Após essa data, sua conta voltará ao plano gratuito.
+          <template v-if="assinatura?.aguardandoPagamento">
+            O pedido do plano {{ assinatura.planoNome }} é cancelado e nenhuma cobrança será feita. Você pode assinar de novo quando quiser.
+          </template>
+          <template v-else>
+            Ao cancelar, os recursos do seu plano continuam liberados até <strong class="text-text">{{ dataCurta(assinatura?.periodoAtualFim) }}</strong>. {{ assinatura?.cobrancaAutomatica ? 'A cobrança no cartão é interrompida.' : 'Nenhuma nova cobrança será realizada.' }} Após essa data, sua conta voltará ao plano gratuito.
+          </template>
         </p>
 
         <div>

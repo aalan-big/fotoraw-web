@@ -317,6 +317,10 @@ export interface AssinaturaResumo {
   canceladaEm: string | null;
   /** pedida mas nenhuma fatura paga ainda — o PRO não está liberado */
   aguardandoPagamento: boolean;
+  /** cobrada todo mês no cartão pelo Mercado Pago (false = manual) */
+  cobrancaAutomatica: boolean;
+  /** checkout do MP pra cadastrar o cartão, enquanto aguarda o 1º pagamento */
+  linkPagamento: string | null;
 }
 
 export type StatusFaturaFotografo =

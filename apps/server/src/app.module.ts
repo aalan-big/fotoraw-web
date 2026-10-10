@@ -10,6 +10,7 @@ import { ContasModule } from './modulos/contas/contas.module.js';
 import { FinanceiroModule } from './modulos/financeiro/financeiro.module.js';
 import { GaleriasModule } from './modulos/galerias/galerias.module.js';
 import { LicencasModule } from './modulos/licencas/licencas.module.js';
+import { PagamentosModule } from './modulos/pagamentos/pagamentos.module.js';
 import { PedidosModule } from './modulos/pedidos/pedidos.module.js';
 import { PlanosModule } from './modulos/planos/planos.module.js';
 import { PublicoModule } from './modulos/publico/publico.module.js';
@@ -36,6 +37,7 @@ import { SyncModule } from './modulos/sync/sync.module.js';
     PedidosModule,
     FinanceiroModule,
     PlanosModule,
+    PagamentosModule,
   ],
 })
 export class AppModule {}
