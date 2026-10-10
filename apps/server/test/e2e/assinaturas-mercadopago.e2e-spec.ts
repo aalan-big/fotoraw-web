@@ -3,6 +3,7 @@ import request from 'supertest';
 import { EmailService } from '../../src/infra/email/email.service.js';
 import { PrismaService } from '../../src/infra/prisma/prisma.service.js';
 import { LimitadorTentativas } from '../../src/modulos/auth/senha/limitador-tentativas.js';
+import { NotificacoesService } from '../../src/modulos/notificacoes/notificacoes.service.js';
 import { MercadoPagoCliente } from '../../src/modulos/pagamentos/provedores/mercadopago/mercadopago.cliente.js';
 import { limparBanco } from '../utils/banco.js';
 import { criarApp } from '../utils/criar-app.js';
@@ -45,6 +46,17 @@ const mp = {
   },
 };
 
+/** Celular do admin de mentira: guarda os avisos. */
+const avisos: { titulo: string; corpo: string }[] = [];
+const notificacoes = {
+  ativo: true,
+  chavePublica: 'x',
+  async avisarAdmins(aviso: { titulo: string; corpo: string }) {
+    avisos.push(aviso);
+    return 1;
+  },
+};
+
 describe('assinatura de plano no cartão pelo Mercado Pago (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -60,7 +72,9 @@ describe('assinatura de plano no cartão pelo Mercado Pago (e2e)', () => {
         .overrideProvider(EmailService)
         .useValue({ enviar: async () => {} })
         .overrideProvider(MercadoPagoCliente)
-        .useValue(mp),
+        .useValue(mp)
+        .overrideProvider(NotificacoesService)
+        .useValue(notificacoes),
     );
     prisma = app.get(PrismaService);
   });
@@ -72,6 +86,7 @@ describe('assinatura de plano no cartão pelo Mercado Pago (e2e)', () => {
     mp.status.clear();
     mp.preapprovals.clear();
     mp.cobrancas.clear();
+    avisos.length = 0;
     await prisma.plano.createMany({
       data: [
         {
@@ -180,6 +195,10 @@ describe('assinatura de plano no cartão pelo Mercado Pago (e2e)', () => {
     expect(await prisma.fatura.count({ where: { status: 'PAGA' } })).toBe(1);
     expect(await prisma.licenca.count({ where: { status: 'ATIVA', tipo: 'ASSINATURA' } })).toBe(1);
     expect(await prisma.webhookRecebido.count()).toBe(4);
+
+    // celular do admin: 1 aviso de recusa e 1 de pagamento (o reenvio não repete)
+    expect(avisos.map((a) => a.titulo)).toEqual(['Cobrança recusada', 'Pagamento recebido 💰']);
+    expect(avisos[1]!.corpo).toBe(`${FOTOGRAFO.nome} · PRO · R$ 59,90`);
   });
 
   it('cancelar com plano pago pausa no MP (vale até o fim); reativar retoma', async () => {

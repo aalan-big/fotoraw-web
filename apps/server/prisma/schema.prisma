@@ -281,6 +281,7 @@ model Conta {
   auditorias        Auditoria[]
   sessoesWeb        SessaoWeb[]
   tokensVerificacao TokenVerificacao[]
+  inscricoesPush    InscricaoPush[]
 
   @@index([status])
   @@map("contas")
@@ -820,6 +821,24 @@ model SyncLote {
 // ===========================================================================
 
 /// Tudo que chega de fora é gravado ANTES de processar; reprocessar é ler daqui.
+/// Celular/navegador de um admin que recebe Web Push (pagamento recebido, cobrança recusada…).
+model InscricaoPush {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  contaId   String   @map("conta_id") @db.Uuid
+  /// URL do serviço de push do navegador (única por aparelho/navegador)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  /// pra o admin reconhecer o aparelho na lista
+  userAgent String?  @map("user_agent")
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  @@index([contaId])
+  @@map("inscricoes_push")
+}
+
 model WebhookRecebido {
   id           String    @id @default(uuid(7)) @db.Uuid
   provedor     Provedor

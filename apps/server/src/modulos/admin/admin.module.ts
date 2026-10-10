@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module.js';
 import { LicencasModule } from '../licencas/licencas.module.js';
+import { NotificacoesModule } from '../notificacoes/notificacoes.module.js';
 import { PagamentosModule } from '../pagamentos/pagamentos.module.js';
 import { SaudeModule } from '../saude/saude.module.js';
 import { AssinaturasAdminController } from './assinaturas.admin.controller.js';
@@ -21,11 +22,12 @@ import { LicencasAdminService } from './licencas.admin.service.js';
 import { PlanosAdminController } from './planos.admin.controller.js';
 import { PlanosAdminService } from './planos.admin.service.js';
 import { ContasAdminRepositorio } from './repositorios/contas.admin.repositorio.js';
+import { NotificacoesAdminController } from './notificacoes.admin.controller.js';
 import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
 
 /** Gestão da plataforma (docs/fluxos/ambiente-admin.md). Tudo aqui exige papel ADMIN. */
 @Module({
-  imports: [AuthModule, LicencasModule, PagamentosModule, SaudeModule],
+  imports: [AuthModule, LicencasModule, NotificacoesModule, PagamentosModule, SaudeModule],
   controllers: [
     VisaoGeralAdminController,
     ContasAdminController,
@@ -37,6 +39,7 @@ import { VisaoGeralAdminController } from './visao-geral.admin.controller.js';
     SistemaAdminController,
     SegurancaAdminController,
     AdminsAdminController,
+    NotificacoesAdminController,
   ],
   providers: [
     ContasAdminService,

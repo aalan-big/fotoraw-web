@@ -266,5 +266,7 @@ function copiarCodigos() {
         </div>
       </template>
     </UiCartao>
+
+    <NotificacoesAparelho />
   </div>
 </template>

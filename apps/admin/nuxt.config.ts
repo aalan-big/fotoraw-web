@@ -34,6 +34,8 @@ export default defineNuxtConfig({
         { rel: 'icon', href: '/favicon.ico' },
         { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/icone.png' },
         { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+        // instalar na tela de início (iPhone só recebe push assim)
+        { rel: 'manifest', href: '/manifest.webmanifest' },
       ],
     },
   },

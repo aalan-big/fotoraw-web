@@ -54,6 +54,11 @@ export const envSchema = z.object({
   CHAVE_CIFRA_TOKENS: z.string().default(''),
   COMISSAO_PLATAFORMA: z.coerce.number().min(0).max(1).default(0.1),
 
+  // Web Push pro celular do admin (gere: node -e "console.log(require('web-push').generateVAPIDKeys())")
+  VAPID_PUBLIC_KEY: z.string().default(''),
+  VAPID_PRIVATE_KEY: z.string().default(''),
+  VAPID_SUBJECT: z.string().default('mailto:contato@fotoraw.com.br'),
+
   RESEND_API_KEY: z.string().default(''),
   EMAIL_REMETENTE: z.string().min(1),
 });

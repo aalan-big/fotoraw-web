@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.js';
 import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { NotificacoesService } from '../notificacoes/notificacoes.service.js';
 import { CobrancaAssinaturasService } from './cobranca-assinaturas.service.js';
 import {
   MercadoPagoCliente,
@@ -26,6 +27,7 @@ export class AssinaturasMercadoPagoService {
     private readonly mp: MercadoPagoCliente,
     private readonly cobranca: CobrancaAssinaturasService,
     private readonly auditoria: AuditoriaService,
+    private readonly notificacoes: NotificacoesService,
     config: ConfigService<Env, true>,
   ) {
     this.fotografoUrl = config.get('FOTOGRAFO_URL').replace(/\/$/, '');
@@ -98,6 +100,7 @@ export class AssinaturasMercadoPagoService {
       where: { provedorAssinaturaId: c.preapproval_id },
       include: {
         plano: true,
+        conta: { select: { nome: true } },
         faturas: { where: { status: { in: ['PENDENTE', 'VENCIDA'] } }, orderBy: { vencimento: 'asc' } },
       },
     });
@@ -118,6 +121,14 @@ export class AssinaturasMercadoPagoService {
           detalhe: c.payment?.status_detail ?? null,
         },
       });
+      // o MP tenta de novo sozinho (recycling); avisa só quando houve tentativa recusada
+      if (c.payment?.status === 'rejected') {
+        await this.notificacoes.avisarAdmins({
+          titulo: 'Cobrança recusada',
+          corpo: `${a.conta.nome} · ${a.plano.nome} · ${moeda(c.transaction_amount)} — cartão recusado`,
+          url: `/assinaturas/${a.id}`,
+        });
+      }
       return `cobrança ${ref}: ${c.status}/${c.payment?.status ?? 'sem pagamento'}`;
     }
 
@@ -141,6 +152,11 @@ export class AssinaturasMercadoPagoService {
       provedorCobrancaId: ref,
       atorContaId: null,
       origem: 'mercadopago',
+    });
+    await this.notificacoes.avisarAdmins({
+      titulo: 'Pagamento recebido 💰',
+      corpo: `${a.conta.nome} · ${a.plano.nome} · ${moeda(c.transaction_amount ?? a.plano.precoCentavos / 100)}`,
+      url: `/assinaturas/${a.id}`,
     });
     return `cobrança ${ref}: fatura ${faturaId} paga`;
   }
@@ -231,4 +247,8 @@ export class AssinaturasMercadoPagoService {
     });
     return `preapproval ${pre.id}: ${pre.status}`;
   }
+}
+
+function moeda(reais: number | undefined): string {
+  return (reais ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
