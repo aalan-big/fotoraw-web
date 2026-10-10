@@ -188,6 +188,15 @@ describe('planos e assinaturas do fotógrafo (e2e)', () => {
     expect(resUpgrade.body.licenca.plano).toBe('trial');
   });
 
+  it('catálogo público (vitrine /planos) sai sem login e só com os planos ativos', async () => {
+    await prisma.plano.update({ where: { codigo: 'pro_anual' }, data: { ativo: false } });
+    const res = await api().get('/api/publico/planos').expect(200);
+    expect(res.body.map((p: { codigo: string }) => p.codigo)).toEqual(['gratuito', 'pro_mensal']);
+    expect(res.body[1]).toMatchObject({ precoCentavos: 4990, limiteArmazenamentoMb: 204800 });
+    // as rotas da conta continuam fechadas
+    await api().get('/api/planos/meu-status').expect(401);
+  });
+
   it('não assina o gratuito, plano inativo nem código inexistente', async () => {
     const resCad = await api().post('/api/auth/cadastro').send(FOTOGRAFO).expect(201);
     const token = resCad.body.acesso;

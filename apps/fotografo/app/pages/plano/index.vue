@@ -25,14 +25,19 @@ const assinatura = computed(() => statusPlano.value?.assinatura ?? null);
 const faturas = computed<FaturaResumo[]>(() => statusPlano.value?.faturas ?? []);
 const planos = computed<PlanoCatalogo[]>(() => statusPlano.value?.planosDisponiveis ?? []);
 
-const planosPagos = computed(() => planos.value.filter((p) => p.precoCentavos > 0));
 const planoDaLicenca = computed(() =>
   planos.value.find((p) => p.codigo === licenca.value?.planoCodigo),
 );
 
 function ehPlanoAtual(codigo: string): boolean {
+  if (codigo === 'gratuito') return licenca.value?.plano === 'gratuito';
   const a = assinatura.value;
   return a?.planoCodigo === codigo && !a.cancelaNoFimDoPeriodo;
+}
+
+function descricaoDoPlano(p: PlanoCatalogo): string {
+  if (p.precoCentavos === 0) return 'Para começar a vender fotos de evento.';
+  return p.permiteEnsaio ? 'Eventos, ensaios e a gestão do estúdio.' : 'Para quem vive de fotografar eventos.';
 }
 
 function verPlanos() {
@@ -198,6 +203,9 @@ function itensDoPlano(p: PlanoCatalogo): string[] {
   ];
   if (p.limiteGaleriasAtivas === null && p.limiteFotosPorGaleria === null) {
     itens.push('Galerias e fotos sem limite de quantidade');
+  } else {
+    if (p.limiteGaleriasAtivas !== null) itens.push(`Até ${num(p.limiteGaleriasAtivas)} galerias ativas`);
+    if (p.limiteFotosPorGaleria !== null) itens.push(`Até ${num(p.limiteFotosPorGaleria)} fotos por galeria`);
   }
   if (p.limiteDispositivos !== null) {
     itens.push(`Até ${p.limiteDispositivos} ${p.limiteDispositivos === 1 ? 'computador' : 'computadores'}`);
@@ -540,9 +548,9 @@ const recursosLicenca = computed(() => {
       titulo="Planos FotoRAW"
       descricao="Cobrança mensal automática no cartão de crédito. Cancele quando quiser."
     >
-      <div class="grid gap-6 pt-2 md:grid-cols-3">
+      <div class="grid gap-6 pt-2 md:grid-cols-2 xl:grid-cols-4">
         <div
-          v-for="p in planosPagos"
+          v-for="p in planos"
           :key="p.codigo"
           class="relative flex flex-col justify-between rounded-xl border p-5 transition-all"
           :class="
@@ -559,12 +567,15 @@ const recursosLicenca = computed(() => {
               </UiEtiqueta>
             </div>
             <p class="mt-1 text-xs text-muted">
-              {{ p.permiteEnsaio ? 'Eventos, ensaios e a gestão do estúdio.' : 'Para quem vive de fotografar eventos.' }}
+              {{ descricaoDoPlano(p) }}
             </p>
 
             <div class="mt-4 flex items-baseline gap-1">
-              <span class="text-3xl font-bold tracking-tight text-text">{{ moeda(p.precoCentavos) }}</span>
-              <span class="text-xs text-muted">/mês</span>
+              <template v-if="p.precoCentavos > 0">
+                <span class="text-3xl font-bold tracking-tight text-text">{{ moeda(p.precoCentavos) }}</span>
+                <span class="text-xs text-muted">/mês</span>
+              </template>
+              <span v-else class="text-3xl font-bold tracking-tight text-text">Grátis</span>
             </div>
 
             <ul class="mt-5 space-y-2 text-xs">
@@ -576,7 +587,11 @@ const recursosLicenca = computed(() => {
           </div>
 
           <div class="pt-6">
+            <UiBotao v-if="p.precoCentavos === 0" variante="secundaria" class="w-full" disabled>
+              {{ ehPlanoAtual(p.codigo) ? 'Plano Atual' : 'Sempre disponível' }}
+            </UiBotao>
             <UiBotao
+              v-else
               variante="primaria"
               class="w-full"
               :disabled="assinandoCodigo === p.codigo || ehPlanoAtual(p.codigo)"

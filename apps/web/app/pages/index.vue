@@ -327,15 +327,14 @@ const diferenciais = [
               Sem mensalidade obrigatória. Sem subir seus originais.
             </p>
             <p class="mt-1 text-muted">
-              No gratuito você vende fotos de evento e a plataforma fica com 10% por venda. O PRO
-              libera ensaios com seleção do cliente e a gestão do estúdio no desktop.
+              No gratuito você vende fotos de evento e a plataforma fica com 10% por venda. Os
+              planos pagos dão mais espaço, taxa menor ou zero, ensaios com seleção do cliente e a
+              gestão do estúdio no desktop.
             </p>
           </div>
           <div class="flex shrink-0 gap-3">
             <UiBotao :to="`${fotografoUrl}/criar-conta`" tamanho="lg">Começar de graça</UiBotao>
-            <UiBotao :to="`${fotografoUrl}/entrar`" variante="secundaria" tamanho="lg">
-              Já uso o FotoRAW
-            </UiBotao>
+            <UiBotao to="/planos" variante="secundaria" tamanho="lg">Ver planos</UiBotao>
           </div>
         </div>
       </div>

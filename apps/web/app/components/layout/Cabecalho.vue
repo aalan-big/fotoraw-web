@@ -10,6 +10,7 @@ const itens = [
   { to: '/eventos', rotulo: 'Eventos' },
   { to: '/ensaio', rotulo: 'Meu ensaio' },
   { to: '/#como-funciona', rotulo: 'Como funciona' },
+  { to: '/planos', rotulo: 'Planos' },
 ];
 
 // Área do fotógrafo é outro app (apps/fotografo); aqui só o link.
