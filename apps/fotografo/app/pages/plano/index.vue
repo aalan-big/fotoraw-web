@@ -48,7 +48,13 @@ const planoDaLicenca = computed(() =>
 function ehPlanoAtual(codigo: string): boolean {
   if (codigo === 'gratuito') return licenca.value?.plano === 'gratuito';
   const a = assinatura.value;
-  return a?.planoCodigo === codigo && !a.cancelaNoFimDoPeriodo;
+  return a?.planoCodigo === codigo && !a.cancelaNoFimDoPeriodo && !a.aguardandoPagamento;
+}
+
+/** pediu este plano e ainda não pagou: o botão leva de volta ao checkout */
+function pedidoPendente(codigo: string): boolean {
+  const a = assinatura.value;
+  return a?.planoCodigo === codigo && a.aguardandoPagamento;
 }
 
 function descricaoDoPlano(p: PlanoCatalogo): string {
@@ -174,9 +180,10 @@ function moeda(centavos: number): string {
   });
 }
 
+// vencimento e período são dias (meia-noite UTC no banco): em UTC pra não virar o dia anterior
 function dataCurta(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('pt-BR');
+  return new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 }
 
 function dataHora(iso: string | null | undefined): string {
@@ -606,6 +613,9 @@ const recursosLicenca = computed(() => {
               <UiEtiqueta v-if="ehPlanoAtual(p.codigo)" cor="bg-wine/30 text-wine-tint">
                 Plano Atual
               </UiEtiqueta>
+              <UiEtiqueta v-else-if="pedidoPendente(p.codigo)" cor="bg-warning/15 text-warning">
+                Aguardando pagamento
+              </UiEtiqueta>
             </div>
             <p class="mt-1 text-xs text-muted">
               {{ descricaoDoPlano(p) }}
@@ -643,7 +653,9 @@ const recursosLicenca = computed(() => {
                   ? 'Processando…'
                   : ehPlanoAtual(p.codigo)
                     ? 'Plano Ativo'
-                    : `Assinar ${p.nome}`
+                    : pedidoPendente(p.codigo)
+                      ? 'Concluir pagamento'
+                      : `Assinar ${p.nome}`
               }}
             </UiBotao>
           </div>
