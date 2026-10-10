@@ -53,20 +53,28 @@ export class AssinaturasMercadoPagoService {
       where: { id: assinaturaId },
       include: { plano: true },
     });
-    const pre = await this.mp.criarAssinatura({
-      reason: `FotoRAW ${a.plano.nome}`,
-      external_reference: a.id,
-      payer_email: emailPagador,
-      back_url: `${this.fotografoUrl}/plano`,
-      auto_recurring: {
-        frequency: a.plano.periodicidade === 'ANUAL' ? 12 : 1,
-        frequency_type: 'months',
-        transaction_amount: a.plano.precoCentavos / 100,
-        currency_id: 'BRL',
-      },
-      card_token_id: tokenCartao,
-      status: 'authorized',
-    });
+    const pre = await this.mp
+      .criarAssinatura({
+        reason: `FotoRAW ${a.plano.nome}`,
+        external_reference: a.id,
+        payer_email: emailPagador,
+        back_url: `${this.fotografoUrl}/plano`,
+        auto_recurring: {
+          frequency: a.plano.periodicidade === 'ANUAL' ? 12 : 1,
+          frequency_type: 'months',
+          transaction_amount: a.plano.precoCentavos / 100,
+          currency_id: 'BRL',
+        },
+        card_token_id: tokenCartao,
+        status: 'authorized',
+      })
+      .catch(async (erro: unknown) => {
+        // recusa no cadastro: registra como era o token pra entender a causa
+        this.logger.warn(
+          `token recusado: ${JSON.stringify(await this.mp.resumoDoToken(tokenCartao))}`,
+        );
+        throw erro;
+      });
     await this.prisma.$transaction([
       this.prisma.assinatura.update({
         where: { id: a.id },
@@ -111,7 +119,10 @@ export class AssinaturasMercadoPagoService {
       include: {
         plano: true,
         conta: { select: { nome: true } },
-        faturas: { where: { status: { in: ['PENDENTE', 'VENCIDA'] } }, orderBy: { vencimento: 'asc' } },
+        faturas: {
+          where: { status: { in: ['PENDENTE', 'VENCIDA'] } },
+          orderBy: { vencimento: 'asc' },
+        },
       },
     });
     if (!a) return `cobrança ${ref}: preapproval ${c.preapproval_id} não é nosso`;

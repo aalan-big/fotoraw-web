@@ -770,10 +770,11 @@ const recursosLicenca = computed(() => {
     <!-- Cartão: formulário do Mercado Pago embutido (Card Payment Brick) -->
     <div
       v-if="planoNoCartao"
-      class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-xs sm:items-center"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-xs sm:p-6"
     >
-      <div class="card w-full max-w-lg space-y-4 border-border p-6 shadow-2xl">
-        <div class="flex items-start justify-between gap-4">
+      <!-- cabe na tela: a janela rola por dentro, o topo (título e erro) nunca some -->
+      <div class="card flex max-h-full w-full max-w-md flex-col border-border shadow-2xl">
+        <div class="flex shrink-0 items-start justify-between gap-4 border-b border-border p-4">
           <div>
             <h3 class="text-base font-semibold text-text">Assinar o plano {{ planoNoCartao.nome }}</h3>
             <p class="text-xs text-muted">
@@ -786,15 +787,17 @@ const recursosLicenca = computed(() => {
           </button>
         </div>
 
-        <UiAlerta v-if="erroCartao" tipo="erro">{{ erroCartao }}</UiAlerta>
+        <div class="space-y-3 overflow-y-auto p-4">
+          <UiAlerta v-if="erroCartao" tipo="erro">{{ erroCartao }}</UiAlerta>
 
-        <div id="cartao-assinatura" />
+          <div id="cartao-assinatura" />
 
-        <p class="text-[11px] leading-relaxed text-muted">
+          <p class="text-[11px] leading-relaxed text-muted">
           Os dados do cartão vão direto para o Mercado Pago — o FotoRAW nunca vê o número do
           cartão. Para validar, o Mercado Pago pode fazer uma cobrança de valor baixo que é
           devolvida na hora; a 1ª mensalidade é cobrada em até 1 hora.
-        </p>
+          </p>
+        </div>
       </div>
     </div>
 

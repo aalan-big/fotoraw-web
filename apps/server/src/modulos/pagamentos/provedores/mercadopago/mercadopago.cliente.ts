@@ -91,8 +91,37 @@ export class MercadoPagoCliente {
     return this.chamar<PreapprovalMp>('PUT', `/preapproval/${encodeURIComponent(id)}`, { status });
   }
 
+  /**
+   * Diagnóstico de um token de cartão recusado: só campos sem dado sensível (nada de
+   * número completo, titular ou documento). `live_mode: false` = token de teste.
+   */
+  async resumoDoToken(token: string): Promise<Record<string, unknown> | null> {
+    try {
+      const t = await this.chamar<Record<string, unknown>>(
+        'GET',
+        `/v1/card_tokens/${encodeURIComponent(token)}`,
+      );
+      const campos = [
+        'status',
+        'live_mode',
+        'luhn_validation',
+        'require_esc',
+        'security_code_length',
+        'first_six_digits',
+        'card_number_length',
+        'date_due',
+      ];
+      return Object.fromEntries(campos.map((c) => [c, t[c] ?? null]));
+    } catch {
+      return null;
+    }
+  }
+
   obterCobranca(id: string): Promise<CobrancaRecorrenteMp> {
-    return this.chamar<CobrancaRecorrenteMp>('GET', `/authorized_payments/${encodeURIComponent(id)}`);
+    return this.chamar<CobrancaRecorrenteMp>(
+      'GET',
+      `/authorized_payments/${encodeURIComponent(id)}`,
+    );
   }
 
   private async chamar<T>(metodo: string, caminho: string, corpo?: unknown): Promise<T> {
@@ -108,7 +137,10 @@ export class MercadoPagoCliente {
         signal: AbortSignal.timeout(15_000),
       });
     } catch (erro) {
-      this.logger.error(`MP ${metodo} ${caminho}: sem resposta`, erro instanceof Error ? erro.message : erro);
+      this.logger.error(
+        `MP ${metodo} ${caminho}: sem resposta`,
+        erro instanceof Error ? erro.message : erro,
+      );
       throw new MercadoPagoIndisponivelExcecao();
     }
     if (!resposta.ok) {

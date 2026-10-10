@@ -45,6 +45,9 @@ const mp = {
     if (pre) pre.status = status;
     return pre;
   },
+  async resumoDoToken() {
+    return { live_mode: true };
+  },
   async obterCobranca(id: string) {
     return mp.cobrancas.get(id)!;
   },
