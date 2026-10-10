@@ -5,22 +5,21 @@ import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { NotificacoesService } from '../notificacoes/notificacoes.service.js';
 import { CobrancaAssinaturasService } from './cobranca-assinaturas.service.js';
-import {
-  MercadoPagoCliente,
-  MercadoPagoIndisponivelExcecao,
-} from './provedores/mercadopago/mercadopago.cliente.js';
+import { MercadoPagoCliente } from './provedores/mercadopago/mercadopago.cliente.js';
 
 /**
  * Mensalidade dos planos no cartão, pelas Assinaturas do Mercado Pago (`preapproval`) na
- * conta do FotoRAW. Fluxo: pedido no painel → preapproval `pending` com o id da nossa
- * assinatura em `external_reference` → fotógrafo cadastra o cartão no `init_point` → o MP
- * cobra todo mês e avisa pelo webhook → `processarCobranca` marca a fatura paga.
+ * conta do FotoRAW. Fluxo: o fotógrafo digita o cartão no Brick do MP dentro do painel
+ * (vira token no navegador) → preapproval `authorized` com o id da nossa assinatura em
+ * `external_reference` → o MP cobra todo mês e avisa pelo webhook → `processarCobranca`
+ * marca a fatura paga. (O checkout por link exigia login no MP com o MESMO e-mail.)
  * Nada aqui confia no corpo do webhook: sempre relê o recurso na API do MP.
  */
 @Injectable()
 export class AssinaturasMercadoPagoService {
   private readonly logger = new Logger(AssinaturasMercadoPagoService.name);
   private readonly fotografoUrl: string;
+  private readonly chavePublicaMp: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -31,6 +30,7 @@ export class AssinaturasMercadoPagoService {
     config: ConfigService<Env, true>,
   ) {
     this.fotografoUrl = config.get('FOTOGRAFO_URL').replace(/\/$/, '');
+    this.chavePublicaMp = config.get('MERCADOPAGO_PUBLIC_KEY');
   }
 
   /** Sem token do MP (dev/teste) as assinaturas seguem manuais: o admin marca paga. */
@@ -38,44 +38,54 @@ export class AssinaturasMercadoPagoService {
     return this.mp.configurado;
   }
 
+  /** Chave pública da conta do FotoRAW: o Brick do painel tokeniza o cartão com ela. */
+  get chavePublica(): string | null {
+    return this.ativo && this.chavePublicaMp ? this.chavePublicaMp : null;
+  }
+
   /**
-   * Cria a assinatura no MP e guarda o link do checkout na fatura pendente.
-   * Devolve o link (o painel redireciona pra ele).
+   * Cria a assinatura no MP já autorizada com o cartão tokenizado no painel (Card Payment
+   * Brick). O MP valida o cartão na hora e faz a 1ª cobrança em até ~1 h; o webhook de
+   * cobrança libera o plano. Recusa do cartão volta como MercadoPagoRecusouExcecao.
    */
-  async iniciarCheckout(assinaturaId: string): Promise<string | null> {
-    if (!this.ativo) return null;
+  async assinarComCartao(assinaturaId: string, tokenCartao: string, emailPagador: string) {
     const a = await this.prisma.assinatura.findUniqueOrThrow({
       where: { id: assinaturaId },
-      include: { plano: true, conta: { select: { email: true } } },
+      include: { plano: true },
     });
     const pre = await this.mp.criarAssinatura({
       reason: `FotoRAW ${a.plano.nome}`,
       external_reference: a.id,
-      payer_email: a.conta.email,
-      back_url: `${this.fotografoUrl}/plano?retorno=mercadopago`,
+      payer_email: emailPagador,
+      back_url: `${this.fotografoUrl}/plano`,
       auto_recurring: {
         frequency: a.plano.periodicidade === 'ANUAL' ? 12 : 1,
         frequency_type: 'months',
         transaction_amount: a.plano.precoCentavos / 100,
         currency_id: 'BRL',
       },
-      status: 'pending',
+      card_token_id: tokenCartao,
+      status: 'authorized',
     });
-    if (!pre.init_point) {
-      this.logger.error(`MP criou o preapproval ${pre.id} sem init_point`);
-      throw new MercadoPagoIndisponivelExcecao();
-    }
     await this.prisma.$transaction([
       this.prisma.assinatura.update({
         where: { id: a.id },
         data: { provedor: 'MERCADOPAGO', provedorAssinaturaId: pre.id },
       }),
+      // link de checkout de um pedido antigo não vale mais
       this.prisma.fatura.updateMany({
         where: { assinaturaId: a.id, status: { in: ['PENDENTE', 'VENCIDA'] } },
-        data: { urlBoletoPix: pre.init_point },
+        data: { urlBoletoPix: null },
       }),
     ]);
-    return pre.init_point;
+    await this.auditoria.registrar({
+      acao: 'assinatura.cartao_cadastrado',
+      alvoTipo: 'assinatura',
+      alvoId: a.id,
+      atorContaId: a.contaId,
+      depois: { preapproval: pre.id, statusMp: pre.status, plano: a.plano.codigo },
+    });
+    return pre;
   }
 
   /** Para de cobrar (fotógrafo cancelou a renovação). `paused` dá pra retomar. */

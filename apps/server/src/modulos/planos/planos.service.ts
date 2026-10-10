@@ -53,8 +53,8 @@ export interface AssinaturaResumo {
   aguardandoPagamento: boolean;
   /** cobrada todo mês no cartão pelo Mercado Pago (false = manual, o admin marca paga) */
   cobrancaAutomatica: boolean;
-  /** checkout do MP pra cadastrar o cartão, enquanto aguarda o 1º pagamento */
-  linkPagamento: string | null;
+  /** cartão cadastrado, esperando o MP confirmar a 1ª cobrança (até ~1 h) */
+  cartaoEmAnalise: boolean;
 }
 
 export type StatusFaturaFotografo =
@@ -79,6 +79,8 @@ export interface StatusPlanoFotografo {
   assinatura: AssinaturaResumo | null;
   faturas: FaturaResumo[];
   planosDisponiveis: PlanoCatalogo[];
+  /** chave pública do MP pro Brick de cartão; null = sem cobrança automática */
+  chaveMercadoPago: string | null;
 }
 
 @Injectable()
@@ -141,10 +143,12 @@ export class PlanosService {
         canceladaEm: assinaturaAtiva.canceladaEm ? assinaturaAtiva.canceladaEm.toISOString() : null,
         aguardandoPagamento,
         cobrancaAutomatica: assinaturaAtiva.provedor === 'MERCADOPAGO',
-        linkPagamento: aguardandoPagamento
-          ? (assinaturaAtiva.faturas.find((f) => f.status === 'PENDENTE' || f.status === 'VENCIDA')
-              ?.urlBoletoPix ?? null)
-          : null,
+        // pedidos do checkout antigo (por link) têm url na fatura e não estão em análise
+        cartaoEmAnalise:
+          aguardandoPagamento &&
+          assinaturaAtiva.provedor === 'MERCADOPAGO' &&
+          !!assinaturaAtiva.provedorAssinaturaId &&
+          !assinaturaAtiva.faturas.some((f) => f.urlBoletoPix),
       };
     }
 
@@ -163,6 +167,7 @@ export class PlanosService {
       assinatura: assinaturaResumo,
       faturas: faturasResumo,
       planosDisponiveis: planos.map((p) => this.paraCatalogo(p)),
+      chaveMercadoPago: this.mp.chavePublica,
     };
   }
 
@@ -177,6 +182,11 @@ export class PlanosService {
       throw new PlanoNaoEncontradoExcecao(dto.planoCodigo);
     }
 
+    // com o MP ligado, assinar = cadastrar o cartão (cobrança automática todo mês)
+    if (this.mp.ativo && !dto.cartao) {
+      throw new DominioExcecao('CARTAO_OBRIGATORIO', 'Informe os dados do cartão para assinar.');
+    }
+
     const aberta = await this.repo.assinaturaAtivaDaConta(conta.id);
     if (aberta?.faturas.some((f) => f.status === 'PAGA')) {
       // troca de plano com assinatura já paga: ajuste proporcional fica com o suporte por enquanto
@@ -187,23 +197,35 @@ export class PlanosService {
       );
     }
     if (aberta?.planoId === plano.id) {
-      // mesmo plano de novo: se o checkout do MP não chegou a ser criado (MP fora do ar
-      // no 1º clique), tenta outra vez; senão só devolve o link que já existe
-      const pendente = aberta.faturas.find((f) => f.status === 'PENDENTE' || f.status === 'VENCIDA');
-      if (this.mp.ativo && pendente && !pendente.urlBoletoPix) await this.mp.iniciarCheckout(aberta.id);
+      // mesmo plano, ainda não pago: (re)cadastra o cartão — troca o cartão recusado, ou
+      // conclui um pedido do checkout antigo por link
+      if (this.mp.ativo && dto.cartao) {
+        if (aberta.provedorAssinaturaId) {
+          await this.mp.cancelarNoProvedor(aberta.provedorAssinaturaId).catch(() => undefined);
+        }
+        await this.mp.assinarComCartao(aberta.id, dto.cartao.token, dto.cartao.email);
+      }
       return this.obterStatus(conta.id);
     }
 
     // O pedido nasce com a fatura PENDENTE e o plano só é liberado quando ela for paga —
-    // nunca na hora. Com o MP configurado, o pagamento é a assinatura no cartão (checkout);
-    // sem ele (dev/teste), o admin marca paga.
+    // nunca na hora. Com o MP, o cartão é cadastrado agora e o webhook da 1ª cobrança
+    // libera o plano; sem ele (dev/teste), o admin marca paga.
     const substituida = aberta?.provedorAssinaturaId ?? null;
     const novaAssinatura = await this.repo.criarAssinaturaAguardandoPagamento(conta.id, plano);
     if (substituida) {
       // o pedido anterior (nunca pago) também morre no MP; se falhar, só fica pendente lá
       await this.mp.cancelarNoProvedor(substituida).catch(() => undefined);
     }
-    await this.mp.iniciarCheckout(novaAssinatura.id);
+    if (this.mp.ativo && dto.cartao) {
+      try {
+        await this.mp.assinarComCartao(novaAssinatura.id, dto.cartao.token, dto.cartao.email);
+      } catch (erro) {
+        // cartão recusado no cadastro: o pedido não fica pendurado
+        await this.repo.cancelarPedidoNaoPago(novaAssinatura.id, 'cartão recusado no cadastro');
+        throw erro;
+      }
+    }
 
     await this.auditoria.registrar({
       acao: 'assinatura.pedido_site',

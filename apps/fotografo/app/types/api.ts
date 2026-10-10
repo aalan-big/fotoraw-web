@@ -319,8 +319,8 @@ export interface AssinaturaResumo {
   aguardandoPagamento: boolean;
   /** cobrada todo mês no cartão pelo Mercado Pago (false = manual) */
   cobrancaAutomatica: boolean;
-  /** checkout do MP pra cadastrar o cartão, enquanto aguarda o 1º pagamento */
-  linkPagamento: string | null;
+  /** cartão cadastrado, esperando o MP confirmar a 1ª cobrança (até ~1 h) */
+  cartaoEmAnalise: boolean;
 }
 
 export type StatusFaturaFotografo =
@@ -345,11 +345,15 @@ export interface StatusPlanoFotografo {
   assinatura: AssinaturaResumo | null;
   faturas: FaturaResumo[];
   planosDisponiveis: PlanoCatalogo[];
+  /** chave pública do MP pro Brick de cartão; null = sem cobrança automática */
+  chaveMercadoPago: string | null;
 }
 
 export interface AssinarPlanoPayload {
   /** código de um plano pago e ativo do catálogo */
   planoCodigo: string;
+  /** cartão tokenizado pelo Brick do MP (obrigatório com o MP ligado) */
+  cartao?: { token: string; email: string };
 }
 
 export interface CancelarAssinaturaPayload {

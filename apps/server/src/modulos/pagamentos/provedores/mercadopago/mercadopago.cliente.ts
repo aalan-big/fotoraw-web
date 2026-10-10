@@ -38,6 +38,13 @@ export class MercadoPagoIndisponivelExcecao extends DominioExcecao {
   }
 }
 
+/** O MP recusou o pedido (cartão inválido, token vencido…): a mensagem vai pro fotógrafo. */
+export class MercadoPagoRecusouExcecao extends DominioExcecao {
+  constructor(detalhe: string) {
+    super('MERCADOPAGO_RECUSOU', `O Mercado Pago recusou: ${detalhe}`);
+  }
+}
+
 /**
  * HTTP cru na API do MP com o token da conta do FotoRAW (CNPJ) — é ela que recebe as
  * mensalidades. Sem token (dev/teste) `configurado` é false e quem chama segue sem MP.
@@ -55,6 +62,10 @@ export class MercadoPagoCliente {
     return this.token.trim() !== '';
   }
 
+  /**
+   * Assinatura recorrente. Com `card_token_id` (cartão tokenizado pelo Brick no navegador)
+   * nasce `authorized` e o MP cobra sozinho — sem login no MP nem e-mail casado.
+   */
   criarAssinatura(corpo: {
     reason: string;
     external_reference: string;
@@ -66,7 +77,8 @@ export class MercadoPagoCliente {
       transaction_amount: number;
       currency_id: 'BRL';
     };
-    status: 'pending';
+    card_token_id: string;
+    status: 'authorized';
   }): Promise<PreapprovalMp> {
     return this.chamar<PreapprovalMp>('POST', '/preapproval', corpo);
   }
@@ -103,8 +115,22 @@ export class MercadoPagoCliente {
       // o corpo de erro do MP não tem dado sensível (mensagem + causa); vai pro log pra diagnóstico
       const detalhe = (await resposta.text()).slice(0, 500);
       this.logger.error(`MP ${metodo} ${caminho}: HTTP ${resposta.status} ${detalhe}`);
+      // 4xx = o MP recusou o que mandamos (cartão, token, valor); 5xx/401 = problema nosso/dele
+      if (resposta.status >= 400 && resposta.status < 500 && resposta.status !== 401) {
+        throw new MercadoPagoRecusouExcecao(mensagemDoMp(detalhe));
+      }
       throw new MercadoPagoIndisponivelExcecao();
     }
     return (await resposta.json()) as T;
+  }
+}
+
+/** `{"message":"...","cause":[{"description":"..."}]}` → texto curto. */
+function mensagemDoMp(corpo: string): string {
+  try {
+    const j = JSON.parse(corpo) as { message?: string; cause?: { description?: string }[] };
+    return (j.cause?.[0]?.description || j.message || 'pedido inválido').slice(0, 200);
+  } catch {
+    return 'pedido inválido';
   }
 }

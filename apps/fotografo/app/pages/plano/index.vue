@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { CartaoTokenizado } from '~/composables/useCartaoMercadoPago';
 import type {
   FaturaResumo,
   Licenca,
@@ -25,21 +26,28 @@ const assinatura = computed(() => statusPlano.value?.assinatura ?? null);
 const faturas = computed<FaturaResumo[]>(() => statusPlano.value?.faturas ?? []);
 const planos = computed<PlanoCatalogo[]>(() => statusPlano.value?.planosDisponiveis ?? []);
 
-const rota = useRoute();
-const voltouDoMercadoPago = ref(rota.query.retorno === 'mercadopago');
-
-onMounted(async () => {
-  if (!voltouDoMercadoPago.value) return;
-  for (let i = 0; i < 6 && assinatura.value?.aguardandoPagamento; i++) {
-    await new Promise((r) => setTimeout(r, 3000));
+// cartão cadastrado: o MP confirma a 1ª cobrança em até ~1 h; enquanto a página está
+// aberta, olha de tempos em tempos e avisa quando liberar
+let esperando: ReturnType<typeof setInterval> | null = null;
+function esperarConfirmacao() {
+  if (esperando || !assinatura.value?.cartaoEmAnalise) return;
+  let voltas = 0;
+  esperando = setInterval(async () => {
+    voltas++;
     await refreshStatus();
-  }
-  if (!assinatura.value?.aguardandoPagamento) {
-    await sessao.carregarEu();
-    voltouDoMercadoPago.value = false;
-    if (assinatura.value) alertaSucesso.value = `Pagamento confirmado! O plano ${assinatura.value.planoNome} está liberado.`;
-  }
-});
+    if (!assinatura.value?.aguardandoPagamento) {
+      clearInterval(esperando!);
+      esperando = null;
+      await sessao.carregarEu();
+      if (assinatura.value) alertaSucesso.value = `Pagamento confirmado! O plano ${assinatura.value.planoNome} está liberado.`;
+    } else if (voltas >= 40) {
+      clearInterval(esperando!);
+      esperando = null;
+    }
+  }, 15_000);
+}
+onMounted(esperarConfirmacao);
+onBeforeUnmount(() => esperando && clearInterval(esperando));
 
 const planoDaLicenca = computed(() =>
   planos.value.find((p) => p.codigo === licenca.value?.planoCodigo),
@@ -51,7 +59,7 @@ function ehPlanoAtual(codigo: string): boolean {
   return a?.planoCodigo === codigo && !a.cancelaNoFimDoPeriodo && !a.aguardandoPagamento;
 }
 
-/** pediu este plano e ainda não pagou: o botão leva de volta ao checkout */
+/** pediu este plano e ainda não pagou: o botão abre o cartão de novo */
 function pedidoPendente(codigo: string): boolean {
   const a = assinatura.value;
   return a?.planoCodigo === codigo && a.aguardandoPagamento;
@@ -92,32 +100,59 @@ async function copiarChave() {
 }
 
 // --- Contratação / Upgrade de Plano -----------------------------------------
+const cartao = useCartaoMercadoPago();
+const planoNoCartao = ref<PlanoCatalogo | null>(null);
+const erroCartao = ref<string | null>(null);
+
 async function assinarPlano(codigo: string) {
-  assinandoCodigo.value = codigo;
   alertaErro.value = null;
   alertaSucesso.value = null;
+  const plano = planos.value.find((p) => p.codigo === codigo);
+  const chave = statusPlano.value?.chaveMercadoPago;
+  if (!plano) return;
+  // sem Mercado Pago configurado (dev): só registra o pedido, o admin marca paga
+  if (!chave) return enviarAssinatura(plano);
 
+  planoNoCartao.value = plano;
+  erroCartao.value = null;
+  await nextTick();
+  await cartao.montar({
+    container: 'cartao-assinatura',
+    chavePublica: chave,
+    valor: plano.precoCentavos / 100,
+    email: sessao.conta?.email,
+    onCartao: (c) => enviarAssinatura(plano, c),
+    onErro: (m) => (erroCartao.value = m),
+  });
+}
+
+async function fecharCartao() {
+  await cartao.desmontar();
+  planoNoCartao.value = null;
+}
+
+async function enviarAssinatura(plano: PlanoCatalogo, dadosCartao?: CartaoTokenizado) {
+  assinandoCodigo.value = plano.codigo;
+  erroCartao.value = null;
   try {
     const atualizado = await api<StatusPlanoFotografo>('/planos/assinar', {
       method: 'POST',
-      body: { planoCodigo: codigo },
+      body: { planoCodigo: plano.codigo, ...(dadosCartao ? { cartao: dadosCartao } : {}) },
     });
-
     statusPlano.value = atualizado;
-    // com o Mercado Pago: vai pro checkout cadastrar o cartão (volta em /plano?retorno=mercadopago)
-    const link = atualizado.assinatura?.aguardandoPagamento ? atualizado.assinatura.linkPagamento : null;
-    if (link) {
-      window.location.href = link;
-      return;
-    }
+    await fecharCartao();
     await sessao.carregarEu();
-
-    const nomePlano = planos.value.find((p) => p.codigo === codigo)?.nome ?? codigo;
-    alertaSucesso.value = `Pedido do plano ${nomePlano} registrado. O plano é liberado assim que o pagamento for confirmado.`;
+    alertaSucesso.value = dadosCartao
+      ? `Cartão cadastrado no plano ${plano.nome}! O Mercado Pago confirma a 1ª cobrança em até 1 hora e o plano é liberado sozinho — pode fechar esta página.`
+      : `Pedido do plano ${plano.nome} registrado. O plano é liberado assim que o pagamento for confirmado.`;
+    esperarConfirmacao();
   } catch (err: unknown) {
     const fetchErr = err as { data?: { mensagem?: string; message?: string } };
-    alertaErro.value =
+    const mensagem =
       fetchErr?.data?.mensagem ?? fetchErr?.data?.message ?? 'Não foi possível concluir a assinatura. Tente novamente.';
+    // com o formulário aberto o erro aparece nele (o Brick deixa tentar outro cartão)
+    if (planoNoCartao.value) erroCartao.value = mensagem;
+    else alertaErro.value = mensagem;
   } finally {
     assinandoCodigo.value = null;
   }
@@ -323,16 +358,22 @@ const recursosLicenca = computed(() => {
         <span>
           <strong>Assinatura {{ assinatura.planoNome }} aguardando pagamento</strong>
           ({{ moeda(assinatura.precoCentavos) }}/mês).
-          <template v-if="voltouDoMercadoPago">
-            Recebemos sua volta do Mercado Pago — a confirmação costuma levar alguns segundos.
+          <template v-if="assinatura.cartaoEmAnalise">
+            Cartão cadastrado — o Mercado Pago confirma a 1ª cobrança em até 1 hora e o plano é
+            liberado sozinho, aqui e no desktop.
           </template>
           <template v-else>
-            Assim que o pagamento for confirmado, o plano é liberado aqui e no desktop.
+            Falta cadastrar o cartão para concluir.
           </template>
         </span>
         <span class="flex shrink-0 gap-2">
-          <UiBotao v-if="assinatura.linkPagamento" :to="assinatura.linkPagamento" variante="primaria" class="text-xs">
-            Cadastrar cartão no Mercado Pago
+          <UiBotao
+            v-if="!assinatura.cartaoEmAnalise && statusPlano?.chaveMercadoPago"
+            variante="primaria"
+            class="text-xs"
+            @click="assinarPlano(assinatura.planoCodigo)"
+          >
+            Cadastrar cartão
           </UiBotao>
           <UiBotao variante="secundaria" class="text-xs" :disabled="cancelando" @click="modalCancelarAberto = true">
             Cancelar pedido
@@ -699,13 +740,9 @@ const recursosLicenca = computed(() => {
                 <span v-if="fatura.status === 'PAGA'" class="text-success font-medium">
                   Liquidada ✓
                 </span>
-                <a
-                  v-else-if="fatura.urlBoletoPix && (fatura.status === 'PENDENTE' || fatura.status === 'VENCIDA')"
-                  :href="fatura.urlBoletoPix"
-                  class="text-wine-tint hover:underline"
-                >
-                  Pagar no Mercado Pago
-                </a>
+                <span v-else-if="assinatura?.cobrancaAutomatica && fatura.status === 'PENDENTE'">
+                  Cobrança automática no cartão
+                </span>
                 <span v-else>—</span>
               </td>
             </tr>
@@ -729,6 +766,37 @@ const recursosLicenca = computed(() => {
         </p>
       </div>
     </UiCartao>
+
+    <!-- Cartão: formulário do Mercado Pago embutido (Card Payment Brick) -->
+    <div
+      v-if="planoNoCartao"
+      class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-xs sm:items-center"
+    >
+      <div class="card w-full max-w-lg space-y-4 border-border p-6 shadow-2xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h3 class="text-base font-semibold text-text">Assinar o plano {{ planoNoCartao.nome }}</h3>
+            <p class="text-xs text-muted">
+              {{ moeda(planoNoCartao.precoCentavos) }}/mês, cobrado automaticamente no cartão de crédito.
+              Cancele quando quiser.
+            </p>
+          </div>
+          <button class="text-xs text-muted hover:text-text" :disabled="!!assinandoCodigo" @click="fecharCartao">
+            Fechar
+          </button>
+        </div>
+
+        <UiAlerta v-if="erroCartao" tipo="erro">{{ erroCartao }}</UiAlerta>
+
+        <div id="cartao-assinatura" />
+
+        <p class="text-[11px] leading-relaxed text-muted">
+          Os dados do cartão vão direto para o Mercado Pago — o FotoRAW nunca vê o número do
+          cartão. Para validar, o Mercado Pago pode fazer uma cobrança de valor baixo que é
+          devolvida na hora; a 1ª mensalidade é cobrada em até 1 hora.
+        </p>
+      </div>
+    </div>
 
     <!-- Modal de Confirmação de Cancelamento -->
     <div
