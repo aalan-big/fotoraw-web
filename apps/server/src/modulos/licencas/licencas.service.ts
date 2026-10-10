@@ -17,6 +17,10 @@ export interface LicencaAtual {
   id: string | null;
   chave: string | null;
   plano: 'gratuito' | 'trial' | 'pro';
+  /** plano de origem (gratuito, evento_mensal, pro_mensal…); null = não deu pra saber */
+  planoCodigo: string | null;
+  /** nome pra exibir: "Evento", "PRO", "Business" */
+  planoNome: string | null;
   tipo: Licenca['tipo'] | null;
   status: 'ATIVA';
   validaAte: Date | null;
@@ -197,10 +201,15 @@ export class LicencasService {
       licenca = null;
     }
     if (licenca) {
+      // toda emissão grava "plano:<id> · …" no motivo (trial, manual e assinatura)
+      const planoId = /^plano:([0-9a-f-]{36})/i.exec(licenca.motivo ?? '')?.[1];
+      const plano = planoId ? await this.repo.planoPorId(planoId) : null;
       return {
         id: licenca.id,
         chave: licenca.chave,
         plano: licenca.tipo === 'TRIAL' ? 'trial' : 'pro',
+        planoCodigo: plano?.codigo ?? null,
+        planoNome: plano?.nome ?? null,
         tipo: licenca.tipo,
         status: 'ATIVA',
         validaAte: licenca.validaAte,
@@ -219,6 +228,8 @@ export class LicencasService {
       id: null,
       chave: null,
       plano: 'gratuito',
+      planoCodigo: 'gratuito',
+      planoNome: plano?.nome ?? 'Gratuito',
       tipo: null,
       status: 'ATIVA',
       validaAte: null,

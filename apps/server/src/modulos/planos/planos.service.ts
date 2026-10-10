@@ -160,7 +160,8 @@ export class PlanosService {
     ctx: Contexto,
   ): Promise<StatusPlanoFotografo> {
     const plano = await this.repo.planoPorCodigo(dto.planoCodigo);
-    if (!plano || !plano.ativo) {
+    // o gratuito não se assina: é o que sobra sem licença
+    if (!plano || !plano.ativo || plano.precoCentavos <= 0) {
       throw new PlanoNaoEncontradoExcecao(dto.planoCodigo);
     }
 

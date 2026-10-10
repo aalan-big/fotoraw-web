@@ -88,11 +88,15 @@ Convenções: `id uuid PK`, `criado_em/atualizado_em timestamptz` em todas (omit
 Plano (catálogo) ≠ assinatura (contrato de cobrança) ≠ licença (direito de uso que o desktop checa).
 
 **`planos`**
-`codigo UNIQUE` (`gratuito`, `pro_mensal`, `pro_anual`) · `nome` · `preco_centavos` · `periodicidade: mensal | anual | nenhuma` ·
+`codigo UNIQUE` (`gratuito`, `evento_mensal`, `pro_mensal`, `business_mensal`; `pro_anual` inativo) · `nome` · `preco_centavos` · `periodicidade: mensal | anual | nenhuma` ·
 `comissao_evento_pct numeric(5,2)` · `limite_galerias_ativas?` · `limite_fotos_por_galeria?` · `limite_armazenamento_mb?` ·
 `limite_dispositivos?` · `permite_evento bool` · `permite_ensaio bool` · `permite_galeria_privada bool` · `permite_gestao_estudio bool` · `ativo bool` · `ordem int`
 > **Regra do gratuito** (dono, 2026-09-18): só vende foto de **evento**, pagando 10% à plataforma. Ensaio (portfólio,
 > galeria privada com seleção) e a gestão do estúdio no desktop (clientes, agenda, contratos, financeiro) são PRO.
+>
+> **Tabela de 2026-10-10** (dono, após pesquisa de mercado; só mensal, cartão automático pelo Mercado Pago):
+> Gratuito R$ 0 · 5 GB · 10% · só evento — **Evento** R$ 80 · 200 GB · 7% · só evento — **PRO** R$ 59,90 · 15 GB · 0% ·
+> tudo — **Business** R$ 120 · 200 GB · 0% · tudo do PRO. Plano pago não paga os 10%: paga a `comissao_evento_pct` dele.
 
 **`assinaturas`**
 `conta_id` · `plano_id` · `status: trial | ativa | inadimplente | cancelada | expirada` · `inicio_em` ·
@@ -259,6 +263,7 @@ selecao.status       rascunho | enviada | aprovada          (fase 2)
 | 10 | `plano_gratuito_so_evento` | `planos.permite_ensaio`, `planos.permite_gestao_estudio`; gratuito = só evento; atualiza `licencas.recursos` já emitidos |
 | 9 | `tokens_api_dispositivo` | `tokens_api.dispositivo_id` (revogar máquina = revogar token) |
 | 8 | `auth_sessoes` | **+sessoes_web** (refresh rotativo por família), **+tokens_verificacao** (verificar e-mail, redefinir senha, trocar e-mail) |
+| 13 | `tabela_planos_out_2026` | gratuito 5 GB; PRO R$ 59,90 · 15 GB · 0%; `pro_anual` inativo; **+evento_mensal**, **+business_mensal** |
 | fase 2 | `selecoes_e_cupons` | **+selecoes**, **+cupons** |
 
 Cada migration vai com o SQL revisado à mão (como a 3), não só o diff — principalmente a 4 (conversão de dinheiro) e a 5 (índice parcial).

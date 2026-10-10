@@ -10,7 +10,8 @@ const rotuloLicenca = computed(() => {
   if (l.plano === 'gratuito') return 'Plano gratuito';
   if (l.plano === 'trial')
     return `Trial · ${l.diasRestantes} ${l.diasRestantes === 1 ? 'dia' : 'dias'}`;
-  return l.diasRestantes === null ? 'PRO' : `PRO · vence em ${l.diasRestantes} dias`;
+  const nome = l.planoNome ?? 'PRO';
+  return l.diasRestantes === null ? nome : `${nome} · vence em ${l.diasRestantes} dias`;
 });
 const corLicenca = computed(() => {
   const d = licenca.value?.diasRestantes;

@@ -25,8 +25,19 @@ const assinatura = computed(() => statusPlano.value?.assinatura ?? null);
 const faturas = computed<FaturaResumo[]>(() => statusPlano.value?.faturas ?? []);
 const planos = computed<PlanoCatalogo[]>(() => statusPlano.value?.planosDisponiveis ?? []);
 
-const planoMensal = computed(() => planos.value.find((p) => p.codigo === 'pro_mensal'));
-const planoAnual = computed(() => planos.value.find((p) => p.codigo === 'pro_anual'));
+const planosPagos = computed(() => planos.value.filter((p) => p.precoCentavos > 0));
+const planoDaLicenca = computed(() =>
+  planos.value.find((p) => p.codigo === licenca.value?.planoCodigo),
+);
+
+function ehPlanoAtual(codigo: string): boolean {
+  const a = assinatura.value;
+  return a?.planoCodigo === codigo && !a.cancelaNoFimDoPeriodo;
+}
+
+function verPlanos() {
+  document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth' });
+}
 
 // --- Estados de ação e notificações -----------------------------------------
 const copiadoChave = ref(false);
@@ -54,7 +65,7 @@ async function copiarChave() {
 }
 
 // --- Contratação / Upgrade de Plano -----------------------------------------
-async function assinarPlano(codigo: 'pro_mensal' | 'pro_anual') {
+async function assinarPlano(codigo: string) {
   assinandoCodigo.value = codigo;
   alertaErro.value = null;
   alertaSucesso.value = null;
@@ -68,8 +79,8 @@ async function assinarPlano(codigo: 'pro_mensal' | 'pro_anual') {
     statusPlano.value = atualizado;
     await sessao.carregarEu();
 
-    const nomePlano = codigo === 'pro_anual' ? 'PRO Anual' : 'PRO Mensal';
-    alertaSucesso.value = `Pedido do plano ${nomePlano} registrado. O PRO é liberado assim que o pagamento for confirmado.`;
+    const nomePlano = planos.value.find((p) => p.codigo === codigo)?.nome ?? codigo;
+    alertaSucesso.value = `Pedido do plano ${nomePlano} registrado. O plano é liberado assim que o pagamento for confirmado.`;
   } catch (err: unknown) {
     const fetchErr = err as { data?: { message?: string } };
     alertaErro.value =
@@ -95,7 +106,7 @@ async function confirmarCancelamento() {
     modalCancelarAberto.value = false;
     motivoCancelamento.value = '';
     alertaSucesso.value =
-      'Cancelamento agendado. Você continuará com acesso a todos os recursos PRO até o término do período vigente.';
+      'Cancelamento agendado. Você continua com os recursos do seu plano até o fim do período já pago.';
   } catch (err: unknown) {
     const fetchErr = err as { data?: { message?: string } };
     alertaErro.value =
@@ -176,11 +187,40 @@ const rotuloStatusFatura: Record<StatusFaturaFotografo, string> = {
   ESTORNADA: 'Estornada',
 };
 
+const pct = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+function itensDoPlano(p: PlanoCatalogo): string[] {
+  const itens = [
+    `${gb(p.limiteArmazenamentoMb)} de armazenamento na nuvem`,
+    p.comissaoEventoPct > 0
+      ? `Vendas de evento com taxa de ${pct(p.comissaoEventoPct)}%`
+      : 'Vendas de evento sem taxa do FotoRAW',
+  ];
+  if (p.limiteGaleriasAtivas === null && p.limiteFotosPorGaleria === null) {
+    itens.push('Galerias e fotos ilimitadas');
+  }
+  if (p.limiteDispositivos !== null) {
+    itens.push(`Até ${p.limiteDispositivos} ${p.limiteDispositivos === 1 ? 'computador' : 'computadores'}`);
+  }
+  if (p.permiteEnsaio) itens.push('Ensaios, portfólio e seleção do cliente');
+  if (p.permiteGestaoEstudio) itens.push('Gestão completa do estúdio no desktop');
+  return itens;
+}
+
 const recursosLicenca = computed(() => {
   const r = licenca.value?.recursos;
   if (!r) return [];
+  const taxa = planoDaLicenca.value?.comissaoEventoPct;
   return [
-    { rotulo: 'Vender fotos de evento (10% de taxa)', ok: r.permite_evento },
+    {
+      rotulo:
+        taxa === undefined
+          ? 'Vender fotos de evento'
+          : taxa > 0
+            ? `Vender fotos de evento (${pct(taxa)}% de taxa)`
+            : 'Vender fotos de evento (sem taxa)',
+      ok: r.permite_evento,
+    },
     { rotulo: 'Publicar ensaios (portfólio e entrega direta)', ok: r.permite_ensaio },
     { rotulo: 'Galeria privada com seleção pelo cliente', ok: r.permite_galeria_privada },
     { rotulo: 'Gestão de estúdio no desktop (clientes, agenda, contratos)', ok: r.permite_gestao_estudio },
@@ -242,8 +282,8 @@ const recursosLicenca = computed(() => {
 
     <UiAlerta v-if="assinatura?.aguardandoPagamento" tipo="aviso">
       <strong>Assinatura {{ assinatura.planoNome }} aguardando pagamento</strong>
-      ({{ moeda(assinatura.precoCentavos) }}). A equipe FotoRAW vai te enviar as instruções do Pix;
-      assim que o pagamento for confirmado, o PRO é liberado aqui e no desktop.
+      ({{ moeda(assinatura.precoCentavos) }}). Assim que o pagamento for confirmado,
+      o plano é liberado aqui e no desktop.
     </UiAlerta>
 
     <!-- Banner de Status do Plano Atual -->
@@ -270,12 +310,8 @@ const recursosLicenca = computed(() => {
           </p>
         </div>
 
-        <UiBotao
-          variante="primaria"
-          class="shrink-0"
-          @click="assinarPlano('pro_anual')"
-        >
-          Assinar PRO com 2 meses grátis
+        <UiBotao variante="primaria" class="shrink-0" @click="verPlanos">
+          Ver planos
         </UiBotao>
       </div>
 
@@ -303,14 +339,14 @@ const recursosLicenca = computed(() => {
         <div>
           <div class="flex items-center gap-2.5">
             <UiEtiqueta cor="bg-success/15 text-success">
-              Assinatura PRO Ativa
+              Assinatura ativa
             </UiEtiqueta>
             <span class="text-xs text-muted">
-              Plano {{ assinatura.planoNome }} ({{ moeda(assinatura.precoCentavos) }}/{{ assinatura.periodicidade === 'ANUAL' ? 'ano' : 'mês' }})
+              {{ moeda(assinatura.precoCentavos) }}/{{ assinatura.periodicidade === 'ANUAL' ? 'ano' : 'mês' }}
             </span>
           </div>
           <h2 class="mt-2 text-xl font-semibold text-text">
-            Você tem acesso ilimitado a todos os módulos
+            Plano {{ assinatura.planoNome }}
           </h2>
 
           <p v-if="assinatura.cancelaNoFimDoPeriodo" class="mt-1 text-sm text-warning">
@@ -356,16 +392,12 @@ const recursosLicenca = computed(() => {
             Seu período de teste encerrou
           </h2>
           <p class="mt-1 max-w-2xl text-sm text-muted">
-            Você continua podendo vender fotos de eventos normalmente com taxa de 10%. Para publicar ensaios, criar galerias privadas com seleção do cliente e utilizar a gestão de estúdio no desktop, faça o upgrade para o PRO.
+            Você continua vendendo fotos de evento normalmente, com taxa de {{ pct(planoDaLicenca?.comissaoEventoPct ?? 10) }}%. Para mais espaço e taxa menor nos eventos, veja o plano Evento; para ensaios, galeria privada com seleção do cliente e a gestão do estúdio no desktop, o PRO ou o Business.
           </p>
         </div>
 
-        <UiBotao
-          variante="primaria"
-          class="shrink-0"
-          @click="assinarPlano('pro_mensal')"
-        >
-          Assinar Plano PRO
+        <UiBotao variante="primaria" class="shrink-0" @click="verPlanos">
+          Ver planos
         </UiBotao>
       </div>
     </section>
@@ -496,135 +528,43 @@ const recursosLicenca = computed(() => {
       </UiCartao>
     </div>
 
-    <!-- Catálogo de Planos PRO (Opções de Assinatura) -->
+    <!-- Catálogo de planos pagos (vem do banco; o admin edita preço e limites) -->
     <UiCartao
-      titulo="Planos FotoRAW PRO"
-      descricao="Escolha a periodicidade ideal para o seu estúdio e garanta todos os recursos desbloqueados."
+      id="planos"
+      titulo="Planos FotoRAW"
+      descricao="Cobrança mensal automática no cartão de crédito. Cancele quando quiser."
     >
-      <div class="grid gap-6 md:grid-cols-2 pt-2">
-        <!-- PRO Mensal -->
+      <div class="grid gap-6 pt-2 md:grid-cols-3">
         <div
+          v-for="p in planosPagos"
+          :key="p.codigo"
           class="relative flex flex-col justify-between rounded-xl border p-5 transition-all"
           :class="
-            assinatura?.planoCodigo === 'pro_mensal' && !assinatura?.cancelaNoFimDoPeriodo
+            ehPlanoAtual(p.codigo)
               ? 'border-wine bg-wine-dim/30'
               : 'border-border bg-surface-2/20 hover:border-muted/50'
           "
         >
           <div>
             <div class="flex items-center justify-between">
-              <h3 class="text-lg font-semibold text-text">PRO Mensal</h3>
-              <UiEtiqueta
-                v-if="assinatura?.planoCodigo === 'pro_mensal' && !assinatura?.cancelaNoFimDoPeriodo"
-                cor="bg-wine/30 text-wine-tint"
-              >
+              <h3 class="text-lg font-semibold text-text">{{ p.nome }}</h3>
+              <UiEtiqueta v-if="ehPlanoAtual(p.codigo)" cor="bg-wine/30 text-wine-tint">
                 Plano Atual
               </UiEtiqueta>
             </div>
-            <p class="mt-1 text-xs text-muted">Flexibilidade total, cancele quando desejar.</p>
+            <p class="mt-1 text-xs text-muted">
+              {{ p.permiteEnsaio ? 'Eventos, ensaios e a gestão do estúdio.' : 'Para quem vive de fotografar eventos.' }}
+            </p>
 
             <div class="mt-4 flex items-baseline gap-1">
-              <span class="text-3xl font-bold tracking-tight text-text">
-                {{ moeda(planoMensal?.precoCentavos ?? 4990) }}
-              </span>
+              <span class="text-3xl font-bold tracking-tight text-text">{{ moeda(p.precoCentavos) }}</span>
               <span class="text-xs text-muted">/mês</span>
             </div>
 
-            <ul class="mt-5 space-y-2 text-xs text-muted">
-              <li class="flex items-center gap-2 text-text">
-                <svg viewBox="0 0 24 24" class="size-4 text-success shrink-0" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                <span>Galerias e fotos <strong>ilimitadas</strong></span>
-              </li>
-              <li class="flex items-center gap-2 text-text">
-                <svg viewBox="0 0 24 24" class="size-4 text-success shrink-0" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                <span><strong>200 GB</strong> de armazenamento na nuvem</span>
-              </li>
-              <li class="flex items-center gap-2 text-text">
-                <svg viewBox="0 0 24 24" class="size-4 text-success shrink-0" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                <span>Até <strong>3 computadores</strong> conectados</span>
-              </li>
-              <li class="flex items-center gap-2 text-text">
-                <svg viewBox="0 0 24 24" class="size-4 text-success shrink-0" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                <span>Ensaios, portfólio e seleção do cliente</span>
-              </li>
-              <li class="flex items-center gap-2 text-text">
-                <svg viewBox="0 0 24 24" class="size-4 text-success shrink-0" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                <span>Gestão completa do estúdio no desktop</span>
-              </li>
-            </ul>
-          </div>
-
-          <div class="pt-6">
-            <UiBotao
-              variante="secundaria"
-              class="w-full"
-              :disabled="
-                assinandoCodigo === 'pro_mensal' ||
-                (assinatura?.planoCodigo === 'pro_mensal' && !assinatura?.cancelaNoFimDoPeriodo)
-              "
-              @click="assinarPlano('pro_mensal')"
-            >
-              {{
-                assinandoCodigo === 'pro_mensal'
-                  ? 'Processando…'
-                  : assinatura?.planoCodigo === 'pro_mensal' && !assinatura?.cancelaNoFimDoPeriodo
-                    ? 'Plano Ativo'
-                    : 'Assinar PRO Mensal'
-              }}
-            </UiBotao>
-          </div>
-        </div>
-
-        <!-- PRO Anual -->
-        <div
-          class="relative flex flex-col justify-between rounded-xl border p-5 transition-all"
-          :class="
-            assinatura?.planoCodigo === 'pro_anual' && !assinatura?.cancelaNoFimDoPeriodo
-              ? 'border-wine bg-wine-dim/30'
-              : 'border-wine/60 bg-surface-2/30 hover:border-wine'
-          "
-        >
-          <div class="absolute -top-3 right-4">
-            <span class="rounded-full bg-wine px-3 py-0.5 text-[11px] font-semibold text-white shadow-md">
-              Economize 2 meses
-            </span>
-          </div>
-
-          <div>
-            <div class="flex items-center justify-between">
-              <h3 class="text-lg font-semibold text-text">PRO Anual</h3>
-              <UiEtiqueta
-                v-if="assinatura?.planoCodigo === 'pro_anual' && !assinatura?.cancelaNoFimDoPeriodo"
-                cor="bg-wine/30 text-wine-tint"
-              >
-                Plano Atual
-              </UiEtiqueta>
-            </div>
-            <p class="mt-1 text-xs text-muted">Melhor custo-benefício para o ano todo.</p>
-
-            <div class="mt-4 flex items-baseline gap-1">
-              <span class="text-3xl font-bold tracking-tight text-text">
-                {{ moeda(planoAnual?.precoCentavos ?? 49900) }}
-              </span>
-              <span class="text-xs text-muted">/ano (~R$ 41,58/mês)</span>
-            </div>
-
-            <ul class="mt-5 space-y-2 text-xs text-muted">
-              <li class="flex items-center gap-2 text-text">
-                <svg viewBox="0 0 24 24" class="size-4 text-success shrink-0" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                <span>Tudo incluso no PRO Mensal</span>
-              </li>
-              <li class="flex items-center gap-2 text-text">
-                <svg viewBox="0 0 24 24" class="size-4 text-success shrink-0" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                <span><strong>2 meses grátis</strong> de economia direta</span>
-              </li>
-              <li class="flex items-center gap-2 text-text">
-                <svg viewBox="0 0 24 24" class="size-4 text-success shrink-0" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                <span>Garantia de preço fixo por 12 meses</span>
-              </li>
-              <li class="flex items-center gap-2 text-text">
-                <svg viewBox="0 0 24 24" class="size-4 text-success shrink-0" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-                <span>Cobrança anual única</span>
+            <ul class="mt-5 space-y-2 text-xs">
+              <li v-for="item in itensDoPlano(p)" :key="item" class="flex items-center gap-2 text-text">
+                <svg viewBox="0 0 24 24" class="size-4 shrink-0 text-success" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                <span>{{ item }}</span>
               </li>
             </ul>
           </div>
@@ -633,18 +573,15 @@ const recursosLicenca = computed(() => {
             <UiBotao
               variante="primaria"
               class="w-full"
-              :disabled="
-                assinandoCodigo === 'pro_anual' ||
-                (assinatura?.planoCodigo === 'pro_anual' && !assinatura?.cancelaNoFimDoPeriodo)
-              "
-              @click="assinarPlano('pro_anual')"
+              :disabled="assinandoCodigo === p.codigo || ehPlanoAtual(p.codigo)"
+              @click="assinarPlano(p.codigo)"
             >
               {{
-                assinandoCodigo === 'pro_anual'
+                assinandoCodigo === p.codigo
                   ? 'Processando…'
-                  : assinatura?.planoCodigo === 'pro_anual' && !assinatura?.cancelaNoFimDoPeriodo
+                  : ehPlanoAtual(p.codigo)
                     ? 'Plano Ativo'
-                    : 'Assinar PRO Anual'
+                    : `Assinar ${p.nome}`
               }}
             </UiBotao>
           </div>
@@ -710,7 +647,7 @@ const recursosLicenca = computed(() => {
         </div>
         <p class="text-sm font-medium text-text">Nenhuma fatura emitida ainda</p>
         <p class="mt-1 max-w-sm text-xs text-muted">
-          Ao assinar o plano PRO, as faturas e recibos de pagamento de cada ciclo serão exibidos nesta área.
+          Ao assinar um plano, as faturas e recibos de pagamento de cada ciclo serão exibidos nesta área.
         </p>
       </div>
     </UiCartao>
@@ -728,13 +665,13 @@ const recursosLicenca = computed(() => {
             </svg>
           </div>
           <div>
-            <h3 class="text-base font-semibold text-text">Cancelar renovação do PRO?</h3>
+            <h3 class="text-base font-semibold text-text">Cancelar a renovação do plano?</h3>
             <p class="text-xs text-muted">Seu acesso continuará até o fim do período já pago.</p>
           </div>
         </div>
 
         <p class="text-xs text-muted leading-relaxed">
-          Ao cancelar, seus recursos PRO permanecerão liberados até <strong class="text-text">{{ dataCurta(assinatura?.periodoAtualFim) }}</strong>. Nenhuma nova cobrança será realizada. Após essa data, sua conta voltará ao plano gratuito.
+          Ao cancelar, os recursos do seu plano continuam liberados até <strong class="text-text">{{ dataCurta(assinatura?.periodoAtualFim) }}</strong>. Nenhuma nova cobrança será realizada. Após essa data, sua conta voltará ao plano gratuito.
         </p>
 
         <div>

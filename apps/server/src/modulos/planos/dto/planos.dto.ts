@@ -1,9 +1,11 @@
 import { z } from 'zod';
 
 export const assinarPlanoSchema = z.object({
-  planoCodigo: z.enum(['pro_mensal', 'pro_anual'], {
-    error: 'Plano inválido. Escolha pro_mensal ou pro_anual.',
-  }),
+  // os planos vêm do banco (admin edita); o service confere se existe, está ativo e é pago
+  planoCodigo: z
+    .string({ error: 'Escolha um plano.' })
+    .trim()
+    .regex(/^[a-z0-9_]{1,40}$/, 'Plano inválido.'),
 });
 
 export type AssinarPlanoDto = z.infer<typeof assinarPlanoSchema>;

@@ -15,6 +15,10 @@ export interface LicencaResumo {
   id: string | null;
   chave: string | null;
   plano: 'gratuito' | 'trial' | 'pro';
+  /** plano de origem (gratuito, evento_mensal, pro_mensal…) */
+  planoCodigo: string | null;
+  /** "Evento", "PRO", "Business"… */
+  planoNome: string | null;
   tipo: 'ASSINATURA' | 'CORTESIA' | 'VITALICIA' | 'TRIAL' | null;
   status: 'ATIVA';
   validaAte: string | null;
@@ -89,7 +93,8 @@ export interface StatusPlanoFotografo {
 }
 
 export interface AssinarPlanoPayload {
-  planoCodigo: 'pro_mensal' | 'pro_anual';
+  /** código de um plano pago e ativo do catálogo */
+  planoCodigo: string;
 }
 
 export interface CancelarAssinaturaPayload {

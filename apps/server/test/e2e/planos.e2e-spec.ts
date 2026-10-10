@@ -113,6 +113,9 @@ describe('planos e assinaturas do fotógrafo (e2e)', () => {
       .expect(200);
 
     expect(resStatusInicial.body.licenca.plano).toBe('trial');
+    // a licença diz de qual plano veio (o cabeçalho do painel mostra o nome)
+    expect(resStatusInicial.body.licenca.planoCodigo).toBe('pro_mensal');
+    expect(resStatusInicial.body.licenca.planoNome).toBe('PRO mensal');
     expect(resStatusInicial.body.licenca.diasRestantes).toBeGreaterThanOrEqual(13);
     expect(resStatusInicial.body.assinatura).toBeNull();
     expect(resStatusInicial.body.faturas).toHaveLength(0);
@@ -183,6 +186,27 @@ describe('planos e assinaturas do fotógrafo (e2e)', () => {
       resUpgrade.body.faturas.filter((f: { status: string }) => f.status === 'PENDENTE'),
     ).toHaveLength(1);
     expect(resUpgrade.body.licenca.plano).toBe('trial');
+  });
+
+  it('não assina o gratuito, plano inativo nem código inexistente', async () => {
+    const resCad = await api().post('/api/auth/cadastro').send(FOTOGRAFO).expect(201);
+    const token = resCad.body.acesso;
+    await prisma.plano.update({ where: { codigo: 'pro_anual' }, data: { ativo: false } });
+
+    for (const planoCodigo of ['gratuito', 'pro_anual', 'nao_existe']) {
+      const res = await api()
+        .post('/api/planos/assinar')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ planoCodigo })
+        .expect(404);
+      expect(res.body.codigo).toBe('PLANO_NAO_ENCONTRADO');
+    }
+    await api()
+      .post('/api/planos/assinar')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ planoCodigo: 'PRO MENSAL; drop' })
+      .expect(400);
+    expect(await prisma.assinatura.count()).toBe(0);
   });
 
   it('assinatura já paga não troca de plano pelo painel', async () => {
