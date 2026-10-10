@@ -38,7 +38,8 @@ pnpm --filter fotografo build
 pnpm --filter admin build
 
 echo "==> migrations"
-pnpm --filter server db:migrate
+# sem stdin e com CI=1 o Prisma não pergunta nada (ex.: "instalar agent skills?")
+CI=1 pnpm --filter server db:migrate </dev/null
 
 echo "==> pm2"
 if pm2 describe server >/dev/null 2>&1; then

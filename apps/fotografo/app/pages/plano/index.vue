@@ -159,7 +159,7 @@ function dataHora(iso: string | null | undefined): string {
   });
 }
 
-const semLimite = 'Ilimitado';
+const semLimite = 'Sem limite';
 const num = (n: number | null | undefined) => (n === null || n === undefined ? semLimite : n.toLocaleString('pt-BR'));
 const gb = (mb: number | null | undefined) =>
   mb === null || mb === undefined ? semLimite : mb >= 1024 ? `${Math.round(mb / 1024)} GB` : `${mb} MB`;
@@ -197,7 +197,7 @@ function itensDoPlano(p: PlanoCatalogo): string[] {
       : 'Vendas de evento sem taxa do FotoRAW',
   ];
   if (p.limiteGaleriasAtivas === null && p.limiteFotosPorGaleria === null) {
-    itens.push('Galerias e fotos ilimitadas');
+    itens.push('Galerias e fotos sem limite de quantidade');
   }
   if (p.limiteDispositivos !== null) {
     itens.push(`Até ${p.limiteDispositivos} ${p.limiteDispositivos === 1 ? 'computador' : 'computadores'}`);
@@ -481,11 +481,17 @@ const recursosLicenca = computed(() => {
               <span class="text-lg font-semibold tabular-nums text-text block mt-0.5">
                 {{ num(licenca?.recursos.limite_galerias_ativas) }}
               </span>
+              <span v-if="licenca?.recursos.limite_galerias_ativas === null" class="mt-0.5 block text-[11px] text-muted">
+                o limite é o espaço em nuvem
+              </span>
             </div>
             <div class="rounded-lg border border-border bg-surface-2/40 p-3">
               <span class="text-muted block">Fotos por Galeria</span>
               <span class="text-lg font-semibold tabular-nums text-text block mt-0.5">
                 {{ num(licenca?.recursos.limite_fotos_por_galeria) }}
+              </span>
+              <span v-if="licenca?.recursos.limite_fotos_por_galeria === null" class="mt-0.5 block text-[11px] text-muted">
+                o limite é o espaço em nuvem
               </span>
             </div>
             <div class="rounded-lg border border-border bg-surface-2/40 p-3">
