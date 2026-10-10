@@ -49,7 +49,9 @@ const mp = {
     return { live_mode: true };
   },
   async obterCobranca(id: string) {
-    return mp.cobrancas.get(id)!;
+    const c = mp.cobrancas.get(id);
+    if (!c) throw new MercadoPagoRecusouExcecao(`The Authorized Payment with id ${id} does not exist`, 404);
+    return c;
   },
 };
 
@@ -285,6 +287,36 @@ describe('assinatura de plano no cartão pelo Mercado Pago (e2e)', () => {
     await webhook('subscription_preapproval', 'pre-1', 'n-1').expect(200);
     const status = await api().get('/api/planos/meu-status').set('Authorization', `Bearer ${token}`).expect(200);
     expect(status.body.assinatura).toBeNull();
+  });
+
+  it('cobrança que chega depois do pedido cancelado não reabre o plano e avisa o admin', async () => {
+    const token = await cadastrar();
+    await api().post('/api/planos/assinar').set('Authorization', `Bearer ${token}`).send({ planoCodigo: 'pro_mensal', cartao: { token: 'tok-cartao-1', email: 'a@b.local' } }).expect(200);
+    await api().post('/api/planos/cancelar').set('Authorization', `Bearer ${token}`).send({}).expect(200);
+    mp.cobrancas.set('55', { id: 55, preapproval_id: 'pre-1', status: 'processed', transaction_amount: 59.9, payment: { status: 'approved' } });
+    const res = await webhook('subscription_authorized_payment', '55', 'n-1').expect(200);
+    expect(res.body.resultado).toMatch(/já encerrada/);
+    expect(await prisma.fatura.count({ where: { status: 'PAGA' } })).toBe(0);
+    expect(avisos.map((a) => a.titulo)).toEqual(['Cobrança em assinatura cancelada']);
+    const status = await api().get('/api/planos/meu-status').set('Authorization', `Bearer ${token}`).expect(200);
+    expect(status.body.licenca.plano).toBe('trial');
+  });
+
+  it('cobrança que o MP diz não existir: tenta de novo, e depois de 2 h desiste', async () => {
+    // qualquer resposta que não seja 2xx faz o MP reenviar
+    await webhook('subscription_authorized_payment', '404404', 'n-1').expect(422);
+    let w = await prisma.webhookRecebido.findFirstOrThrow();
+    expect(w.processadoEm).toBeNull();
+    expect(w.erro).toMatch(/does not exist/);
+    // o MP reenviou 3 h depois
+    await prisma.webhookRecebido.update({
+      where: { id: w.id },
+      data: { criadoEm: new Date(Date.now() - 3 * 60 * 60 * 1000) },
+    });
+    const res = await webhook('subscription_authorized_payment', '404404', 'n-1').expect(200);
+    expect(res.body.resultado).toMatch(/ignorado/);
+    w = await prisma.webhookRecebido.findFirstOrThrow();
+    expect(w.processadoEm).not.toBeNull();
   });
 
   it('aviso de cobrança de assinatura que não é nossa só é registrado', async () => {

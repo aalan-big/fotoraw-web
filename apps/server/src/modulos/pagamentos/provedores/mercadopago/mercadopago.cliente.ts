@@ -40,7 +40,11 @@ export class MercadoPagoIndisponivelExcecao extends DominioExcecao {
 
 /** O MP recusou o pedido (cartão inválido, token vencido…): a mensagem vai pro fotógrafo. */
 export class MercadoPagoRecusouExcecao extends DominioExcecao {
-  constructor(detalhe: string) {
+  constructor(
+    detalhe: string,
+    /** status HTTP que o MP devolveu (404 = recurso não existe lá) */
+    readonly statusMp = 400,
+  ) {
     super('MERCADOPAGO_RECUSOU', `O Mercado Pago recusou: ${detalhe}`);
   }
 }
@@ -149,7 +153,7 @@ export class MercadoPagoCliente {
       this.logger.error(`MP ${metodo} ${caminho}: HTTP ${resposta.status} ${detalhe}`);
       // 4xx = o MP recusou o que mandamos (cartão, token, valor); 5xx/401 = problema nosso/dele
       if (resposta.status >= 400 && resposta.status < 500 && resposta.status !== 401) {
-        throw new MercadoPagoRecusouExcecao(mensagemDoMp(detalhe));
+        throw new MercadoPagoRecusouExcecao(mensagemDoMp(detalhe), resposta.status);
       }
       throw new MercadoPagoIndisponivelExcecao();
     }

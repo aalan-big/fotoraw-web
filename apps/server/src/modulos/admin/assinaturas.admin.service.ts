@@ -5,6 +5,7 @@ import type { Conta, Fatura, Prisma } from '../../infra/prisma/gerado/client.js'
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import type { Contexto } from '../auth/auth.service.js';
 import { LicencasService } from '../licencas/licencas.service.js';
+import { AssinaturasMercadoPagoService } from '../pagamentos/assinaturas-mercadopago.service.js';
 import {
   AssinaturaEncerradaExcecao,
   CobrancaAssinaturasService,
@@ -48,6 +49,7 @@ export class AssinaturasAdminService {
     private readonly licencas: LicencasService,
     private readonly auditoria: AuditoriaService,
     private readonly cobranca: CobrancaAssinaturasService,
+    private readonly mp: AssinaturasMercadoPagoService,
   ) {}
 
   async listar(filtro: ListarAssinaturasDto) {
@@ -195,6 +197,12 @@ export class AssinaturasAdminService {
     if (!a) throw new NaoEncontradoExcecao('Assinatura', id);
     if (a.status === 'CANCELADA' || a.status === 'EXPIRADA') {
       throw new AssinaturaEncerradaExcecao(a.status);
+    }
+    // cobrada no cartão: o MP para de cobrar primeiro (se falhar, nada muda aqui).
+    // No fim do período = pausa (dá pra retomar); agora = cancela de vez.
+    if (a.provedor === 'MERCADOPAGO' && a.provedorAssinaturaId) {
+      if (dto.noFimDoPeriodo) await this.mp.pausar(a.provedorAssinaturaId);
+      else await this.mp.cancelarNoProvedor(a.provedorAssinaturaId);
     }
 
     // faturas em aberto morrem nos dois casos: ninguém vai cobrar depois do cancelamento

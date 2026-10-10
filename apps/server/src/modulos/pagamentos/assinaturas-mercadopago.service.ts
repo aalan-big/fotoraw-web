@@ -130,6 +130,24 @@ export class AssinaturasMercadoPagoService {
     if (await this.prisma.fatura.findUnique({ where: { provedorCobrancaId: ref } })) {
       return `cobrança ${ref}: já registrada`;
     }
+    if (a.status === 'CANCELADA' || a.status === 'EXPIRADA') {
+      // o MP cobrou (ou avisou atrasado) uma assinatura que já encerramos: não reabre o
+      // plano — registra e avisa o admin pra conferir/devolver no painel do MP
+      await this.auditoria.registrar({
+        acao: 'assinatura.cobranca_apos_cancelamento',
+        alvoTipo: 'assinatura',
+        alvoId: a.id,
+        depois: { cobranca: ref, status: c.status, pagamento: c.payment?.status ?? null },
+      });
+      if (c.payment?.status === 'approved') {
+        await this.notificacoes.avisarAdmins({
+          titulo: 'Cobrança em assinatura cancelada',
+          corpo: `${a.conta.nome} · ${a.plano.nome} · ${moeda(c.transaction_amount)} — confira se precisa devolver no Mercado Pago`,
+          url: `/assinaturas/${a.id}`,
+        });
+      }
+      return `cobrança ${ref}: assinatura ${a.id} já encerrada (${a.status})`;
+    }
     if (c.payment?.status !== 'approved') {
       await this.auditoria.registrar({
         acao: 'assinatura.cobranca_nao_aprovada',
