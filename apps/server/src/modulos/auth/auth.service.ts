@@ -349,6 +349,12 @@ export class AuthService {
   async vincularDispositivo(dto: DispositivoDto, ctx: Contexto) {
     const conta = await this.autenticar(dto.email, dto.senha);
 
+    // conta que nunca teve trial (criada pelo admin/seed, não pelo cadastro)
+    // ganha os 14 dias de PRO no primeiro login do desktop; vencido, cai no
+    // gratuito sozinha (LicencasService.atual). Antes do limite de máquinas,
+    // pra valer o limite do trial.
+    await this.licencas.emitirTrial(conta.id);
+
     // reconexão de máquina ainda conectada não ocupa vaga; máquina nova (ou revogada) ocupa
     const existente = await this.dispositivos.porFingerprint(conta.id, dto.fingerprint);
     if (!existente?.conectado) {

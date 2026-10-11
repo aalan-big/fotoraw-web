@@ -358,6 +358,62 @@ describe('auth (e2e)', () => {
       // a mesma máquina continua entrando
       await api().post('/api/auth/dispositivo').send(maquina).expect(200);
     });
+
+    describe('trial no primeiro login do desktop', () => {
+      const SENHA = 'senha-do-fotografo-2026';
+
+      /** conta criada fora do cadastro (admin/seed): nunca recebeu o trial */
+      async function contaSemTrial() {
+        await prisma.plano.create({
+          data: {
+            codigo: 'pro_mensal',
+            nome: 'PRO',
+            precoCentavos: 4990,
+            periodicidade: 'MENSAL',
+            comissaoEventoPct: 10,
+            limiteDispositivos: 3,
+            permiteEnsaio: true,
+            permiteGaleriaPrivada: true,
+            permiteGestaoEstudio: true,
+            ordem: 2,
+          },
+        });
+        return prisma.conta.create({
+          data: {
+            nome: 'Fotógrafo Seed',
+            email: 'seed@fotoraw.local',
+            senhaHash: await app.get(SenhaService).hash(SENHA),
+            slug: 'fotografo-seed',
+            emailVerificadoEm: new Date(),
+          },
+        });
+      }
+      const login = { email: 'seed@fotoraw.local', senha: SENHA, fingerprint: 'fp-seed-0001', nomeMaquina: 'PC' };
+
+      it('conta sem trial ganha 14 dias de PRO e não ganha de novo', async () => {
+        await contaSemTrial();
+        const res = await api().post('/api/auth/dispositivo').send(login).expect(200);
+        const lic = await api()
+          .get('/api/licencas/atual')
+          .set('Authorization', `Bearer ${res.body.tokenApi}`)
+          .expect(200);
+        expect(lic.body.plano).toBe('trial');
+        expect(lic.body.diasRestantes).toBe(14);
+        expect(lic.body.recursos.permite_gestao_estudio).toBe(true);
+
+        await api().post('/api/auth/dispositivo').send(login).expect(200);
+        expect(await prisma.licenca.count({ where: { tipo: 'TRIAL' } })).toBe(1);
+      });
+
+      it('conta com licença ativa (cortesia) não ganha trial por cima', async () => {
+        const conta = await contaSemTrial();
+        await prisma.licenca.create({
+          data: { contaId: conta.id, chave: 'FR-TEST-0000-0002', tipo: 'CORTESIA', recursos: {} },
+        });
+        await api().post('/api/auth/dispositivo').send(login).expect(200);
+        expect(await prisma.licenca.count({ where: { tipo: 'TRIAL' } })).toBe(0);
+      });
+    });
   });
 
   // ---------------------------------------------------------------------------

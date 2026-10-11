@@ -43,10 +43,12 @@ export class LicencasService {
 
   constructor(private readonly repo: LicencasRepositorio) {}
 
-  /** Chamado no cadastro. Nunca lança: cadastro sem trial é melhor que cadastro quebrado. */
+  /** Chamado no cadastro e no 1º login do desktop. Nunca lança: cadastro sem trial é melhor que cadastro quebrado. */
   async emitirTrial(contaId: string): Promise<Licenca | null> {
     try {
       if (await this.repo.jaTeveTrial(contaId)) return null;
+      // já tem licença (cortesia, assinatura): o trial não substitui
+      if (await this.repo.ativaMaisRecente(contaId)) return null;
       const pro = await this.repo.planoPorCodigo('pro_mensal');
       if (!pro) {
         this.logger.warn('Plano pro_mensal não existe — trial não emitido');
