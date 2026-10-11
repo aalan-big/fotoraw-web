@@ -58,7 +58,7 @@ const diferenciais = [
     cor: 'success' as const,
     titulo: 'Vende dos dois jeitos',
     texto:
-      'Evento: foto avulsa com Pix, 10% só sobre o que vender. Ensaio: galeria privada com seleção do cliente, extras e entrega — no plano PRO.',
+      'Evento: foto avulsa com Pix, taxa só sobre o que vender (10% no gratuito, a partir de 3% nos planos). Ensaio: galeria privada com seleção do cliente, extras e entrega, sem taxa — no plano PRO.',
   },
 ];
 </script>
@@ -328,8 +328,8 @@ const diferenciais = [
             </p>
             <p class="mt-1 text-muted">
               No gratuito você vende fotos de evento e a plataforma fica com 10% por venda. Os
-              planos pagos dão mais espaço, taxa menor ou zero, ensaios com seleção do cliente e a
-              gestão do estúdio no desktop.
+              planos pagos dão mais espaço, taxa menor nos eventos (a partir de 3%), ensaios sem
+              taxa com seleção do cliente e a gestão do estúdio no desktop.
             </p>
           </div>
           <div class="flex shrink-0 gap-3">

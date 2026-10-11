@@ -60,13 +60,14 @@ e `tokens_verificacao` (tipo `verificar_email | redefinir_senha`, hash, expira, 
 
 ## 1.1 O que cada plano libera
 
-| | Gratuito | PRO (trial 14 dias no cadastro) |
-|---|---|---|
-| Vender foto de **evento** (corrida, pedal, formatura…) | ✅ — plataforma fica com 10% | ✅ — 10% |
-| Publicar **ensaio** (portfólio, entrega ao cliente) | ❌ | ✅ |
-| Galeria privada com **seleção** do cliente | ❌ | ✅ |
-| **Gestão do estúdio** no desktop (clientes, agenda, contratos, financeiro) | ❌ | ✅ |
-| Máquinas / armazenamento | 1 · 20 GB | 3 · 200 GB |
+| | Gratuito | Evento | PRO (trial 14 dias no cadastro) | Business |
+|---|---|---|---|---|
+| Mensalidade | R$ 0 | R$ 80 | R$ 59,90 | R$ 120 |
+| Vender foto de **evento** (corrida, pedal, formatura…) | ✅ — 10% | ✅ — 7% | ✅ — 5% | ✅ — 3% |
+| Publicar **ensaio** (portfólio, entrega ao cliente) — sem taxa | ❌ | ❌ | ✅ | ✅ |
+| Galeria privada com **seleção** do cliente | ❌ | ❌ | ✅ | ✅ |
+| **Gestão do estúdio** no desktop (clientes, agenda, contratos, financeiro) | ❌ | ❌ | ✅ | ✅ |
+| Armazenamento | 5 GB | 200 GB | 15 GB | 200 GB |
 
 Tudo isso vai no snapshot `licencas.recursos` (snake_case) — o desktop lê daí e bloqueia o que não pode.
 

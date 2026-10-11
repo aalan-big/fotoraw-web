@@ -3,7 +3,7 @@
 const beneficios = [
   {
     titulo: '14 dias de PRO, sem cartão',
-    texto: 'Ensaios com seleção do cliente, gestão do estúdio no desktop, 3 máquinas, 200 GB.',
+    texto: 'Ensaios com seleção do cliente, gestão do estúdio no desktop, 3 máquinas, 15 GB.',
   },
   {
     titulo: 'Depois, venda eventos de graça',

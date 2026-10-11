@@ -97,6 +97,10 @@ Plano (catálogo) ≠ assinatura (contrato de cobrança) ≠ licença (direito d
 > **Tabela de 2026-10-10** (dono, após pesquisa de mercado; só mensal, cartão automático pelo Mercado Pago):
 > Gratuito R$ 0 · 5 GB · 10% · só evento — **Evento** R$ 80 · 200 GB · 7% · só evento — **PRO** R$ 59,90 · 15 GB · 0% ·
 > tudo — **Business** R$ 120 · 200 GB · 0% · tudo do PRO. Plano pago não paga os 10%: paga a `comissao_evento_pct` dele.
+>
+> **Comissão de 2026-10-11** (dono): toda venda de **evento** paga comissão em qualquer plano — Gratuito 10% · Evento 7% ·
+> **PRO 5%** · **Business 3%**. O 0% fica só pro **ensaio**. Motivo: com 0% em evento, quem mais vende migraria pro
+> PRO/Business e pagaria só a mensalidade.
 
 **`assinaturas`**
 `conta_id` · `plano_id` · `status: trial | ativa | inadimplente | cancelada | expirada` · `inicio_em` ·

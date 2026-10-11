@@ -178,7 +178,7 @@ async function salvar() {
           <span class="font-medium">Repassar a taxa do pagamento pro cliente</span>
           <span class="mt-0.5 block text-muted">
             Ligado: a taxa do Pix/cartão entra no total do cliente. Desligado: você absorve. A
-            comissão da plataforma (10%) é sempre sobre o subtotal.
+            comissão da plataforma (a taxa do seu plano) é sempre sobre o subtotal.
           </span>
         </span>
       </label>

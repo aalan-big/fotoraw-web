@@ -275,7 +275,7 @@ function itensDoPlano(p: PlanoCatalogo): string[] {
   if (p.limiteDispositivos !== null) {
     itens.push(`Até ${p.limiteDispositivos} ${p.limiteDispositivos === 1 ? 'computador' : 'computadores'}`);
   }
-  if (p.permiteEnsaio) itens.push('Ensaios, portfólio e seleção do cliente');
+  if (p.permiteEnsaio) itens.push('Ensaios, portfólio e seleção do cliente, sem taxa');
   if (p.permiteGestaoEstudio) itens.push('Gestão completa do estúdio no desktop');
   return itens;
 }

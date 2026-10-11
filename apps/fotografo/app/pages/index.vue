@@ -115,12 +115,12 @@ const trialPct = computed(() => {
   const total = 14;
   return Math.max(4, Math.min(100, Math.round((l.diasRestantes / total) * 100)));
 });
-/** O que a licença atual libera — gratuito só vende evento (10%); o resto é PRO. */
+/** O que a licença atual libera — gratuito só vende evento; o resto é PRO. A taxa varia por plano (ver /plano). */
 const recursosPlano = computed(() => {
   const r = eu.value?.licenca.recursos;
   if (!r) return [];
   return [
-    { rotulo: 'Vender fotos de evento (10% por venda)', ok: r.permite_evento },
+    { rotulo: 'Vender fotos de evento', ok: r.permite_evento },
     { rotulo: 'Publicar ensaios (portfólio e entrega)', ok: r.permite_ensaio },
     { rotulo: 'Galeria privada com seleção do cliente', ok: r.permite_galeria_privada },
     { rotulo: 'Gestão do estúdio no desktop', ok: r.permite_gestao_estudio },

@@ -58,7 +58,12 @@ function itens(p: PlanoPublico): { texto: string; ok: boolean }[] {
       ok: true,
     });
   }
-  lista.push({ texto: 'Ensaios, portfólio e seleção do cliente', ok: p.permiteEnsaio });
+  lista.push({
+    texto: p.permiteEnsaio
+      ? 'Ensaios, portfólio e seleção do cliente, sem taxa'
+      : 'Ensaios, portfólio e seleção do cliente',
+    ok: p.permiteEnsaio,
+  });
   lista.push({ texto: 'Gestão do estúdio no desktop', ok: p.permiteGestaoEstudio });
   return lista;
 }
