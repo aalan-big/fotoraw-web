@@ -46,7 +46,7 @@ export class StorageService {
     bucket: string,
     chave: string,
     tipoMime = 'image/jpeg',
-    expiraEmSegundos = 3600,
+    expiraEmSegundos = 7200, // 2 horas de validade para garantir envios em conexões lentas
   ): Promise<string> {
     const comando = new PutObjectCommand({
       Bucket: bucket,
@@ -70,6 +70,23 @@ export class StorageService {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Obtém o tamanho real em bytes de um objeto gravado no bucket (via HEAD).
+   * Retorna null se o objeto não existir ou se não for possível obter.
+   */
+  async obterTamanhoObjetoBytes(bucket: string, chave: string): Promise<number | null> {
+    try {
+      const comando = new HeadObjectCommand({
+        Bucket: bucket,
+        Key: chave,
+      });
+      const resposta = await this.s3.send(comando);
+      return typeof resposta.ContentLength === 'number' ? resposta.ContentLength : null;
+    } catch {
+      return null;
     }
   }
 

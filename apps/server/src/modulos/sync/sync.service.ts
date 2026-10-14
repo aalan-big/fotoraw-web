@@ -73,7 +73,68 @@ export class SyncService {
       );
     }
 
-    // 2. Idempotência por lote
+    // 2. Validação de cota de armazenamento em GB/MB do plano (quando definido)
+    if (licenca.recursos.limite_armazenamento_mb != null) {
+      const limiteBytes = BigInt(licenca.recursos.limite_armazenamento_mb) * 1024n * 1024n;
+
+      const galeriaExistente = await this.prisma.galeria.findUnique({
+        where: {
+          contaId_ensaioIdDesktop: {
+            contaId,
+            ensaioIdDesktop: dto.ensaioIdDesktop,
+          },
+        },
+        select: { id: true },
+      });
+
+      // 2.1 Fotos já gravadas no banco para esta conta (excluindo fotos da galeria atual caso seja atualização)
+      const fotosBanco = await this.prisma.foto.aggregate({
+        where: {
+          galeria: { contaId },
+          ...(galeriaExistente ? { galeriaId: { not: galeriaExistente.id } } : {}),
+        },
+        _sum: { tamanhoAltaBytes: true },
+      });
+      const bytesAtuais = BigInt(fotosBanco._sum.tamanhoAltaBytes ?? 0);
+
+      // 2.2 Lotes concorrentes ainda em processamento/envio da mesma conta
+      const lotesEmAndamento = await this.prisma.syncLote.findMany({
+        where: {
+          contaId,
+          status: { in: ['RECEBIDO', 'PROCESSANDO'] },
+          chaveIdempotencia: { not: dto.chaveIdempotencia },
+          ...(galeriaExistente ? { galeriaId: { not: galeriaExistente.id } } : {}),
+        },
+        select: {
+          galeria: {
+            select: {
+              fotos: { select: { tamanhoAltaBytes: true } },
+            },
+          },
+        },
+      });
+      let bytesEmAndamento = 0n;
+      for (const l of lotesEmAndamento) {
+        if (l.galeria) {
+          for (const f of l.galeria.fotos) {
+            bytesEmAndamento += BigInt(f.tamanhoAltaBytes ?? 0);
+          }
+        }
+      }
+
+      // 2.3 Bytes previstos das fotos deste novo lote
+      const bytesNovoLote = dto.fotos.reduce((acc, f) => acc + BigInt(f.tamanhoAltaBytes ?? 0), 0n);
+
+      const bytesTotalPrevisto = bytesAtuais + bytesEmAndamento + bytesNovoLote;
+      if (bytesTotalPrevisto > limiteBytes) {
+        const mbTotal = Number(bytesTotalPrevisto / (1024n * 1024n));
+        throw new ForbiddenException(
+          `Esta galeria excederá a cota de armazenamento do seu plano (${mbTotal} MB previstos / ${licenca.recursos.limite_armazenamento_mb} MB disponíveis). Faça upgrade para continuar.`,
+        );
+      }
+    }
+
+    // 3. Idempotência por lote: se já CONCLUIDO, devolve o que já foi feito
     const loteExistente = await this.prisma.syncLote.findUnique({
       where: { chaveIdempotencia: dto.chaveIdempotencia },
     });
@@ -86,7 +147,7 @@ export class SyncService {
       };
     }
 
-    // 3. Obter conta para prefixo de código de acesso e link
+    // 4. Obter conta para prefixo de código de acesso e link
     const conta = await this.prisma.conta.findUniqueOrThrow({
       where: { id: contaId },
       select: { slug: true },
@@ -173,18 +234,28 @@ export class SyncService {
       },
     });
 
-    // 7. Registro do Lote
-    const lote = await this.prisma.syncLote.create({
-      data: {
-        contaId,
-        tokenApiId,
-        galeriaId: galeria.id,
-        tipo: 'PUBLICAR',
-        chaveIdempotencia: dto.chaveIdempotencia,
-        status: 'RECEBIDO',
-        totalItens: dto.fotos.length,
-      },
-    });
+    // 7. Registro ou Atualização do Lote (suporta renovação de URLs para o mesmo lote)
+    const lote = loteExistente
+      ? await this.prisma.syncLote.update({
+          where: { id: loteExistente.id },
+          data: {
+            tokenApiId,
+            galeriaId: galeria.id,
+            status: 'RECEBIDO',
+            totalItens: dto.fotos.length,
+          },
+        })
+      : await this.prisma.syncLote.create({
+          data: {
+            contaId,
+            tokenApiId,
+            galeriaId: galeria.id,
+            tipo: 'PUBLICAR',
+            chaveIdempotencia: dto.chaveIdempotencia,
+            status: 'RECEBIDO',
+            totalItens: dto.fotos.length,
+          },
+        });
 
     // 8. Gerar URLs pré-assinadas e criar registros de fotos
     const urlsUpload: {
@@ -289,8 +360,19 @@ export class SyncService {
       data: { status: 'PROCESSANDO' },
     });
 
-    // Atualiza fotos confirmadas se enviadas
+    // Atualiza fotos confirmadas se enviadas, medindo o tamanho físico real gravado no R2
     for (const f of dto.fotos) {
+      let tamanhoFinalBytes = f.tamanhoAltaBytes;
+      if (f.altaKey) {
+        const tamanhoRealR2 = await this.storage.obterTamanhoObjetoBytes(
+          this.storage.bucketOriginais,
+          f.altaKey,
+        );
+        if (typeof tamanhoRealR2 === 'number' && tamanhoRealR2 > 0) {
+          tamanhoFinalBytes = tamanhoRealR2;
+        }
+      }
+
       await this.prisma.foto.updateMany({
         where: {
           galeriaId: lote.galeria.id,
@@ -301,7 +383,7 @@ export class SyncService {
           altaKey: f.altaKey ?? undefined,
           largura: f.largura ?? undefined,
           altura: f.altura ?? undefined,
-          tamanhoAltaBytes: f.tamanhoAltaBytes ?? undefined,
+          tamanhoAltaBytes: tamanhoFinalBytes ?? undefined,
         },
       });
     }

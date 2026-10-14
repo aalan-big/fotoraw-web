@@ -27,7 +27,7 @@ export const fotoSyncItemSchema = z.object({
   fotoIdDesktop: z.string().min(1),
   largura: z.number().int().positive().optional(),
   altura: z.number().int().positive().optional(),
-  tamanhoAltaBytes: z.number().int().positive().optional(),
+  tamanhoAltaBytes: z.number().int().positive({ message: 'Tamanho em bytes do arquivo em alta é obrigatório' }),
   numeroIdentificacao: z.string().trim().max(50).optional(),
   precoCentavos: z.number().int().min(0).optional(),
   ordem: z.number().int().min(0).default(0),
