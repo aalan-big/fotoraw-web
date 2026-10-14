@@ -47,11 +47,13 @@ export class StorageService {
     chave: string,
     tipoMime = 'image/jpeg',
     expiraEmSegundos = 7200, // 2 horas de validade para garantir envios em conexões lentas
+    tamanhoBytes?: number,
   ): Promise<string> {
     const comando = new PutObjectCommand({
       Bucket: bucket,
       Key: chave,
       ContentType: tipoMime,
+      ...(tamanhoBytes ? { ContentLength: tamanhoBytes } : {}),
     });
 
     return getSignedUrl(this.s3, comando, { expiresIn: expiraEmSegundos });

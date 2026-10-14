@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -87,7 +88,7 @@ export class SyncService {
         select: { id: true },
       });
 
-      // 2.1 Fotos já gravadas no banco para esta conta (excluindo fotos da galeria atual caso seja atualização)
+      // 2.1 Fotos já gravadas no banco para esta conta (excluindo fotos da galeria atual caso seja atualização/renovação)
       const fotosBanco = await this.prisma.foto.aggregate({
         where: {
           galeria: { contaId },
@@ -97,35 +98,10 @@ export class SyncService {
       });
       const bytesAtuais = BigInt(fotosBanco._sum.tamanhoAltaBytes ?? 0);
 
-      // 2.2 Lotes concorrentes ainda em processamento/envio da mesma conta
-      const lotesEmAndamento = await this.prisma.syncLote.findMany({
-        where: {
-          contaId,
-          status: { in: ['RECEBIDO', 'PROCESSANDO'] },
-          chaveIdempotencia: { not: dto.chaveIdempotencia },
-          ...(galeriaExistente ? { galeriaId: { not: galeriaExistente.id } } : {}),
-        },
-        select: {
-          galeria: {
-            select: {
-              fotos: { select: { tamanhoAltaBytes: true } },
-            },
-          },
-        },
-      });
-      let bytesEmAndamento = 0n;
-      for (const l of lotesEmAndamento) {
-        if (l.galeria) {
-          for (const f of l.galeria.fotos) {
-            bytesEmAndamento += BigInt(f.tamanhoAltaBytes ?? 0);
-          }
-        }
-      }
-
-      // 2.3 Bytes previstos das fotos deste novo lote
+      // 2.2 Bytes previstos das fotos deste novo lote
       const bytesNovoLote = dto.fotos.reduce((acc, f) => acc + BigInt(f.tamanhoAltaBytes ?? 0), 0n);
 
-      const bytesTotalPrevisto = bytesAtuais + bytesEmAndamento + bytesNovoLote;
+      const bytesTotalPrevisto = bytesAtuais + bytesNovoLote;
       if (bytesTotalPrevisto > limiteBytes) {
         const mbTotal = Number(bytesTotalPrevisto / (1024n * 1024n));
         throw new ForbiddenException(
@@ -286,6 +262,8 @@ export class SyncService {
           this.storage.bucketOriginais,
           altaKey,
           'image/jpeg',
+          7200,
+          f.tamanhoAltaBytes,
         );
         urlsUpload.push({
           fotoIdDesktop: f.fotoIdDesktop,
@@ -355,23 +333,70 @@ export class SyncService {
       throw new NotFoundException('Lote de sincronização não encontrado');
     }
 
+    // 1. Valida existência dos arquivos físicos no R2 e mede tamanhos reais
+    const tamanhosReais = new Map<string, number>();
+
+    for (const f of dto.fotos) {
+      const previewExiste = await this.storage.verificarObjetoExiste(
+        this.storage.bucketPreviews,
+        f.previewKey,
+      );
+      if (!previewExiste) {
+        throw new BadRequestException(
+          `Arquivo de prévia da foto ${f.fotoIdDesktop} não foi encontrado no armazenamento.`,
+        );
+      }
+
+      if (f.altaKey) {
+        const tamanhoReal = await this.storage.obterTamanhoObjetoBytes(
+          this.storage.bucketOriginais,
+          f.altaKey,
+        );
+        if (tamanhoReal === null) {
+          throw new BadRequestException(
+            `Arquivo original em alta da foto ${f.fotoIdDesktop} não foi encontrado no armazenamento.`,
+          );
+        }
+        tamanhosReais.set(f.fotoIdDesktop, tamanhoReal);
+      }
+    }
+
+    // 2. Recalcula a cota de armazenamento da conta com os tamanhos reais medidos no R2
+    const licenca = await this.licencas.atual(contaId);
+    if (licenca.recursos.limite_armazenamento_mb != null) {
+      const limiteBytes = BigInt(licenca.recursos.limite_armazenamento_mb) * 1024n * 1024n;
+
+      const outrasFotos = await this.prisma.foto.aggregate({
+        where: {
+          galeria: { contaId },
+          galeriaId: { not: lote.galeria.id },
+        },
+        _sum: { tamanhoAltaBytes: true },
+      });
+      const bytesOutras = BigInt(outrasFotos._sum.tamanhoAltaBytes ?? 0);
+
+      let bytesDestaGaleria = 0n;
+      for (const f of dto.fotos) {
+        const tamanho = tamanhosReais.get(f.fotoIdDesktop) ?? f.tamanhoAltaBytes ?? 0;
+        bytesDestaGaleria += BigInt(tamanho);
+      }
+
+      if (bytesOutras + bytesDestaGaleria > limiteBytes) {
+        const mbTotal = Number((bytesOutras + bytesDestaGaleria) / (1024n * 1024n));
+        throw new ForbiddenException(
+          `Limite de armazenamento do plano excedido após conferência dos arquivos (${mbTotal} MB medidos / ${licenca.recursos.limite_armazenamento_mb} MB contratados). Faça upgrade da conta.`,
+        );
+      }
+    }
+
     await this.prisma.syncLote.update({
       where: { id: loteId },
       data: { status: 'PROCESSANDO' },
     });
 
-    // Atualiza fotos confirmadas se enviadas, medindo o tamanho físico real gravado no R2
+    // 3. Atualiza fotos confirmadas com os tamanhos reais medidos
     for (const f of dto.fotos) {
-      let tamanhoFinalBytes = f.tamanhoAltaBytes;
-      if (f.altaKey) {
-        const tamanhoRealR2 = await this.storage.obterTamanhoObjetoBytes(
-          this.storage.bucketOriginais,
-          f.altaKey,
-        );
-        if (typeof tamanhoRealR2 === 'number' && tamanhoRealR2 > 0) {
-          tamanhoFinalBytes = tamanhoRealR2;
-        }
-      }
+      const tamanhoFinal = tamanhosReais.get(f.fotoIdDesktop) ?? f.tamanhoAltaBytes ?? undefined;
 
       await this.prisma.foto.updateMany({
         where: {
@@ -383,7 +408,7 @@ export class SyncService {
           altaKey: f.altaKey ?? undefined,
           largura: f.largura ?? undefined,
           altura: f.altura ?? undefined,
-          tamanhoAltaBytes: tamanhoFinalBytes ?? undefined,
+          tamanhoAltaBytes: tamanhoFinal,
         },
       });
     }
