@@ -308,7 +308,11 @@ const rotuloMetodoRepasse: Record<MetodoRepasse, string> = {
                   {{ saldo.conexaoMercadoPago.rotulo || 'Conta Mercado Pago' }}
                 </p>
                 <p class="text-xs text-muted">
-                  ID Provedor: {{ saldo.conexaoMercadoPago.provedorUsuarioId || '—' }}
+                  {{
+                    saldo.conexaoMercadoPago.provedorUsuarioId
+                      ? `Conta MP #${saldo.conexaoMercadoPago.provedorUsuarioId}`
+                      : 'Conta MP conectada'
+                  }}
                 </p>
               </div>
             </div>
@@ -339,7 +343,7 @@ const rotuloMetodoRepasse: Record<MetodoRepasse, string> = {
           </div>
 
           <p class="text-xs text-muted leading-relaxed">
-            Ao conectar, seus dados e tokens são armazenados com criptografia de ponta a ponta (AES-256-GCM). O FotoRAW nunca tem acesso a senhas ou dados bancários confidenciais.
+            Ao conectar, seus tokens de acesso são armazenados com criptografia em repouso (AES-256-GCM). O FotoRAW nunca tem acesso a senhas ou dados bancários confidenciais.
           </p>
 
           <div class="pt-2">
