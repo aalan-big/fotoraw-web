@@ -314,10 +314,7 @@ export class AssinaturasAdminService {
       },
       select: { id: true, assinaturaId: true },
     });
-    if (!vencidas.length) {
-      await this.cobranca.verificarAvisosVencimento();
-      return;
-    }
+    if (!vencidas.length) return;
     await this.prisma.$transaction([
       this.prisma.fatura.updateMany({
         where: { id: { in: vencidas.map((f) => f.id) } },
@@ -328,7 +325,6 @@ export class AssinaturasAdminService {
         data: { status: 'INADIMPLENTE' },
       }),
     ]);
-    await this.cobranca.verificarAvisosVencimento();
   }
 }
 

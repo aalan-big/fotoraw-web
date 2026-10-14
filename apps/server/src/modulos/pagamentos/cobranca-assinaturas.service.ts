@@ -178,21 +178,29 @@ export class CobrancaAssinaturasService {
 
   /**
    * Dispara e-mails de cobrança para o fotógrafo:
-   * 1. "Seu plano vence em 3 dias" (aviso preventivo antes de vencer)
-   * 2. "Seu plano venceu" (para planos inadimplentes ou expirados)
+   * 1. "Seu plano vence em 3 dias": apenas para quem paga no Pix/manual ou pediu cancelamento no fim do período.
+   *    (Quem tem cartão recorrente no MP renova no dia automaticamente).
+   * 2. "Seu plano venceu": apenas para assinaturas que venceram recentemente (últimos 4 dias),
+   *    que já foram pagas pelo menos uma vez, e cuja conta não possui outra assinatura ativa.
    * Usa a tabela auditoria para garantir que cada aviso seja enviado no máximo 1x por ciclo.
    */
   async verificarAvisosVencimento(): Promise<{ avisos3Dias: number; avisosVencidos: number }> {
     const hoje = inicioDoDia(new Date(), true);
-    const em3Dias = new Date(hoje.getTime() + 3 * 24 * 60 * 60 * 1000);
-    const em4Dias = new Date(hoje.getTime() + 4 * 24 * 60 * 60 * 1000);
+    const DIA = 24 * 60 * 60 * 1000;
+    const em3Dias = new Date(hoje.getTime() + 3 * DIA);
+    const em4Dias = new Date(hoje.getTime() + 4 * DIA);
+    const limiteRecente = new Date(hoje.getTime() - 4 * DIA);
     const fotografoUrl = this.config.get('FOTOGRAFO_URL');
 
-    // 1. Assinaturas ativas que vencem em aproximadamente 3 dias
+    // 1. Assinaturas que vencem em ~3 dias E precisam de ação manual (Pix/manual ou agendada para encerrar)
     const prestesAVencer = await this.prisma.assinatura.findMany({
       where: {
         status: 'ATIVA',
         periodoAtualFim: { gte: em3Dias, lt: em4Dias },
+        OR: [
+          { provedor: 'MANUAL' },
+          { cancelaNoFimDoPeriodo: true },
+        ],
       },
       include: {
         conta: { select: { id: true, nome: true, email: true } },
@@ -231,10 +239,17 @@ export class CobrancaAssinaturasService {
       }
     }
 
-    // 2. Assinaturas que viraram inadimplentes ou expiraram
+    // 2. Assinaturas vencidas recentemente, pagas ao menos 1x, e conta sem outra assinatura ativa
     const vencidas = await this.prisma.assinatura.findMany({
       where: {
         status: { in: ['INADIMPLENTE', 'EXPIRADA'] },
+        periodoAtualFim: { gte: limiteRecente, lt: hoje },
+        faturas: { some: { status: 'PAGA' } },
+        conta: {
+          assinaturas: {
+            none: { status: 'ATIVA' },
+          },
+        },
       },
       include: {
         conta: { select: { id: true, nome: true, email: true } },

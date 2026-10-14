@@ -1,5 +1,14 @@
 import type { Email } from '../../infra/email/email.service.js';
 
+function escapeHtml(texto: string): string {
+  return texto
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function layout(
   titulo: string,
   corpo: string,
@@ -13,8 +22,8 @@ function layout(
           .map(
             (d) =>
               `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:14px">
-                <span style="color:#666">${d.rotulo}:</span>
-                <strong style="color:#111">${d.valor}</strong>
+                <span style="color:#666">${escapeHtml(d.rotulo)}:</span>
+                <strong style="color:#111">${escapeHtml(d.valor)}</strong>
               </div>`,
           )
           .join('')}
@@ -32,14 +41,14 @@ function layout(
     <span style="font-size:20px;font-weight:700;color:#7a1f2b;letter-spacing:-0.5px">FotoRAW</span>
   </div>
 
-  <h2 style="margin:0 0 16px;font-size:20px;color:#111;line-height:1.3">${titulo}</h2>
+  <h2 style="margin:0 0 16px;font-size:20px;color:#111;line-height:1.3">${escapeHtml(titulo)}</h2>
   <div style="line-height:1.6;font-size:15px;color:#333">${corpo}</div>
 
   ${tabelaDetalhes}
 
   <p style="margin:28px 0">
     <a href="${link}" style="background:#7a1f2b;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;display:inline-block;font-size:14px">
-      ${rotuloBotao}
+      ${escapeHtml(rotuloBotao)}
     </a>
   </p>
 
@@ -64,8 +73,11 @@ export function emailPagamentoConfirmado(dados: {
   validaAteFormatado: string;
   linkPainel: string;
 }): Email {
-  const corpo = `Olá, <strong>${dados.nome}</strong>!<br><br>
-Seu pagamento foi confirmado e os recursos do plano <strong>${dados.planoNome}</strong> já estão liberados na sua conta.`;
+  const nomeEscapado = escapeHtml(dados.nome);
+  const planoEscapado = escapeHtml(dados.planoNome);
+
+  const corpo = `Olá, <strong>${nomeEscapado}</strong>!<br><br>
+Seu pagamento foi confirmado e os recursos do plano <strong>${planoEscapado}</strong> já estão liberados na sua conta.`;
 
   const detalhes = [
     { rotulo: 'Plano', valor: dados.planoNome },
@@ -95,8 +107,11 @@ export function emailCartaoRecusado(dados: {
   valorFormatado: string;
   linkTrocarCartao: string;
 }): Email {
-  const corpo = `Olá, <strong>${dados.nome}</strong>.<br><br>
-A operadora do seu cartão recusou a cobrança referente à assinatura do plano <strong>${dados.planoNome}</strong>.<br><br>
+  const nomeEscapado = escapeHtml(dados.nome);
+  const planoEscapado = escapeHtml(dados.planoNome);
+
+  const corpo = `Olá, <strong>${nomeEscapado}</strong>.<br><br>
+A operadora do seu cartão recusou a cobrança referente à assinatura do plano <strong>${planoEscapado}</strong>.<br><br>
 Para não perder o acesso às suas galerias ativas e aos limites do plano, atualize os dados do seu cartão no painel. O Mercado Pago fará novas tentativas automáticas.`;
 
   const detalhes = [
@@ -127,9 +142,12 @@ export function emailPlanoPreVencimento(dados: {
   venceEmFormatado: string;
   linkPainel: string;
 }): Email {
-  const corpo = `Olá, <strong>${dados.nome}</strong>.<br><br>
-Este é um lembrete de que o período atual do seu plano <strong>${dados.planoNome}</strong> vence em <strong>${dados.dias} dias</strong> (${dados.venceEmFormatado}).<br><br>
-Se você assina com cartão de crédito, a renovação ocorrerá de forma automática. Caso use outro método ou deseje revisar seus dados, acesse o painel.`;
+  const nomeEscapado = escapeHtml(dados.nome);
+  const planoEscapado = escapeHtml(dados.planoNome);
+
+  const corpo = `Olá, <strong>${nomeEscapado}</strong>.<br><br>
+Este é um lembrete de que o período atual do seu plano <strong>${planoEscapado}</strong> encerra em <strong>${dados.dias} dias</strong> (${escapeHtml(dados.venceEmFormatado)}).<br><br>
+Para continuar aproveitando todas as funcionalidades e limites do plano sem interrupções, verifique sua assinatura e realize a renovação pelo painel.`;
 
   const detalhes = [
     { rotulo: 'Plano', valor: dados.planoNome },
@@ -156,26 +174,29 @@ export function emailPlanoVencido(dados: {
   planoNome: string;
   linkRenovar: string;
 }): Email {
-  const corpo = `Olá, <strong>${dados.nome}</strong>.<br><br>
-O período do seu plano <strong>${dados.planoNome}</strong> venceu e não identificamos a renovação do pagamento.<br><br>
-Sua conta foi transferida temporariamente para os limites do plano Gratuito. Para reativar suas galerias e limites ilimitados do plano ${dados.planoNome}, realize a renovação agora.`;
+  const nomeEscapado = escapeHtml(dados.nome);
+  const planoEscapado = escapeHtml(dados.planoNome);
+
+  const corpo = `Olá, <strong>${nomeEscapado}</strong>.<br><br>
+O período contratado da sua assinatura do plano <strong>${planoEscapado}</strong> chegou ao fim e a renovação ainda não foi confirmada.<br><br>
+Para evitar a suspensão dos recursos e limites do seu plano, acesse o painel e regularize o pagamento da sua assinatura.`;
 
   const detalhes = [
-    { rotulo: 'Plano anterior', valor: dados.planoNome },
-    { rotulo: 'Status atual', valor: 'Vencido / Aguardando renovação' },
+    { rotulo: 'Plano', valor: dados.planoNome },
+    { rotulo: 'Situação', valor: 'Aguardando renovação' },
   ];
 
   return {
     para: dados.para,
-    assunto: `Seu plano ${dados.planoNome} venceu`,
+    assunto: `Aviso: renovação pendente do plano ${dados.planoNome}`,
     html: layout(
-      `Seu plano está vencido`,
+      `Renovação Pendente`,
       corpo,
       dados.linkRenovar,
       'Renovar Meu Plano Agora',
       detalhes,
     ),
-    texto: `Olá, ${dados.nome}.\n\nSeu plano ${dados.planoNome} venceu. Renove sua assinatura para manter todas as suas galerias e benefícios ativos:\n${dados.linkRenovar}`,
+    texto: `Olá, ${dados.nome}.\n\nO período do seu plano ${dados.planoNome} chegou ao fim e a renovação está pendente.\nAcesse o painel para regularizar sua assinatura e manter todos os seus benefícios ativos:\n${dados.linkRenovar}`,
   };
 }
 
@@ -187,12 +208,15 @@ export function emailPlanoCancelado(dados: {
   noFimDoPeriodo: boolean;
   linkPainel: string;
 }): Email {
+  const nomeEscapado = escapeHtml(dados.nome);
+  const planoEscapado = escapeHtml(dados.planoNome);
+
   const corpo = dados.noFimDoPeriodo && dados.terminaEmFormatado
-    ? `Olá, <strong>${dados.nome}</strong>.<br><br>
-Confirmamos o pedido de cancelamento da assinatura do plano <strong>${dados.planoNome}</strong>.<br><br>
-Você continuará com todos os benefícios e limites do plano ativos até <strong>${dados.terminaEmFormatado}</strong> (fim do ciclo já pago). Após essa data, sua conta passará para o plano Gratuito e nenhuma nova cobrança será realizada.`
-    : `Olá, <strong>${dados.nome}</strong>.<br><br>
-Confirmamos o cancelamento da sua assinatura do plano <strong>${dados.planoNome}</strong>.<br><br>
+    ? `Olá, <strong>${nomeEscapado}</strong>.<br><br>
+Confirmamos o pedido de cancelamento da assinatura do plano <strong>${planoEscapado}</strong>.<br><br>
+Você continuará com todos os benefícios e limites do plano ativos até <strong>${escapeHtml(dados.terminaEmFormatado)}</strong> (fim do ciclo já pago). Após essa data, sua conta passará para o plano Gratuito e nenhuma nova cobrança será realizada.`
+    : `Olá, <strong>${nomeEscapado}</strong>.<br><br>
+Confirmamos o cancelamento da sua assinatura do plano <strong>${planoEscapado}</strong>.<br><br>
 Sua conta retornou ao plano Gratuito. Todas as suas fotos existentes continuam salvas com segurança.`;
 
   const detalhes = [

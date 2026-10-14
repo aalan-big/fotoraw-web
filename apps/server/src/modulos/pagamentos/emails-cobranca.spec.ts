@@ -66,8 +66,8 @@ describe('emails-cobranca', () => {
       linkRenovar: 'https://painel.fotoraw.com.br/plano',
     });
 
-    expect(email.assunto).toContain('venceu');
-    expect(email.html).toContain('venceu e não identificamos a renovação');
+    expect(email.assunto).toContain('renovação pendente');
+    expect(email.html).toContain('chegou ao fim e a renovação ainda não foi confirmada');
     expect(email.html).toContain('Renovar Meu Plano Agora');
   });
 

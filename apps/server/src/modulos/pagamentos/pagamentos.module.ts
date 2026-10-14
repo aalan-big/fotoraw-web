@@ -4,6 +4,7 @@ import { NotificacoesModule } from '../notificacoes/notificacoes.module.js';
 import { AssinaturasMercadoPagoService } from './assinaturas-mercadopago.service.js';
 import { CobrancaAssinaturasService } from './cobranca-assinaturas.service.js';
 import { MercadoPagoCliente } from './provedores/mercadopago/mercadopago.cliente.js';
+import { RotinaCobrancaService } from './rotina-cobranca.service.js';
 import { MercadoPagoWebhookController } from './webhooks/mercadopago-webhook.controller.js';
 import { MercadoPagoWebhookService } from './webhooks/mercadopago-webhook.service.js';
 
@@ -19,7 +20,8 @@ import { MercadoPagoWebhookService } from './webhooks/mercadopago-webhook.servic
     CobrancaAssinaturasService,
     AssinaturasMercadoPagoService,
     MercadoPagoWebhookService,
+    RotinaCobrancaService,
   ],
-  exports: [CobrancaAssinaturasService, AssinaturasMercadoPagoService],
+  exports: [CobrancaAssinaturasService, AssinaturasMercadoPagoService, RotinaCobrancaService],
 })
 export class PagamentosModule {}
