@@ -1,8 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Env } from '../../config/env.js';
 import { DominioExcecao, NaoEncontradoExcecao } from '../../comum/excecoes/dominio.excecao.js';
 import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
+import { EmailService } from '../../infra/email/email.service.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { LicencasService } from '../licencas/licencas.service.js';
+import {
+  emailPagamentoConfirmado,
+  emailPlanoPreVencimento,
+  emailPlanoVencido,
+} from './emails-cobranca.js';
 import { inicioDoDia, somarPeriodo } from './periodo.js';
 
 export class FaturaNaoPendenteExcecao extends DominioExcecao {
@@ -50,12 +58,21 @@ export class CobrancaAssinaturasService {
     private readonly prisma: PrismaService,
     private readonly licencas: LicencasService,
     private readonly auditoria: AuditoriaService,
+    private readonly email: EmailService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   async registrarPagamento(p: PagamentoDeFatura) {
     const fatura = await this.prisma.fatura.findUnique({
       where: { id: p.faturaId },
-      include: { assinatura: { include: { plano: true } } },
+      include: {
+        assinatura: {
+          include: {
+            plano: true,
+            conta: { select: { id: true, nome: true, email: true } },
+          },
+        },
+      },
     });
     if (!fatura) throw new NaoEncontradoExcecao('Fatura', p.faturaId);
     if (fatura.status !== 'PENDENTE' && fatura.status !== 'VENCIDA') {
@@ -140,6 +157,120 @@ export class CobrancaAssinaturasService {
         observacao: p.observacao ?? null,
       },
     });
+
+    const fotografoUrl = this.config.get('FOTOGRAFO_URL');
+    await this.email.enviar(
+      emailPagamentoConfirmado({
+        para: assinatura.conta.email,
+        nome: assinatura.conta.nome,
+        planoNome: assinatura.plano.nome,
+        valorFormatado: (fatura.valorCentavos / 100).toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        }),
+        validaAteFormatado: fim.toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
+        linkPainel: `${fotografoUrl}/plano`,
+      }),
+    );
+
     return { assinaturaId: assinatura.id, inicio, fim, licenca, nova };
+  }
+
+  /**
+   * Dispara e-mails de cobrança para o fotógrafo:
+   * 1. "Seu plano vence em 3 dias" (aviso preventivo antes de vencer)
+   * 2. "Seu plano venceu" (para planos inadimplentes ou expirados)
+   * Usa a tabela auditoria para garantir que cada aviso seja enviado no máximo 1x por ciclo.
+   */
+  async verificarAvisosVencimento(): Promise<{ avisos3Dias: number; avisosVencidos: number }> {
+    const hoje = inicioDoDia(new Date(), true);
+    const em3Dias = new Date(hoje.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const em4Dias = new Date(hoje.getTime() + 4 * 24 * 60 * 60 * 1000);
+    const fotografoUrl = this.config.get('FOTOGRAFO_URL');
+
+    // 1. Assinaturas ativas que vencem em aproximadamente 3 dias
+    const prestesAVencer = await this.prisma.assinatura.findMany({
+      where: {
+        status: 'ATIVA',
+        periodoAtualFim: { gte: em3Dias, lt: em4Dias },
+      },
+      include: {
+        conta: { select: { id: true, nome: true, email: true } },
+        plano: { select: { nome: true } },
+      },
+    });
+
+    let avisos3Dias = 0;
+    for (const a of prestesAVencer) {
+      const jaEnviado = await this.prisma.auditoria.findFirst({
+        where: {
+          acao: 'email.cobranca_pre_vencimento',
+          alvoId: a.id,
+          criadoEm: { gte: a.periodoAtualInicio },
+        },
+      });
+      if (!jaEnviado) {
+        await this.email.enviar(
+          emailPlanoPreVencimento({
+            para: a.conta.email,
+            nome: a.conta.nome,
+            planoNome: a.plano.nome,
+            dias: 3,
+            venceEmFormatado: a.periodoAtualFim.toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
+            linkPainel: `${fotografoUrl}/plano`,
+          }),
+        );
+        await this.auditoria.registrar({
+          acao: 'email.cobranca_pre_vencimento',
+          alvoTipo: 'assinatura',
+          alvoId: a.id,
+          atorContaId: null,
+          depois: { email: a.conta.email, periodoAtualFim: a.periodoAtualFim.toISOString() },
+        });
+        avisos3Dias++;
+      }
+    }
+
+    // 2. Assinaturas que viraram inadimplentes ou expiraram
+    const vencidas = await this.prisma.assinatura.findMany({
+      where: {
+        status: { in: ['INADIMPLENTE', 'EXPIRADA'] },
+      },
+      include: {
+        conta: { select: { id: true, nome: true, email: true } },
+        plano: { select: { nome: true } },
+      },
+    });
+
+    let avisosVencidos = 0;
+    for (const a of vencidas) {
+      const jaEnviado = await this.prisma.auditoria.findFirst({
+        where: {
+          acao: 'email.plano_vencido',
+          alvoId: a.id,
+          criadoEm: { gte: a.periodoAtualFim },
+        },
+      });
+      if (!jaEnviado) {
+        await this.email.enviar(
+          emailPlanoVencido({
+            para: a.conta.email,
+            nome: a.conta.nome,
+            planoNome: a.plano.nome,
+            linkRenovar: `${fotografoUrl}/plano`,
+          }),
+        );
+        await this.auditoria.registrar({
+          acao: 'email.plano_vencido',
+          alvoTipo: 'assinatura',
+          alvoId: a.id,
+          atorContaId: null,
+          depois: { email: a.conta.email },
+        });
+        avisosVencidos++;
+      }
+    }
+
+    return { avisos3Dias, avisosVencidos };
   }
 }

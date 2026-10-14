@@ -1,11 +1,15 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Env } from '../../config/env.js';
 import { DominioExcecao } from '../../comum/excecoes/dominio.excecao.js';
 import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
+import { EmailService } from '../../infra/email/email.service.js';
 import type { Conta, Plano } from '../../infra/prisma/gerado/client.js';
 import type { Contexto } from '../auth/auth.service.js';
 import { PlanoNaoEncontradoExcecao } from '../licencas/licencas.excecoes.js';
 import { type LicencaAtual, LicencasService } from '../licencas/licencas.service.js';
 import { AssinaturasMercadoPagoService } from '../pagamentos/assinaturas-mercadopago.service.js';
+import { emailPlanoCancelado } from '../pagamentos/emails-cobranca.js';
 import type { AssinarPlanoDto, CancelarAssinaturaDto } from './dto/planos.dto.js';
 import { PlanosRepositorio } from './repositorios/planos.repositorio.js';
 
@@ -90,6 +94,8 @@ export class PlanosService {
     private readonly licencas: LicencasService,
     private readonly auditoria: AuditoriaService,
     private readonly mp: AssinaturasMercadoPagoService,
+    private readonly email: EmailService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   paraCatalogo(p: Plano): PlanoCatalogo {
@@ -290,6 +296,18 @@ export class PlanosService {
         terminaEm: assinatura.periodoAtualFim.toISOString(),
       },
     });
+
+    const fotografoUrl = this.config.get('FOTOGRAFO_URL');
+    await this.email.enviar(
+      emailPlanoCancelado({
+        para: conta.email,
+        nome: conta.nome,
+        planoNome: assinatura.plano.nome,
+        terminaEmFormatado: assinatura.periodoAtualFim.toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
+        noFimDoPeriodo: true,
+        linkPainel: `${fotografoUrl}/plano`,
+      }),
+    );
 
     return this.obterStatus(conta.id);
   }

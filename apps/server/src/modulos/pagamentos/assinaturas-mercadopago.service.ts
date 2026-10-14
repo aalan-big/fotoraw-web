@@ -2,9 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.js';
 import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
+import { EmailService } from '../../infra/email/email.service.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { NotificacoesService } from '../notificacoes/notificacoes.service.js';
 import { CobrancaAssinaturasService } from './cobranca-assinaturas.service.js';
+import { emailCartaoRecusado, emailPlanoCancelado } from './emails-cobranca.js';
 import { MercadoPagoCliente } from './provedores/mercadopago/mercadopago.cliente.js';
 
 /**
@@ -27,6 +29,7 @@ export class AssinaturasMercadoPagoService {
     private readonly cobranca: CobrancaAssinaturasService,
     private readonly auditoria: AuditoriaService,
     private readonly notificacoes: NotificacoesService,
+    private readonly email: EmailService,
     config: ConfigService<Env, true>,
   ) {
     this.fotografoUrl = config.get('FOTOGRAFO_URL').replace(/\/$/, '');
@@ -118,7 +121,7 @@ export class AssinaturasMercadoPagoService {
       where: { provedorAssinaturaId: c.preapproval_id },
       include: {
         plano: true,
-        conta: { select: { nome: true } },
+        conta: { select: { id: true, nome: true, email: true } },
         faturas: {
           where: { status: { in: ['PENDENTE', 'VENCIDA'] } },
           orderBy: { vencimento: 'asc' },
@@ -167,6 +170,15 @@ export class AssinaturasMercadoPagoService {
           corpo: `${a.conta.nome} · ${a.plano.nome} · ${moeda(c.transaction_amount)} — cartão recusado`,
           url: `/assinaturas/${a.id}`,
         });
+        await this.email.enviar(
+          emailCartaoRecusado({
+            para: a.conta.email,
+            nome: a.conta.nome,
+            planoNome: a.plano.nome,
+            valorFormatado: moeda(c.transaction_amount),
+            linkTrocarCartao: `${this.fotografoUrl}/plano`,
+          }),
+        );
       }
       return `cobrança ${ref}: ${c.status}/${c.payment?.status ?? 'sem pagamento'}`;
     }
@@ -209,13 +221,21 @@ export class AssinaturasMercadoPagoService {
     const a =
       (await this.prisma.assinatura.findUnique({
         where: { provedorAssinaturaId: pre.id },
-        include: { faturas: true, plano: true },
+        include: {
+          faturas: true,
+          plano: true,
+          conta: { select: { id: true, nome: true, email: true } },
+        },
       })) ??
       // o aviso pode chegar antes de gravarmos o id do MP: acha pelo external_reference
       (pre.external_reference && /^[0-9a-f-]{36}$/i.test(pre.external_reference)
         ? await this.prisma.assinatura.findUnique({
             where: { id: pre.external_reference },
-            include: { faturas: true, plano: true },
+            include: {
+              faturas: true,
+              plano: true,
+              conta: { select: { id: true, nome: true, email: true } },
+            },
           })
         : null);
     if (!a) return `preapproval ${pre.id}: não é nosso`;
@@ -238,6 +258,16 @@ export class AssinaturasMercadoPagoService {
             data: { status: 'CANCELADA', canceladaEm: new Date() },
           }),
         ]);
+        await this.email.enviar(
+          emailPlanoCancelado({
+            para: a.conta.email,
+            nome: a.conta.nome,
+            planoNome: a.plano.nome,
+            terminaEmFormatado: null,
+            noFimDoPeriodo: false,
+            linkPainel: `${this.fotografoUrl}/plano`,
+          }),
+        );
       } else if (!a.cancelaNoFimDoPeriodo) {
         // já pago: vale até o fim do período e não renova
         await this.prisma.$transaction([
@@ -250,6 +280,16 @@ export class AssinaturasMercadoPagoService {
             data: { cancelaNoFimDoPeriodo: true },
           }),
         ]);
+        await this.email.enviar(
+          emailPlanoCancelado({
+            para: a.conta.email,
+            nome: a.conta.nome,
+            planoNome: a.plano.nome,
+            terminaEmFormatado: a.periodoAtualFim.toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
+            noFimDoPeriodo: true,
+            linkPainel: `${this.fotografoUrl}/plano`,
+          }),
+        );
       }
     } else if (pre.status === 'authorized' && a.cancelaNoFimDoPeriodo) {
       // retomada (pelo painel ou pelo app do MP): volta a renovar

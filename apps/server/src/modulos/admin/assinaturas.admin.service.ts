@@ -1,6 +1,9 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Env } from '../../config/env.js';
 import { DominioExcecao, NaoEncontradoExcecao } from '../../comum/excecoes/dominio.excecao.js';
 import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
+import { EmailService } from '../../infra/email/email.service.js';
 import type { Conta, Fatura, Prisma } from '../../infra/prisma/gerado/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import type { Contexto } from '../auth/auth.service.js';
@@ -10,6 +13,7 @@ import {
   AssinaturaEncerradaExcecao,
   CobrancaAssinaturasService,
 } from '../pagamentos/cobranca-assinaturas.service.js';
+import { emailPlanoCancelado } from '../pagamentos/emails-cobranca.js';
 import { inicioDoDia, somarPeriodo } from '../pagamentos/periodo.js';
 import type {
   CancelarAssinaturaDto,
@@ -50,6 +54,8 @@ export class AssinaturasAdminService {
     private readonly auditoria: AuditoriaService,
     private readonly cobranca: CobrancaAssinaturasService,
     private readonly mp: AssinaturasMercadoPagoService,
+    private readonly email: EmailService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   async listar(filtro: ListarAssinaturasDto) {
@@ -193,7 +199,13 @@ export class AssinaturasAdminService {
   }
 
   async cancelar(admin: Conta, id: string, dto: CancelarAssinaturaDto, ctx: Contexto) {
-    const a = await this.prisma.assinatura.findUnique({ where: { id } });
+    const a = await this.prisma.assinatura.findUnique({
+      where: { id },
+      include: {
+        conta: { select: { id: true, nome: true, email: true } },
+        plano: { select: { nome: true } },
+      },
+    });
     if (!a) throw new NaoEncontradoExcecao('Assinatura', id);
     if (a.status === 'CANCELADA' || a.status === 'EXPIRADA') {
       throw new AssinaturaEncerradaExcecao(a.status);
@@ -250,6 +262,21 @@ export class AssinaturasAdminService {
         periodoAtualFim: a.periodoAtualFim.toISOString(),
       },
     });
+
+    const fotografoUrl = this.config.get('FOTOGRAFO_URL');
+    await this.email.enviar(
+      emailPlanoCancelado({
+        para: a.conta.email,
+        nome: a.conta.nome,
+        planoNome: a.plano.nome,
+        terminaEmFormatado: dto.noFimDoPeriodo
+          ? a.periodoAtualFim.toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+          : null,
+        noFimDoPeriodo: dto.noFimDoPeriodo,
+        linkPainel: `${fotografoUrl}/plano`,
+      }),
+    );
+
     return this.detalhe(id);
   }
 
@@ -287,7 +314,10 @@ export class AssinaturasAdminService {
       },
       select: { id: true, assinaturaId: true },
     });
-    if (!vencidas.length) return;
+    if (!vencidas.length) {
+      await this.cobranca.verificarAvisosVencimento();
+      return;
+    }
     await this.prisma.$transaction([
       this.prisma.fatura.updateMany({
         where: { id: { in: vencidas.map((f) => f.id) } },
@@ -298,6 +328,7 @@ export class AssinaturasAdminService {
         data: { status: 'INADIMPLENTE' },
       }),
     ]);
+    await this.cobranca.verificarAvisosVencimento();
   }
 }
 
