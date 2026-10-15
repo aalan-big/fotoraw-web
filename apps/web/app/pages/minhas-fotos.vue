@@ -35,6 +35,11 @@ onMounted(() => {
   carregarFotos();
 });
 
+function sair() {
+  comprador.sair();
+  grupos.value = [];
+}
+
 const link = (token: string) => `${apiBase}/publico/downloads/${token}/arquivo${ios.value ? '?modo=ver' : ''}`;
 const total = computed(() => grupos.value.reduce((s, g) => s + g.fotos.length, 0));
 </script>
@@ -53,15 +58,22 @@ const total = computed(() => grupos.value.reduce((s, g) => s + g.fotos.length, 0
 
       <!-- entrou -->
       <template v-else>
-        <div class="flex flex-wrap items-end justify-between gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 class="text-3xl font-bold tracking-tight">Minhas fotos</h1>
             <p class="mt-1 text-sm text-muted">
-              {{ comprador.perfil?.email }} ·
-              <button type="button" class="underline-offset-4 hover:text-text hover:underline" @click="comprador.sair()">sair</button>
+              {{ comprador.perfil?.email }}
+              <template v-if="total">
+                · {{ total }} {{ total === 1 ? 'foto' : 'fotos' }} em {{ grupos.length }} {{ grupos.length === 1 ? 'evento' : 'eventos' }}
+              </template>
             </p>
           </div>
-          <p v-if="total" class="text-sm text-muted">{{ total }} {{ total === 1 ? 'foto' : 'fotos' }} em {{ grupos.length }} {{ grupos.length === 1 ? 'evento' : 'eventos' }}</p>
+          <UiBotao variante="secundaria" @click="sair">
+            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 17l5-5-5-5M20 12H9M12 21H5a2 2 0 01-2-2V5a2 2 0 012-2h7" />
+            </svg>
+            Sair
+          </UiBotao>
         </div>
 
         <p v-if="ios && total" class="mt-6 text-sm text-muted">
