@@ -136,7 +136,7 @@ describe('galerias e sync (e2e)', () => {
       .expect(201);
 
     expect(resSync.body.loteId).toBeDefined();
-    expect(resSync.body.urlsUpload).toHaveLength(4); // 2 previews + 2 altas
+    expect(resSync.body.urlsUpload).toHaveLength(6); // 2 prévias + 2 miniaturas + 2 altas
     const loteId = resSync.body.loteId;
     const base = `${resCad.body.conta.id}/${resSync.body.galeriaId}`;
 
@@ -150,6 +150,7 @@ describe('galerias e sync (e2e)', () => {
     // 4b. Só as prévias subiram: falta a alta → recusa
     bucket.set(`previews/${base}/foto-001.webp`, 200_000);
     bucket.set(`previews/${base}/foto-002.webp`, 200_000);
+    bucket.set(`previews/${base}/foto-001.mini.webp`, 30_000); // a foto-002 vai sem miniatura
     await api()
       .post(`/api/sync/lotes/${loteId}/confirmar`)
       .set('Authorization', `Bearer ${tokenApiDesktop}`)
@@ -193,6 +194,8 @@ describe('galerias e sync (e2e)', () => {
     ]);
     expect(gravadas[0]?.altaKey).toBe(`originais/${base}/foto-001.jpg`);
     expect(Number(gravadas[0]?.tamanhoAltaBytes)).toBe(4_900_000); // medido no bucket
+    expect(gravadas[0]?.thumbKey).toBe(`previews/${base}/foto-001.mini.webp`);
+    expect(gravadas[1]?.thumbKey).toBeNull(); // não subiu: a vitrine usa a prévia
 
     // 5. Fotógrafo lista suas galerias na Web
     const resLista = await api()

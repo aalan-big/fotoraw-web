@@ -83,8 +83,10 @@ export type SituacaoGaleria = 'ABERTA' | 'PAUSADA' | 'ENCERRADA';
 
 export interface FotoPublica {
   id: string;
-  /** prévia com marca d'água */
+  /** prévia com a marca de proteção (~1000 px) — foto ampliada */
   url: string | null;
+  /** miniatura da grade (~480 px) */
+  miniaturaUrl: string | null;
   largura: number | null;
   altura: number | null;
   numero: string | null;

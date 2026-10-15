@@ -64,14 +64,17 @@ onUnmounted(() => (document.body.style.overflow = ''));
       </header>
 
       <div class="relative flex min-h-0 flex-1 items-center justify-center px-2 md:px-16" @click.self="indice = null">
-        <img
-          :key="foto.id"
-          :src="foto.url ?? ''"
-          :alt="foto.numero ? `Foto nº ${foto.numero}` : 'Foto'"
-          class="max-h-full max-w-full select-none rounded-md object-contain"
-          draggable="false"
-          @contextmenu.prevent
-        />
+        <div class="relative flex max-h-full max-w-full" @contextmenu.prevent>
+          <img
+            :key="foto.id"
+            :src="foto.url ?? ''"
+            :alt="foto.numero ? `Foto nº ${foto.numero}` : 'Foto'"
+            class="pointer-events-none max-h-[calc(100dvh-10rem)] max-w-full select-none rounded-md object-contain"
+            draggable="false"
+          />
+          <!-- camada transparente: "salvar imagem" pega o vazio, não a foto -->
+          <span class="absolute inset-0" aria-hidden="true" />
+        </div>
         <button
           v-if="(indice ?? 0) > 0"
           type="button"

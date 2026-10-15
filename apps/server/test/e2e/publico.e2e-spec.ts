@@ -77,6 +77,7 @@ describe('vitrine: galeria pública (e2e)', () => {
           fotoIdDesktop: `f${i}`,
           previewKey: `previews/${contaId}/${galeria.id}/f${i}.webp`,
           altaKey: `originais/${contaId}/${galeria.id}/f${i}.jpg`,
+          thumbKey: i === 0 ? `previews/${contaId}/${galeria.id}/f${i}.mini.webp` : null,
           numeroIdentificacao: i === 1 ? '142' : String(200 + i),
           precoCentavos: i === 2 ? 2500 : null,
           ordem: fotos - i, // ordem do desktop invertida de propósito
@@ -103,6 +104,9 @@ describe('vitrine: galeria pública (e2e)', () => {
     expect(res.body.fotos.itens[0].precoCentavos).toBe(2500);
     expect(res.body.fotos.itens[1].precoCentavos).toBe(1500);
     expect(res.body.fotos.itens[0].url).toMatch(/\/previews\/.+\/f2\.webp$/);
+    // miniatura própria quando existe; senão cai pra prévia
+    expect(res.body.fotos.itens[2].miniaturaUrl).toMatch(/\/f0\.mini\.webp$/);
+    expect(res.body.fotos.itens[0].miniaturaUrl).toBe(res.body.fotos.itens[0].url);
     // nada do original vaza pra vitrine
     expect(JSON.stringify(res.body)).not.toContain('originais/');
     expect(JSON.stringify(res.body)).not.toContain('codigoAcesso');

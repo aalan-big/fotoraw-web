@@ -288,15 +288,16 @@ useSeoMeta({
             @click="aberta = i"
           >
             <img
-              :src="foto.url ?? ''"
+              :src="foto.miniaturaUrl ?? foto.url ?? ''"
               :width="foto.largura ?? undefined"
               :height="foto.altura ?? undefined"
               :alt="foto.numero ? `Foto nº ${foto.numero}` : `Foto ${i + 1}`"
               loading="lazy"
               draggable="false"
-              class="h-auto w-full select-none transition-transform duration-500 group-hover:scale-[1.03]"
-              @contextmenu.prevent
+              class="pointer-events-none h-auto w-full select-none transition-transform duration-500 group-hover:scale-[1.03]"
             />
+            <!-- camada transparente: "salvar imagem" pega o vazio, não a foto -->
+            <span class="absolute inset-0" aria-hidden="true" @contextmenu.prevent />
             <span
               v-if="foto.numero"
               class="absolute left-2 top-2 rounded bg-bg/75 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums backdrop-blur"

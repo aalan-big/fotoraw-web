@@ -135,6 +135,7 @@ export class GaleriasPublicasRepositorio {
         select: {
           id: true,
           previewKey: true,
+          thumbKey: true,
           largura: true,
           altura: true,
           numeroIdentificacao: true,

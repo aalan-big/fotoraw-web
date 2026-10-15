@@ -42,8 +42,10 @@ export type SituacaoGaleria = 'ABERTA' | 'PAUSADA' | 'ENCERRADA';
 
 export interface FotoPublica {
   id: string;
-  /** prévia com marca d'água (bucket público) */
+  /** prévia com a marca de proteção (bucket público), ~1000 px — foto ampliada */
   url: string | null;
+  /** miniatura da grade (~480 px); cai pra prévia em foto enviada sem miniatura */
+  miniaturaUrl: string | null;
   largura: number | null;
   altura: number | null;
   numero: string | null;
@@ -168,6 +170,7 @@ export class PublicoService {
         itens: fotos.itens.map((f) => ({
           id: f.id,
           url: urlPublica(this.basePreviews, f.previewKey),
+          miniaturaUrl: urlPublica(this.basePreviews, f.thumbKey ?? f.previewKey),
           largura: f.largura,
           altura: f.altura,
           numero: f.numeroIdentificacao,

@@ -248,13 +248,15 @@ export class SyncService {
     // 8. Gerar URLs pré-assinadas e criar registros de fotos
     const urlsUpload: {
       fotoIdDesktop: string;
-      tipo: 'preview' | 'alta';
+      tipo: 'preview' | 'miniatura' | 'alta';
       urlPut: string;
       chave: string;
     }[] = [];
 
     for (const f of dto.fotos) {
       const previewKey = `previews/${contaId}/${galeria.id}/${f.fotoIdDesktop}.webp`;
+      // miniatura da grade (desktop >= 15/10/2026); quem não manda fica sem e a vitrine usa a prévia
+      const thumbKey = `previews/${contaId}/${galeria.id}/${f.fotoIdDesktop}.mini.webp`;
       const altaKey =
         f.temAlta !== false ? `originais/${contaId}/${galeria.id}/${f.fotoIdDesktop}.jpg` : null;
 
@@ -268,6 +270,12 @@ export class SyncService {
         tipo: 'preview',
         urlPut: urlPutPreview,
         chave: previewKey,
+      });
+      urlsUpload.push({
+        fotoIdDesktop: f.fotoIdDesktop,
+        tipo: 'miniatura',
+        urlPut: await this.storage.gerarUrlUpload(this.storage.bucketPreviews, thumbKey, 'image/webp'),
+        chave: thumbKey,
       });
 
       if (altaKey) {
@@ -297,6 +305,7 @@ export class SyncService {
           galeriaId: galeria.id,
           fotoIdDesktop: f.fotoIdDesktop,
           previewKey,
+          thumbKey,
           altaKey,
           largura: f.largura,
           altura: f.altura,
@@ -308,6 +317,7 @@ export class SyncService {
         },
         update: {
           previewKey,
+          thumbKey,
           altaKey,
           largura: f.largura,
           altura: f.altura,
@@ -368,12 +378,13 @@ export class SyncService {
         galeriaId: lote.galeria.id,
         fotoIdDesktop: { in: dto.fotos.map((f) => f.fotoIdDesktop) },
       },
-      select: { fotoIdDesktop: true, previewKey: true, altaKey: true },
+      select: { fotoIdDesktop: true, previewKey: true, thumbKey: true, altaKey: true },
     });
     const chaves = new Map(registros.map((r) => [r.fotoIdDesktop, r]));
 
     // 2. Valida existência dos arquivos físicos no R2 e mede tamanhos reais
     const tamanhosReais = new Map<string, number>();
+    const semMiniatura = new Set<string>();
 
     for (const f of dto.fotos) {
       const registro = chaves.get(f.fotoIdDesktop);
@@ -391,6 +402,14 @@ export class SyncService {
         throw new BadRequestException(
           `Arquivo de prévia da foto ${f.fotoIdDesktop} não foi encontrado no armazenamento.`,
         );
+      }
+
+      // miniatura é opcional (desktop antigo não manda): sem ela a grade usa a prévia
+      if (
+        registro.thumbKey &&
+        !(await this.storage.verificarObjetoExiste(this.storage.bucketPreviews, registro.thumbKey))
+      ) {
+        semMiniatura.add(f.fotoIdDesktop);
       }
 
       if (registro.altaKey) {
@@ -453,6 +472,7 @@ export class SyncService {
           largura: f.largura ?? undefined,
           altura: f.altura ?? undefined,
           tamanhoAltaBytes: tamanhoFinal,
+          ...(semMiniatura.has(f.fotoIdDesktop) ? { thumbKey: null } : {}),
         },
       });
     }
