@@ -11,6 +11,7 @@ import type {
 import { urlPublica } from '../../infra/storage/urls.js';
 import { LimitadorTentativas } from '../auth/senha/limitador-tentativas.js';
 import { SenhaService } from '../auth/senha/senha.service.js';
+import { CredenciaisVendedorService } from '../pagamentos/vendas/credenciais-vendedor.service.js';
 import {
   type AbrirGaleriaDto,
   type AcessoPorCodigoDto,
@@ -72,7 +73,10 @@ export interface GaleriaAberta {
   publicadaEm: Date | null;
   /** ABERTA vende; PAUSADA mostra sem vender; ENCERRADA não mostra fotos */
   situacao: SituacaoGaleria;
+  /** dá pra pôr no carrinho e pagar agora (avulso, aberta, fotógrafo com Mercado Pago conectado) */
   podeComprar: boolean;
+  /** avulso aberto, mas o fotógrafo ainda não conectou o Mercado Pago */
+  vendasEmBreve: boolean;
   totalFotos: number;
   fotografo: {
     nome: string;
@@ -94,6 +98,7 @@ export class PublicoService {
   constructor(
     private readonly galerias: GaleriasPublicasRepositorio,
     private readonly senhas: SenhaService,
+    private readonly vendedores: CredenciaisVendedorService,
     private readonly config: ConfigService<Env, true>,
   ) {}
 
@@ -139,6 +144,8 @@ export class PublicoService {
       : await this.galerias.listarFotos(galeria.id, dto.pagina, FOTOS_POR_PAGINA, dto.numero);
 
     const { conta } = galeria;
+    const vendeAvulso = situacao === 'ABERTA' && galeria.modoVenda === 'AVULSO';
+    const conectado = vendeAvulso && (await this.vendedores.vendeOnline(galeria.contaId));
     return {
       id: galeria.id,
       titulo: galeria.titulo,
@@ -157,7 +164,8 @@ export class PublicoService {
       capaUrl: urlPublica(this.basePreviews, galeria.capaKey),
       publicadaEm: galeria.publicadaEm,
       situacao,
-      podeComprar: situacao === 'ABERTA' && galeria.modoVenda !== 'ENTREGA',
+      podeComprar: conectado,
+      vendasEmBreve: vendeAvulso && !conectado,
       totalFotos: galeria.totalFotos,
       fotografo: {
         nome: conta.perfil?.nomeFantasia || conta.nome,

@@ -99,10 +99,15 @@ export class StorageService {
     bucket: string,
     chave: string,
     expiraEmSegundos = 3600,
+    /** baixa como arquivo com esse nome (em vez de abrir no navegador) */
+    nomeArquivo?: string,
   ): Promise<string> {
     const comando = new GetObjectCommand({
       Bucket: bucket,
       Key: chave,
+      ...(nomeArquivo
+        ? { ResponseContentDisposition: `attachment; filename="${nomeArquivo.replace(/"/g, '')}"` }
+        : {}),
     });
 
     return getSignedUrl(this.s3, comando, { expiresIn: expiraEmSegundos });

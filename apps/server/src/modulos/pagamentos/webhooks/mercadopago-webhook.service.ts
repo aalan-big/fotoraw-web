@@ -3,6 +3,7 @@ import { Prisma } from '../../../infra/prisma/gerado/client.js';
 import { PrismaService } from '../../../infra/prisma/prisma.service.js';
 import { DominioExcecao } from '../../../comum/excecoes/dominio.excecao.js';
 import { AssinaturasMercadoPagoService } from '../assinaturas-mercadopago.service.js';
+import { VendasService } from '../vendas/vendas.service.js';
 import { MercadoPagoRecusouExcecao } from '../provedores/mercadopago/mercadopago.cliente.js';
 
 export interface AvisoMercadoPago {
@@ -30,6 +31,7 @@ export class MercadoPagoWebhookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly assinaturas: AssinaturasMercadoPagoService,
+    private readonly vendas: VendasService,
   ) {}
 
   async receber(aviso: AvisoMercadoPago): Promise<{ ok: true; resultado: string }> {
@@ -97,8 +99,11 @@ export class MercadoPagoWebhookService {
         return this.assinaturas.processarCobranca(aviso.dataId);
       case 'subscription_preapproval':
         return this.assinaturas.processarAssinatura(aviso.dataId);
+      case 'payment':
+        // venda de foto (pagamento na conta do fotógrafo); mensalidade cai aqui também e é só registrada
+        return this.vendas.processarAviso(aviso.dataId);
       default:
-        // payment (vendas de fotos, ainda não existe), mp-connect, chargebacks…: só registra
+        // mp-connect, chargebacks…: só registra
         return Promise.resolve(`tipo ${aviso.tipo}: só registrado`);
     }
   }

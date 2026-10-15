@@ -94,7 +94,9 @@ describe('vitrine: galeria pública (e2e)', () => {
     expect(res.body).toMatchObject({
       titulo: 'Corrida 10k',
       situacao: 'ABERTA',
-      podeComprar: true,
+      // sem Mercado Pago conectado: mostra, mas a compra fica "em breve"
+      podeComprar: false,
+      vendasEmBreve: true,
       precoFotoCentavos: 1500,
       fotografo: { nome: 'Estúdio Luz', slug: 'estudio-luz' },
       fotos: { total: 3, pagina: 1 },

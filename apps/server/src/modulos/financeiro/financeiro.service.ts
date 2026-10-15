@@ -119,6 +119,7 @@ export class FinanceiroService {
     let accessToken: string;
     let refreshToken: string | null = null;
     let expiraEm: Date | null = null;
+    let publicKey: string | null = null;
 
     // Modo simulado para dev/test se credenciais reais não estiverem configuradas
     if (!appId || !clientSecret || code.startsWith('simulado')) {
@@ -128,6 +129,7 @@ export class FinanceiroService {
       accessToken = `APP_USR_SIMULADO_${Date.now()}`;
       refreshToken = `TG_REFRESH_SIMULADO_${Date.now()}`;
       expiraEm = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+      publicKey = 'TEST-public-key-simulada';
     } else {
       try {
         const resposta = await fetch('https://api.mercadopago.com/oauth/token', {
@@ -155,12 +157,14 @@ export class FinanceiroService {
           access_token: string;
           refresh_token?: string;
           expires_in?: number;
+          public_key?: string;
         };
 
         provedorUsuarioId = String(dados.user_id);
         rotulo = `Conta MP #${provedorUsuarioId}`;
         accessToken = dados.access_token;
         refreshToken = dados.refresh_token ?? null;
+        publicKey = dados.public_key ?? null;
         expiraEm = dados.expires_in
           ? new Date(Date.now() + dados.expires_in * 1000)
           : null;
@@ -183,6 +187,7 @@ export class FinanceiroService {
       refreshTokenCifrado,
       tokenExpiraEm: expiraEm,
       rotulo,
+      publicKey,
     });
 
     await this.auditoria.registrar({

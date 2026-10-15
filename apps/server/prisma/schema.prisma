@@ -324,6 +324,9 @@ model ConexaoPagamento {
   tokenExpiraEm       DateTime? @map("token_expira_em")
   /// e-mail/apelido da conta conectada, só pra exibir
   rotulo              String?
+  /// public_key do vendedor: o Brick de cartão da vitrine tokeniza com ela (o pagamento
+  /// sai em nome dele). Vem no OAuth; conexões antigas ganham no primeiro refresh
+  publicKey           String?   @map("public_key")
   conectadoEm         DateTime  @default(now()) @map("conectado_em")
   revogadoEm          DateTime? @map("revogado_em")
   atualizadoEm        DateTime  @updatedAt @map("atualizado_em")

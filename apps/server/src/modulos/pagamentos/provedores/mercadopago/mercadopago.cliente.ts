@@ -28,6 +28,31 @@ export interface CobrancaRecorrenteMp {
   payment?: { id?: number | string; status?: string; status_detail?: string } | null;
 }
 
+/** Pagamento avulso (venda de foto), criado com o token do vendedor. Só os campos usados. */
+export interface PagamentoMp {
+  id: number;
+  status:
+    | 'pending'
+    | 'approved'
+    | 'authorized'
+    | 'in_process'
+    | 'in_mediation'
+    | 'rejected'
+    | 'cancelled'
+    | 'refunded'
+    | 'charged_back';
+  status_detail?: string;
+  external_reference?: string | null;
+  transaction_amount: number;
+  payment_method_id?: string;
+  date_approved?: string | null;
+  date_of_expiration?: string | null;
+  fee_details?: { type: string; amount: number }[];
+  point_of_interaction?: {
+    transaction_data?: { qr_code?: string; qr_code_base64?: string; ticket_url?: string };
+  };
+}
+
 export class MercadoPagoIndisponivelExcecao extends DominioExcecao {
   constructor() {
     super(
@@ -121,6 +146,24 @@ export class MercadoPagoCliente {
     }
   }
 
+  /**
+   * Venda de foto: o pagamento sai na conta do fotógrafo (`tokenVendedor`, do OAuth) e o
+   * MP retém `application_fee` pra conta do FotoRAW. A chave de idempotência evita
+   * cobrar duas vezes num clique duplo / reenvio.
+   */
+  criarPagamento(tokenVendedor: string, corpo: Record<string, unknown>, idempotencia: string) {
+    return this.chamar<PagamentoMp>('POST', '/v1/payments', corpo, {
+      token: tokenVendedor,
+      idempotencia,
+    });
+  }
+
+  obterPagamento(tokenVendedor: string, id: string): Promise<PagamentoMp> {
+    return this.chamar<PagamentoMp>('GET', `/v1/payments/${encodeURIComponent(id)}`, undefined, {
+      token: tokenVendedor,
+    });
+  }
+
   obterCobranca(id: string): Promise<CobrancaRecorrenteMp> {
     return this.chamar<CobrancaRecorrenteMp>(
       'GET',
@@ -128,14 +171,20 @@ export class MercadoPagoCliente {
     );
   }
 
-  private async chamar<T>(metodo: string, caminho: string, corpo?: unknown): Promise<T> {
+  private async chamar<T>(
+    metodo: string,
+    caminho: string,
+    corpo?: unknown,
+    opcoes: { token?: string; idempotencia?: string } = {},
+  ): Promise<T> {
     let resposta: Response;
     try {
       resposta = await fetch(`${API}${caminho}`, {
         method: metodo,
         headers: {
-          Authorization: `Bearer ${this.token}`,
+          Authorization: `Bearer ${opcoes.token ?? this.token}`,
           'Content-Type': 'application/json',
+          ...(opcoes.idempotencia ? { 'X-Idempotency-Key': opcoes.idempotencia } : {}),
         },
         body: corpo === undefined ? undefined : JSON.stringify(corpo),
         signal: AbortSignal.timeout(15_000),

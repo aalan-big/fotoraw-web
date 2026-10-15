@@ -5,6 +5,9 @@ import { AssinaturasMercadoPagoService } from './assinaturas-mercadopago.service
 import { CobrancaAssinaturasService } from './cobranca-assinaturas.service.js';
 import { MercadoPagoCliente } from './provedores/mercadopago/mercadopago.cliente.js';
 import { RotinaCobrancaService } from './rotina-cobranca.service.js';
+import { CredenciaisVendedorService } from './vendas/credenciais-vendedor.service.js';
+import { VendasController } from './vendas/vendas.controller.js';
+import { VendasService } from './vendas/vendas.service.js';
 import { MercadoPagoWebhookController } from './webhooks/mercadopago-webhook.controller.js';
 import { MercadoPagoWebhookService } from './webhooks/mercadopago-webhook.service.js';
 
@@ -14,14 +17,17 @@ import { MercadoPagoWebhookService } from './webhooks/mercadopago-webhook.servic
  */
 @Module({
   imports: [LicencasModule, NotificacoesModule],
-  controllers: [MercadoPagoWebhookController],
+  controllers: [MercadoPagoWebhookController, VendasController],
   providers: [
     MercadoPagoCliente,
     CobrancaAssinaturasService,
     AssinaturasMercadoPagoService,
     MercadoPagoWebhookService,
     RotinaCobrancaService,
+    CredenciaisVendedorService,
+    VendasService,
   ],
-  exports: [CobrancaAssinaturasService, AssinaturasMercadoPagoService, RotinaCobrancaService],
+  exports: [
+    CredenciaisVendedorService,CobrancaAssinaturasService, AssinaturasMercadoPagoService, RotinaCobrancaService],
 })
 export class PagamentosModule {}

@@ -149,6 +149,7 @@ export class GaleriasPublicasRepositorio {
 
 const SELECAO_GALERIA = {
   id: true,
+  contaId: true,
   titulo: true,
   slug: true,
   descricao: true,

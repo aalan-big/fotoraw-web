@@ -1,6 +1,6 @@
 import type { Email } from '../../infra/email/email.service.js';
 
-function escapeHtml(texto: string): string {
+export function escapeHtml(texto: string): string {
   return texto
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -9,7 +9,7 @@ function escapeHtml(texto: string): string {
     .replace(/'/g, '&#039;');
 }
 
-function layout(
+export function layout(
   titulo: string,
   corpo: string,
   link: string,

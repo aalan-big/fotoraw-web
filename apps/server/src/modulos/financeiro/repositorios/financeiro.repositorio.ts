@@ -25,6 +25,7 @@ export class FinanceiroRepositorio {
     refreshTokenCifrado?: string | null;
     tokenExpiraEm?: Date | null;
     rotulo?: string | null;
+    publicKey?: string | null;
   }) {
     return this.prisma.conexaoPagamento.upsert({
       where: {
@@ -41,6 +42,7 @@ export class FinanceiroRepositorio {
         refreshTokenCifrado: dados.refreshTokenCifrado ?? null,
         tokenExpiraEm: dados.tokenExpiraEm ?? null,
         rotulo: dados.rotulo ?? null,
+        publicKey: dados.publicKey ?? null,
         revogadoEm: null,
       },
       update: {
@@ -49,6 +51,7 @@ export class FinanceiroRepositorio {
         refreshTokenCifrado: dados.refreshTokenCifrado ?? null,
         tokenExpiraEm: dados.tokenExpiraEm ?? null,
         rotulo: dados.rotulo ?? null,
+        publicKey: dados.publicKey ?? null,
         revogadoEm: null,
         conectadoEm: new Date(),
       },
