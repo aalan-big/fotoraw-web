@@ -253,10 +253,14 @@ export class SyncService {
       chave: string;
     }[] = [];
 
+    // a prévia é pública e o Cloudflare guarda por horas: cada lote grava num
+    // endereço novo, senão republicar continuaria mostrando a imagem velha
+    const versao = lote.id.replace(/-/g, '').slice(-10);
+
     for (const f of dto.fotos) {
-      const previewKey = `previews/${contaId}/${galeria.id}/${f.fotoIdDesktop}.webp`;
+      const previewKey = `previews/${contaId}/${galeria.id}/${f.fotoIdDesktop}.${versao}.webp`;
       // miniatura da grade (desktop >= 15/10/2026); quem não manda fica sem e a vitrine usa a prévia
-      const thumbKey = `previews/${contaId}/${galeria.id}/${f.fotoIdDesktop}.mini.webp`;
+      const thumbKey = `previews/${contaId}/${galeria.id}/${f.fotoIdDesktop}.${versao}.mini.webp`;
       const altaKey =
         f.temAlta !== false ? `originais/${contaId}/${galeria.id}/${f.fotoIdDesktop}.jpg` : null;
 

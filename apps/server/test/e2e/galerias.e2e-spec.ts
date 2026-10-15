@@ -139,6 +139,12 @@ describe('galerias e sync (e2e)', () => {
     expect(resSync.body.urlsUpload).toHaveLength(6); // 2 prévias + 2 miniaturas + 2 altas
     const loteId = resSync.body.loteId;
     const base = `${resCad.body.conta.id}/${resSync.body.galeriaId}`;
+    // a chave de cada arquivo vem na resposta (prévia/miniatura têm a versão do lote no nome)
+    const chave = (foto: string, tipo: string) =>
+      resSync.body.urlsUpload.find(
+        (u: { fotoIdDesktop: string; tipo: string }) => u.fotoIdDesktop === foto && u.tipo === tipo,
+      ).chave as string;
+    expect(chave('foto-001', 'preview')).toMatch(/^previews\/.+\/foto-001\.[0-9a-f]{10}\.webp$/);
 
     // 4a. Sem os arquivos no bucket a confirmação é recusada
     await api()
@@ -148,9 +154,9 @@ describe('galerias e sync (e2e)', () => {
       .expect(400);
 
     // 4b. Só as prévias subiram: falta a alta → recusa
-    bucket.set(`previews/${base}/foto-001.webp`, 200_000);
-    bucket.set(`previews/${base}/foto-002.webp`, 200_000);
-    bucket.set(`previews/${base}/foto-001.mini.webp`, 30_000); // a foto-002 vai sem miniatura
+    bucket.set(chave('foto-001', 'preview'), 200_000);
+    bucket.set(chave('foto-002', 'preview'), 200_000);
+    bucket.set(chave('foto-001', 'miniatura'), 30_000); // a foto-002 vai sem miniatura
     await api()
       .post(`/api/sync/lotes/${loteId}/confirmar`)
       .set('Authorization', `Bearer ${tokenApiDesktop}`)
@@ -189,12 +195,12 @@ describe('galerias e sync (e2e)', () => {
 
     const gravadas = await prisma.foto.findMany({ orderBy: { ordem: 'asc' } });
     expect(gravadas.map((f) => f.previewKey)).toEqual([
-      `previews/${base}/foto-001.webp`,
-      `previews/${base}/foto-002.webp`,
+      chave('foto-001', 'preview'),
+      chave('foto-002', 'preview'),
     ]);
     expect(gravadas[0]?.altaKey).toBe(`originais/${base}/foto-001.jpg`);
     expect(Number(gravadas[0]?.tamanhoAltaBytes)).toBe(4_900_000); // medido no bucket
-    expect(gravadas[0]?.thumbKey).toBe(`previews/${base}/foto-001.mini.webp`);
+    expect(gravadas[0]?.thumbKey).toBe(chave('foto-001', 'miniatura'));
     expect(gravadas[1]?.thumbKey).toBeNull(); // não subiu: a vitrine usa a prévia
 
     // 5. Fotógrafo lista suas galerias na Web
@@ -240,7 +246,7 @@ describe('galerias e sync (e2e)', () => {
     expect(resMetricas.body.totalFotos).toBe(2);
   });
   it('evento em modo entrega (sem marca d’água) vira galeria privada com código', async () => {
-    const resCad = await api().post('/api/auth/cadastro').send(FOTOGRAFO).expect(201);
+    await api().post('/api/auth/cadastro').send(FOTOGRAFO).expect(201);
     const resDisp = await api().post('/api/auth/dispositivo').send(MAQUINA).expect(200);
     const token = resDisp.body.tokenApi;
 
@@ -258,9 +264,9 @@ describe('galerias e sync (e2e)', () => {
           fotos: [{ fotoIdDesktop: 'f1', tamanhoAltaBytes: 1000 }],
         })
         .expect(201);
-      const base = `${resCad.body.conta.id}/${lote.body.galeriaId}`;
-      bucket.set(`previews/${base}/f1.webp`, 100);
-      bucket.set(`originais/${base}/f1.jpg`, 1000);
+      for (const u of lote.body.urlsUpload as { tipo: string; chave: string }[]) {
+        bucket.set(u.chave, u.tipo === 'alta' ? 1000 : 100);
+      }
       return api()
         .post(`/api/sync/lotes/${lote.body.loteId}/confirmar`)
         .set('Authorization', `Bearer ${token}`)
