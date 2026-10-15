@@ -5,10 +5,38 @@ useSeoMeta({
   description: 'Entre na sua galeria privada com o código que o fotógrafo enviou.',
 });
 
-// Só visual por enquanto: o acesso passa a funcionar com o módulo `galerias`
-// (galeria PRIVADA + codigo_acesso + senha). O código é o que vai no link do WhatsApp.
+// Quem tem só o código: POST /publico/acesso devolve a galeria e a gente
+// leva pra /@conta/galeria?codigo=. A senha (quando o fotógrafo definiu) fica
+// só na sessão do navegador — a página da galeria manda no header.
+const api = useApi();
 const codigo = ref('');
 const senha = ref('');
+const erro = ref('');
+const entrando = ref(false);
+
+async function entrar() {
+  erro.value = '';
+  entrando.value = true;
+  try {
+    const r = await api<{ contaSlug: string; galeriaSlug: string; codigo: string }>('/publico/acesso', {
+      method: 'POST',
+      body: { codigo: codigo.value, senha: senha.value || undefined },
+    });
+    if (senha.value) {
+      try {
+        sessionStorage.setItem(`fotoraw:senha-galeria:${r.codigo}`, senha.value);
+      } catch {
+        // sem sessionStorage: a galeria pede a senha de novo
+      }
+    }
+    await navigateTo({ path: `/@${r.contaSlug}/${r.galeriaSlug}`, query: { codigo: r.codigo } });
+  } catch (e) {
+    const dados = (e as { data?: { mensagem?: string } }).data;
+    erro.value = dados?.mensagem ?? 'Não foi possível abrir a galeria. Tente de novo.';
+  } finally {
+    entrando.value = false;
+  }
+}
 
 const beneficios = [
   ['Só você vê', 'Galeria privada, com código e senha. Ninguém acha por busca.'],
@@ -61,7 +89,7 @@ const beneficios = [
         <form
           class="card mx-auto w-full max-w-md space-y-5 p-7 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)] md:p-9"
           autocomplete="off"
-          @submit.prevent
+          @submit.prevent="entrar"
         >
           <div>
             <h2 class="text-xl font-semibold">Acessar minha galeria</h2>
@@ -105,7 +133,11 @@ const beneficios = [
             />
           </label>
 
-          <UiBotao type="submit" tamanho="lg" class="w-full">Abrir minha galeria</UiBotao>
+          <p v-if="erro" class="text-sm text-danger">{{ erro }}</p>
+
+          <UiBotao type="submit" tamanho="lg" class="w-full" :disabled="entrando">
+            {{ entrando ? 'Abrindo…' : 'Abrir minha galeria' }}
+          </UiBotao>
 
           <p class="text-center text-xs leading-relaxed text-muted/80">
             Não achou o código? Está na mensagem do fotógrafo, junto com o link. A galeria é privada

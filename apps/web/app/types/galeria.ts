@@ -74,3 +74,65 @@ export interface GaleriaPublica {
     slug: string;
   };
 }
+
+// --- GET /api/publico/galerias/:conta/:galeria ---------------------------
+
+export type ModoVenda = 'AVULSO' | 'PACOTE' | 'ENTREGA';
+/** ABERTA vende; PAUSADA mostra sem vender; ENCERRADA não mostra fotos */
+export type SituacaoGaleria = 'ABERTA' | 'PAUSADA' | 'ENCERRADA';
+
+export interface FotoPublica {
+  id: string;
+  /** prévia com marca d'água */
+  url: string | null;
+  largura: number | null;
+  altura: number | null;
+  numero: string | null;
+  precoCentavos: number | null;
+}
+
+export interface GaleriaAberta {
+  id: string;
+  titulo: string;
+  slug: string;
+  descricao: string | null;
+  modalidade: Modalidade;
+  visibilidade: Visibilidade;
+  categoria: Categoria;
+  modoVenda: ModoVenda;
+  precoFotoCentavos: number | null;
+  fotosIncluidas: number | null;
+  precoPacoteCentavos: number | null;
+  dataEvento: string | null;
+  cidade: string | null;
+  uf: string | null;
+  capaUrl: string | null;
+  publicadaEm: string | null;
+  situacao: SituacaoGaleria;
+  podeComprar: boolean;
+  totalFotos: number;
+  fotografo: {
+    nome: string;
+    slug: string;
+    logoUrl: string | null;
+    whatsapp: string | null;
+    instagram: string | null;
+  };
+  fotos: { itens: FotoPublica[]; total: number; pagina: number; porPagina: number };
+}
+
+// --- GET /api/publico/fotografos/:slug -------------------------------------
+
+export interface PerfilFotografo {
+  nome: string;
+  slug: string;
+  bio: string | null;
+  logoUrl: string | null;
+  capaUrl: string | null;
+  whatsapp: string | null;
+  instagram: string | null;
+  site: string | null;
+  cidade: string | null;
+  uf: string | null;
+  galerias: GaleriaPublica[];
+}

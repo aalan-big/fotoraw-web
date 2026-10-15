@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { SenhaService } from '../auth/senha/senha.service.js';
 import { PublicoService } from './publico.service.js';
 import { GaleriasPublicasRepositorio } from './repositorios/galerias-publicas.repositorio.js';
 
@@ -29,13 +30,14 @@ describe('PublicoService', () => {
       providers: [
         PublicoService,
         { provide: GaleriasPublicasRepositorio, useValue: repo },
+        { provide: SenhaService, useValue: {} },
         { provide: ConfigService, useValue: { get: () => 'http://cdn/previews' } },
       ],
     }).compile();
 
     const resultado = await modulo.get(PublicoService).listarGalerias({ limite: 12 });
 
-    expect(repo.listarVitrine).toHaveBeenCalledWith({ limite: 12 });
+    expect(repo.listarVitrine).toHaveBeenCalledWith({ limite: 12 }, undefined);
     expect(resultado).toEqual([
       expect.objectContaining({
         id: '1',
