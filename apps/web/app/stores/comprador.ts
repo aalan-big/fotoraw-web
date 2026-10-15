@@ -11,7 +11,7 @@ export interface PerfilComprador {
 const CHAVE = 'fotoraw:comprador';
 
 /**
- * Comprador que entrou em "Minhas fotos" (sem senha: Google ou código por e-mail).
+ * Comprador que entrou em "Minhas fotos" (sem senha: código por e-mail).
  * Fica no localStorage — comprar continua possível sem entrar.
  */
 export const useComprador = defineStore('comprador', () => {

@@ -638,7 +638,7 @@ model Comprador {
   cpf             String?
   /// LGPD — null = entrou na área "Minhas fotos" mas ainda não comprou
   aceitouTermosEm DateTime? @map("aceitou_termos_em")
-  /// `sub` do Google quando entra com "Entrar com Google"
+  /// reservado (login com Google foi desligado em 15/10/2026; coluna fica pra não mexer em migration)
   googleId        String?   @unique @map("google_id")
   ultimoAcessoEm  DateTime? @map("ultimo_acesso_em")
   criadoEm        DateTime  @default(now()) @map("criado_em")

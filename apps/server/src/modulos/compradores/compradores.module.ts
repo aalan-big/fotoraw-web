@@ -4,7 +4,7 @@ import { CompradorGuard } from './comprador.guard.js';
 import { CompradoresController } from './compradores.controller.js';
 import { CompradoresService } from './compradores.service.js';
 
-/** Área "Minhas fotos" do comprador: entrar sem senha (código por e-mail ou Google). */
+/** Área "Minhas fotos" do comprador: entrar sem senha (código por e-mail). */
 @Module({
   imports: [AuthModule], // JwtService (assina com segredo próprio do comprador)
   controllers: [CompradoresController],

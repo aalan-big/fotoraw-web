@@ -28,7 +28,7 @@ export function emailFotosLiberadas(dados: {
        resolução, sem marca d'água, já podem ser baixadas.</p>
        <p>Você pode baixar sempre que quiser, enquanto a galeria estiver no ar. Também dá pra
        ver todas as suas compras em <a href="${dados.areaUrl}" style="color:#7a1f2b">Minhas fotos</a>,
-       entrando com o Google ou com um código no seu e-mail.</p>`,
+       entrando com um código que chega no seu e-mail (sem senha).</p>`,
       dados.link,
       'Baixar minhas fotos',
       [

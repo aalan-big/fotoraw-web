@@ -15,10 +15,6 @@ export const confirmarCodigoSchema = z.object({
 });
 export type ConfirmarCodigoDto = z.infer<typeof confirmarCodigoSchema>;
 
-/** `credential` do Google Identity Services (ID token JWT). */
-export const entrarGoogleSchema = z.object({ credential: z.string().min(20).max(4096) });
-export type EntrarGoogleDto = z.infer<typeof entrarGoogleSchema>;
-
 export const atualizarPerfilSchema = z.object({
   nome: z.string().trim().min(3).max(120).optional(),
   whatsapp: z

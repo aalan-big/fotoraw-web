@@ -8,8 +8,6 @@ import {
   atualizarPerfilSchema,
   type ConfirmarCodigoDto,
   confirmarCodigoSchema,
-  type EntrarGoogleDto,
-  entrarGoogleSchema,
   type PedirCodigoDto,
   pedirCodigoSchema,
 } from './dto/compradores.dto.js';
@@ -34,13 +32,6 @@ export class CompradoresController {
   @HttpCode(200)
   confirmar(@Body(new ZodValidationPipe(confirmarCodigoSchema)) dto: ConfirmarCodigoDto) {
     return this.compradores.confirmarCodigo(dto);
-  }
-
-  @Post('entrar/google')
-  @Throttle(ENTRAR)
-  @HttpCode(200)
-  google(@Body(new ZodValidationPipe(entrarGoogleSchema)) dto: EntrarGoogleDto) {
-    return this.compradores.entrarGoogle(dto);
   }
 
   @Get('eu')

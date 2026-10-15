@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // /minhas-fotos — tudo que o comprador já comprou, por evento, pra baixar quando quiser
-// (enquanto a galeria existir). Entrar é sem senha: Google ou código por e-mail.
+// (enquanto a galeria existir). Entrar é sem senha: código por e-mail.
 useSeoMeta({ title: 'Minhas fotos', description: 'Suas fotos compradas no FotoRAW.', robots: 'noindex' });
 
 interface GrupoFotos {

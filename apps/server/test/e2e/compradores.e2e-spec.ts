@@ -160,8 +160,4 @@ describe('área do comprador "Minhas fotos" (e2e)', () => {
     await api().get('/api/galerias').set(auth).expect(401);
   });
 
-  it('Google desligado (sem GOOGLE_CLIENT_ID) responde 503', async () => {
-    const r = await api().post('/api/compradores/entrar/google').send({ credential: 'x'.repeat(40) }).expect(503);
-    expect(r.body.codigo).toBe('GOOGLE_INDISPONIVEL');
-  });
 });

@@ -1,5 +1,5 @@
 import { createHash, randomInt } from 'node:crypto';
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { DominioExcecao } from '../../comum/excecoes/dominio.excecao.js';
@@ -11,7 +11,6 @@ import { urlPublica } from '../../infra/storage/urls.js';
 import type {
   AtualizarPerfilDto,
   ConfirmarCodigoDto,
-  EntrarGoogleDto,
   PedirCodigoDto,
 } from './dto/compradores.dto.js';
 import { emailCodigoComprador } from './emails-comprador.js';
@@ -32,16 +31,13 @@ class CodigoInvalidoExcecao extends DominioExcecao {
 
 /**
  * Área "Minhas fotos" do comprador — sem senha:
- * - código de 6 dígitos no e-mail (vale 15 min, 5 tentativas);
- * - "Entrar com Google" (ID token verificado no Google, só e-mail verificado).
+ * código de 6 dígitos no e-mail (vale 15 min, 5 tentativas).
  * O comprador é o mesmo do checkout (por e-mail): quem comprou como visitante e
  * depois entra vê tudo. Token próprio, com segredo separado do fotógrafo.
  */
 @Injectable()
 export class CompradoresService {
-  private readonly logger = new Logger(CompradoresService.name);
   private readonly segredo: string;
-  private readonly googleClientId: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -52,7 +48,6 @@ export class CompradoresService {
   ) {
     // derivado: um token de comprador nunca vale como token de fotógrafo (e vice-versa)
     this.segredo = `${config.get('JWT_SECRET')}:comprador`;
-    this.googleClientId = config.get('GOOGLE_CLIENT_ID');
   }
 
   // --- entrar com código ------------------------------------------------------------
@@ -90,50 +85,16 @@ export class CompradoresService {
       throw new CodigoInvalidoExcecao('Código incorreto. Confira o e-mail e tente de novo.');
     }
     await this.prisma.codigoComprador.update({ where: { id: atual.id }, data: { usadoEm: new Date() } });
-    return this.entrar(email, {});
-  }
-
-  // --- entrar com Google ------------------------------------------------------------
-
-  async entrarGoogle({ credential }: EntrarGoogleDto) {
-    if (!this.googleClientId) {
-      throw new DominioExcecao('GOOGLE_INDISPONIVEL', 'Entrar com Google ainda não está ativo.', HttpStatus.SERVICE_UNAVAILABLE);
-    }
-    const dados = await this.verificarGoogle(credential);
-    return this.entrar(dados.email, { nome: dados.nome, googleId: dados.sub });
-  }
-
-  /** Confere o ID token no próprio Google (assinatura, validade e público). */
-  private async verificarGoogle(credential: string) {
-    let info: Record<string, string>;
-    try {
-      const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`, {
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      info = (await r.json()) as Record<string, string>;
-    } catch (erro) {
-      this.logger.warn(`tokeninfo do Google: ${erro instanceof Error ? erro.message : erro}`);
-      throw new CodigoInvalidoExcecao('Não foi possível confirmar sua conta Google. Tente de novo.');
-    }
-    const emailVerificado = String(info.email_verified) === 'true';
-    if (info.aud !== this.googleClientId || !info.email || !emailVerificado || !info.sub) {
-      throw new CodigoInvalidoExcecao('Conta Google não confirmada. Use o código por e-mail.');
-    }
-    return { email: info.email.toLowerCase(), nome: info.name ?? null, sub: info.sub };
+    return this.entrar(email);
   }
 
   // --- sessão -----------------------------------------------------------------------
 
-  private async entrar(email: string, extra: { nome?: string | null; googleId?: string }) {
-    const nomePadrao = extra.nome || email.split('@')[0]!;
+  private async entrar(email: string) {
     const comprador = await this.prisma.comprador.upsert({
       where: { email },
-      create: { email, nome: nomePadrao, googleId: extra.googleId ?? null, ultimoAcessoEm: new Date() },
-      update: {
-        ultimoAcessoEm: new Date(),
-        ...(extra.googleId ? { googleId: extra.googleId } : {}),
-      },
+      create: { email, nome: email.split('@')[0]!, ultimoAcessoEm: new Date() },
+      update: { ultimoAcessoEm: new Date() },
     });
     const acesso = await this.jwt.signAsync(
       { sub: comprador.id, tipo: 'comprador' },
