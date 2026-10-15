@@ -18,8 +18,10 @@ const COMISSAO_PADRAO_PCT = 10;
 /** o pedido segura as fotos/preço por esse tempo antes de escolher Pix/cartão */
 const PEDIDO_VALIDO_MS = 2 * 60 * 60 * 1000;
 const PIX_VALIDO_MS = 30 * 60 * 1000;
-const DOWNLOAD_VALIDO_DIAS = 30;
-const DOWNLOAD_LIMITE = 5;
+/** download liberado enquanto a galeria existir (decisão de 15/10/2026) */
+const DOWNLOAD_VALE_ATE = new Date('2100-01-01T00:00:00Z');
+/** só contra abuso (link espalhado): na prática, sem limite */
+const DOWNLOAD_LIMITE = 1000;
 /** a tela do pedido consulta a cada poucos segundos; o MP só é perguntado nesse intervalo */
 const RECONSULTAR_MP_MS = 10_000;
 
@@ -340,7 +342,7 @@ export class VendasService {
       (mp.fee_details ?? []).filter((f) => f.type === 'mercadopago_fee').reduce((s, f) => s + f.amount, 0) * 100,
     );
     const repasse = pedido.subtotalCentavos - pedido.descontoCentavos - pedido.comissaoCentavos - taxaProvedor;
-    const expira = new Date(Date.now() + DOWNLOAD_VALIDO_DIAS * 24 * 60 * 60 * 1000);
+    const expira = DOWNLOAD_VALE_ATE;
 
     const confirmou = await this.prisma.$transaction(async (tx) => {
       // só um caminho (cartão / webhook / reconsulta) vira o pedido pra PAGO
@@ -383,7 +385,7 @@ export class VendasService {
         quantidade: pedido.itens.length,
         totalCentavos: pedido.totalCentavos,
         link: `${this.webUrl}/pedido/${pedido.id}`,
-        validadeDias: DOWNLOAD_VALIDO_DIAS,
+        areaUrl: `${this.webUrl}/minhas-fotos`,
       }),
     );
     await this.email.enviar(
@@ -511,10 +513,17 @@ export class VendasService {
       where: { token },
       include: {
         pedido: { select: { numero: true, status: true } },
-        foto: { select: { altaKey: true, fotoIdDesktop: true } },
+        foto: { select: { altaKey: true, fotoIdDesktop: true, galeria: { select: { excluidoEm: true } } } },
       },
     });
     if (!d || d.pedido.status !== 'PAGO' || !d.foto.altaKey) throw new NaoEncontradoExcecao('Download');
+    if (d.foto.galeria.excluidoEm) {
+      throw new DominioExcecao(
+        'DOWNLOAD_EXPIRADO',
+        'Esta galeria foi removida pelo fotógrafo. Fale com ele se precisar da foto.',
+        HttpStatus.GONE,
+      );
+    }
     if (d.expiraEm <= new Date()) {
       throw new DominioExcecao('DOWNLOAD_EXPIRADO', 'O prazo deste download acabou. Fale com o fotógrafo.', HttpStatus.GONE);
     }
@@ -525,7 +534,7 @@ export class VendasService {
     if (r.count === 0) {
       throw new DominioExcecao(
         'LIMITE_DOWNLOADS',
-        `Esta foto já foi baixada ${d.limiteBaixadas} vezes. Fale com o fotógrafo se precisar de novo.`,
+        'Esta foto atingiu o limite de downloads. Fale com o fotógrafo se precisar de novo.',
         HttpStatus.GONE,
       );
     }

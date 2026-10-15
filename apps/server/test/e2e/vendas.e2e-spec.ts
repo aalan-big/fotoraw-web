@@ -234,7 +234,7 @@ describe('vendas: carrinho → pedido → Pix/cartão → download (e2e)', () =>
     expect(daVenda.map((e) => e.para).sort()).toEqual([FOTOGRAFO.email, 'maria@exemplo.com'].sort());
     expect(emails.find((e) => e.para === 'maria@exemplo.com')!.html).toContain(`/pedido/${pedido.id}`);
 
-    // download: link assinado do original, no máximo 5 vezes
+    // download: link assinado do original, liberado enquanto a galeria existir
     const tela = await api().get(`/api/publico/pedidos/${pedido.id}`).expect(200);
     expect(tela.body.status).toBe('PAGO');
     expect(tela.body.pix).toBeNull();
@@ -245,8 +245,9 @@ describe('vendas: carrinho → pedido → Pix/cartão → download (e2e)', () =>
       expect(d.body.url).toContain('originais');
       expect(d.body.baixadas).toBe(i);
     }
-    const limite = await api().get(`/api/publico/downloads/${token}`).expect(410);
-    expect(limite.body.codigo).toBe('LIMITE_DOWNLOADS');
+    const dl = await prisma.download.findUniqueOrThrow({ where: { token } });
+    expect(dl.expiraEm.getUTCFullYear()).toBe(2100);
+    expect(dl.limiteBaixadas).toBe(1000);
 
     // link direto (sem JS): redireciona pro arquivo e também conta
     const token2 = tela.body.itens[1].download.token as string;
@@ -258,6 +259,12 @@ describe('vendas: carrinho → pedido → Pix/cartão → download (e2e)', () =>
     const d2 = await prisma.download.findUniqueOrThrow({ where: { token: token2 } });
     expect(d2.baixadas).toBe(2);
     await api().get('/api/publico/downloads/token-que-nao-existe').expect(404);
+
+    // galeria removida pelo fotógrafo: acabou o download
+    await prisma.galeria.update({ where: { id: galeriaId }, data: { excluidoEm: new Date() } });
+    const removida = await api().get(`/api/publico/downloads/${token}`).expect(410);
+    expect(removida.body.codigo).toBe('DOWNLOAD_EXPIRADO');
+    await prisma.galeria.update({ where: { id: galeriaId }, data: { excluidoEm: null } });
   });
 
   it('a tela do pedido confirma sozinha se o webhook não chegar', async () => {

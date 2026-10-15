@@ -49,6 +49,8 @@ export const envSchema = z.object({
   MERCADOPAGO_WEBHOOK_SECRET: z.string().default(''),
   /** chave pública (APP_USR-…) da mesma conta: o Brick do painel tokeniza o cartão com ela */
   MERCADOPAGO_PUBLIC_KEY: z.string().default(''),
+  /** "Entrar com Google" na área do comprador; vazio = só código por e-mail */
+  GOOGLE_CLIENT_ID: z.string().default(''),
   // Stripe (assinatura de plano)
   STRIPE_SECRET_KEY: z.string().default(''),
   STRIPE_WEBHOOK_SECRET: z.string().default(''),

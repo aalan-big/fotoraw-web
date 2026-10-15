@@ -14,7 +14,8 @@ export function emailFotosLiberadas(dados: {
   quantidade: number;
   totalCentavos: number;
   link: string;
-  validadeDias: number;
+  /** área "Minhas fotos" */
+  areaUrl: string;
 }): Email {
   const fotos = dados.quantidade === 1 ? '1 foto' : `${dados.quantidade} fotos`;
   return {
@@ -25,7 +26,9 @@ export function emailFotosLiberadas(dados: {
       `<p>Olá, ${escapeHtml(dados.nome.split(' ')[0] ?? dados.nome)}!</p>
        <p>Recebemos o pagamento do pedido <strong>#${dados.numero}</strong>. Suas fotos em alta
        resolução, sem marca d'água, já podem ser baixadas.</p>
-       <p>O link vale por ${dados.validadeDias} dias. Guarde este e-mail.</p>`,
+       <p>Você pode baixar sempre que quiser, enquanto a galeria estiver no ar. Também dá pra
+       ver todas as suas compras em <a href="${dados.areaUrl}" style="color:#7a1f2b">Minhas fotos</a>,
+       entrando com o Google ou com um código no seu e-mail.</p>`,
       dados.link,
       'Baixar minhas fotos',
       [
@@ -35,7 +38,7 @@ export function emailFotosLiberadas(dados: {
         { rotulo: 'Total pago', valor: reais(dados.totalCentavos) },
       ],
     ),
-    texto: `Pagamento do pedido #${dados.numero} confirmado (${fotos}, ${reais(dados.totalCentavos)}). Baixe em: ${dados.link} — vale por ${dados.validadeDias} dias.`,
+    texto: `Pagamento do pedido #${dados.numero} confirmado (${fotos}, ${reais(dados.totalCentavos)}). Baixe em: ${dados.link} — ou em ${dados.areaUrl}.`,
   };
 }
 

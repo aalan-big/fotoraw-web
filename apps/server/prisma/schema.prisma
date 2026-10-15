@@ -636,15 +636,33 @@ model Comprador {
   whatsapp        String?
   /// só dígitos; exigido pelo provedor pra Pix acima de certo valor
   cpf             String?
-  /// LGPD
-  aceitouTermosEm DateTime @map("aceitou_termos_em")
-  criadoEm        DateTime @default(now()) @map("criado_em")
-  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
+  /// LGPD — null = entrou na área "Minhas fotos" mas ainda não comprou
+  aceitouTermosEm DateTime? @map("aceitou_termos_em")
+  /// `sub` do Google quando entra com "Entrar com Google"
+  googleId        String?   @unique @map("google_id")
+  ultimoAcessoEm  DateTime? @map("ultimo_acesso_em")
+  criadoEm        DateTime  @default(now()) @map("criado_em")
+  atualizadoEm    DateTime  @updatedAt @map("atualizado_em")
 
   pedidos   Pedido[]
   downloads Download[]
 
   @@map("compradores")
+}
+
+/// Código de 6 dígitos por e-mail pra entrar na área "Minhas fotos" (sem senha).
+model CodigoComprador {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  email       String
+  /// sha256 do código — o código em si só vai no e-mail
+  codigoHash  String    @map("codigo_hash")
+  expiraEm    DateTime  @map("expira_em")
+  tentativas  Int       @default(0)
+  usadoEm     DateTime? @map("usado_em")
+  criadoEm    DateTime  @default(now()) @map("criado_em")
+
+  @@index([email, criadoEm])
+  @@map("codigos_comprador")
 }
 
 model Pedido {
