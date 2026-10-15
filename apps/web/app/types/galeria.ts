@@ -111,7 +111,10 @@ export interface GaleriaAberta {
   capaUrl: string | null;
   publicadaEm: string | null;
   situacao: SituacaoGaleria;
+  /** dá pra comprar agora (avulso, aberta, fotógrafo com Mercado Pago conectado) */
   podeComprar: boolean;
+  /** avulso aberto, mas o fotógrafo ainda não ativou as vendas */
+  vendasEmBreve: boolean;
   totalFotos: number;
   fotografo: {
     nome: string;

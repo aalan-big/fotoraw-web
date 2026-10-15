@@ -450,6 +450,7 @@ export class VendasService {
       expiraEm: pedido.expiraEm,
       pagoEm: pedido.pagoEm,
       galeria: {
+        id: pedido.galeriaId,
         titulo: pedido.galeria.titulo,
         slug: pedido.galeria.slug,
         contaSlug: pedido.galeria.conta.slug,

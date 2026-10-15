@@ -118,6 +118,14 @@ const totalCentavos = computed(() => {
 
 const aberta = ref<number | null>(null);
 
+function finalizar() {
+  if (!g.value) return;
+  navigateTo({
+    path: '/checkout',
+    query: { galeria: g.value.id, volta: rota.path, ...(codigo.value ? { codigo: codigo.value } : {}) },
+  });
+}
+
 // --- textos -------------------------------------------------------------------------
 const data = computed(() =>
   g.value?.dataEvento
@@ -238,6 +246,12 @@ useSeoMeta({
         As vendas desta galeria estão pausadas no momento. Você pode ver as fotos e voltar depois.
       </p>
       <p
+        v-else-if="g.vendasEmBreve"
+        class="mb-6 rounded-lg border border-info/40 bg-info/10 px-4 py-3 text-sm text-info"
+      >
+        A compra das fotos desta galeria abre em breve. Você já pode encontrar as suas e voltar depois.
+      </p>
+      <p
         v-else-if="g.modoVenda === 'ENTREGA'"
         class="mb-6 rounded-lg border border-info/40 bg-info/10 px-4 py-3 text-sm text-info"
       >
@@ -356,11 +370,11 @@ useSeoMeta({
               </template>
               <span v-if="totalCentavos" class="tabular-nums text-wine-tint"> · {{ formatarCentavos(totalCentavos) }}</span>
             </p>
-            <p class="text-xs text-muted">Pagamento por Pix ou cartão chega em breve.</p>
+            <p class="text-xs text-muted">Pix ou cartão · alta resolução, sem marca d'água</p>
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <UiBotao variante="fantasma" @click="carrinho.limpar(g.id)">Limpar</UiBotao>
-            <UiBotao disabled>{{ pacote ? 'Confirmar escolha' : 'Finalizar compra' }}</UiBotao>
+            <UiBotao @click="finalizar">Finalizar compra</UiBotao>
           </div>
         </div>
       </div>
