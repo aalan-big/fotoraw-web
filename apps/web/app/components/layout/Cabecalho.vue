@@ -9,6 +9,7 @@ watch(
 const itens = [
   { to: '/eventos', rotulo: 'Eventos' },
   { to: '/ensaio', rotulo: 'Meu ensaio' },
+  { to: '/minhas-fotos', rotulo: 'Minhas fotos' },
   { to: '/#como-funciona', rotulo: 'Como funciona' },
   { to: '/planos', rotulo: 'Planos' },
 ];

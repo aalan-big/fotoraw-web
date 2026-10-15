@@ -21,7 +21,7 @@ const secoes = [
   {
     titulo: 'Entrega',
     texto:
-      'Assim que o pagamento é confirmado, as fotos ficam disponíveis na página do pedido e o link é enviado para o seu e-mail. Cada foto pode ser baixada até 5 vezes em até 30 dias — guarde os arquivos no seu aparelho.',
+      'Assim que o pagamento é confirmado, as fotos ficam disponíveis na página do pedido e o link é enviado para o seu e-mail. Você pode baixar as fotos sempre que quiser enquanto a galeria estiver no ar — pelo link do e-mail ou em Minhas fotos, entrando com o mesmo e-mail (sem senha). Ainda assim, guarde os arquivos no seu aparelho.',
   },
   {
     titulo: 'Problemas com o pedido',

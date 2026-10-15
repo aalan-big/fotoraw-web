@@ -8,6 +8,8 @@ useSeoMeta({ title: 'Finalizar compra', robots: 'noindex' });
 const rota = useRoute();
 const api = useApi();
 const carrinho = useCarrinho();
+const comprador = useComprador();
+const mostrarEntrar = ref(false);
 
 const galeriaId = computed(() => String(rota.query.galeria ?? ''));
 const volta = computed(() => (typeof rota.query.volta === 'string' && rota.query.volta.startsWith('/') ? rota.query.volta : '/eventos'));
@@ -16,8 +18,21 @@ const codigo = computed(() => (rota.query.codigo ? String(rota.query.codigo) : u
 const montado = ref(false);
 onMounted(() => {
   carrinho.carregar();
+  comprador.carregar();
+  preencher();
   montado.value = true;
 });
+
+// entrou (antes ou agora): nome, e-mail, WhatsApp e CPF vêm da conta
+function preencher() {
+  const p = comprador.perfil;
+  if (!p) return;
+  mostrarEntrar.value = false;
+  form.email = p.email;
+  if (p.nome && p.nome.includes(' ')) form.nome = p.nome;
+  if (p.whatsapp) form.whatsapp = mascaraFone(p.whatsapp);
+  if (p.cpf) form.cpf = mascaraCpf(p.cpf);
+}
 const itens = computed(() => (galeriaId.value ? carrinho.itens(galeriaId.value) : []));
 const total = computed(() => (galeriaId.value ? carrinho.totalCentavos(galeriaId.value) : 0));
 
@@ -64,6 +79,12 @@ async function finalizar() {
         aceitouTermos: true,
       },
     });
+    // guarda pra próxima compra (só quem entrou)
+    if (comprador.logado) {
+      await comprador
+        .atualizarPerfil({ nome: form.nome.trim(), whatsapp: form.whatsapp, cpf: form.cpf })
+        .catch(() => {});
+    }
     await navigateTo(`/pedido/${pedido.id}`);
   } catch (e) {
     const dados = (e as { data?: { mensagem?: string; erros?: { campo: string; mensagem: string }[] } }).data;
@@ -97,6 +118,24 @@ const campo =
           <p class="mt-1 text-sm text-muted">As fotos chegam no seu e-mail assim que o pagamento for confirmado.</p>
         </div>
 
+        <!-- entrar é opcional: só preenche os dados e guarda as compras em "Minhas fotos" -->
+        <div v-if="!comprador.logado" class="rounded-lg border border-border bg-bg/60 p-4">
+          <button
+            v-if="!mostrarEntrar"
+            type="button"
+            class="flex w-full items-center justify-between gap-3 text-left text-sm"
+            @click="mostrarEntrar = true"
+          >
+            <span><strong>Já comprou com a gente?</strong> <span class="text-muted">Entre pra preencher tudo sozinho.</span></span>
+            <span class="shrink-0 font-semibold text-wine-tint">Entrar</span>
+          </button>
+          <CompradorEntrar v-else compacto @entrou="preencher" />
+        </div>
+        <p v-else class="text-sm text-muted">
+          Comprando como <strong class="text-text">{{ comprador.perfil?.email }}</strong>.
+          <button type="button" class="underline-offset-4 hover:text-text hover:underline" @click="comprador.sair(); form.email = ''">Não é você?</button>
+        </p>
+
         <label class="block">
           <span class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">Nome completo</span>
           <input v-model="form.nome" :class="campo" autocomplete="name" placeholder="Maria da Silva" />
@@ -104,7 +143,14 @@ const campo =
         </label>
         <label class="block">
           <span class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">E-mail</span>
-          <input v-model="form.email" :class="campo" type="email" autocomplete="email" placeholder="voce@email.com" />
+          <input
+            v-model="form.email"
+            :class="[campo, comprador.logado ? 'opacity-70' : '']"
+            type="email"
+            autocomplete="email"
+            placeholder="voce@email.com"
+            :readonly="comprador.logado"
+          />
           <span v-if="erros.email" class="mt-1 block text-xs text-danger">{{ erros.email }}</span>
         </label>
         <div class="grid gap-5 sm:grid-cols-2">

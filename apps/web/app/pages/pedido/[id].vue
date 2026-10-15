@@ -169,7 +169,12 @@ function aoVoltar() {
           <p class="text-sm text-muted">Suas fotos em alta resolução, sem marca d'água. Também mandamos este link para {{ p.comprador.email }}.</p>
         </div>
       </div>
-      <p v-if="ios" class="mt-4 text-sm text-muted">
+      <p class="mt-4 text-sm text-muted">
+        Pode baixar sempre que quiser. Todas as suas compras ficam em
+        <NuxtLink to="/minhas-fotos" class="text-wine-tint underline-offset-4 hover:underline">Minhas fotos</NuxtLink>
+        — é só entrar com este e-mail.
+      </p>
+      <p v-if="ios" class="mt-2 text-sm text-muted">
         No iPhone a foto abre na tela: toque e segure nela e escolha <strong class="text-text">Salvar na Fotos</strong>.
       </p>
       <ul class="mt-6 grid gap-4 sm:grid-cols-2">
@@ -177,9 +182,7 @@ function aoVoltar() {
           <img v-if="item.miniaturaUrl" :src="item.miniaturaUrl" alt="" class="size-20 shrink-0 rounded-md object-cover" />
           <div class="min-w-0 flex-1">
             <p class="text-sm font-medium">{{ item.numero ? `Foto nº ${item.numero}` : 'Foto' }}</p>
-            <p v-if="item.download" class="text-xs text-muted">
-              {{ item.download.limite - item.download.baixadas }} downloads restantes
-            </p>
+            <p class="text-xs text-muted">Alta resolução · sem marca</p>
           </div>
           <a
             v-if="item.download && item.download.baixadas < item.download.limite"

@@ -16,6 +16,9 @@ export default defineNuxtConfig({
       apiBase: 'http://localhost:3001/api',
       // apps/fotografo (área do fotógrafo). Sobrescreva com NUXT_PUBLIC_FOTOGRAFO_URL.
       fotografoUrl: 'http://localhost:3002',
+      // "Entrar com Google" na área do comprador. Vazio = só código por e-mail.
+      // Sobrescreva com NUXT_PUBLIC_GOOGLE_CLIENT_ID (mesmo valor do GOOGLE_CLIENT_ID do server).
+      googleClientId: '',
     },
   },
 
