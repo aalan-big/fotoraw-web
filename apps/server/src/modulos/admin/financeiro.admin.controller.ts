@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ZodValidationPipe } from '../../comum/pipes/zod-validation.pipe.js';
 import type { Conta } from '../../infra/prisma/gerado/client.js';
 import type { Contexto } from '../auth/auth.service.js';
@@ -18,13 +18,39 @@ import {
   pagarRepasseSchema,
   periodoSchema,
 } from './dto/financeiro.dto.js';
+import { z } from 'zod';
+import { VendasService } from '../pagamentos/vendas/vendas.service.js';
 import { FinanceiroAdminService } from './financeiro.admin.service.js';
+
+const numeroSchema = z.coerce.number().int().positive();
+const devolverSchema = z.object({ motivo: z.string().trim().min(3, { message: 'Diga o motivo' }).max(300) });
 
 /** Vendas, comissão e a fila de repasses Pix. */
 @Controller('admin')
 @SoAdmin()
 export class FinanceiroAdminController {
-  constructor(private readonly financeiro: FinanceiroAdminService) {}
+  constructor(
+    private readonly financeiro: FinanceiroAdminService,
+    private readonly vendas: VendasService,
+  ) {}
+
+  @Get('pedidos/:numero')
+  pedido(@Param('numero', new ZodValidationPipe(numeroSchema)) numero: number) {
+    return this.financeiro.pedidoPorNumero(numero);
+  }
+
+  /** Devolução feita pelo admin (motivo obrigatório, vai pra auditoria). */
+  @Post('pedidos/:numero/devolver')
+  @HttpCode(200)
+  async devolver(
+    @ContaAtual() admin: Conta,
+    @Param('numero', new ZodValidationPipe(numeroSchema)) numero: number,
+    @Body(new ZodValidationPipe(devolverSchema)) dto: z.infer<typeof devolverSchema>,
+    @Ctx() ctx: Contexto,
+  ) {
+    const pedido = await this.financeiro.pedidoPorNumero(numero);
+    return this.vendas.devolver(pedido.id, { contaId: admin.id, papel: 'ADMIN' }, dto.motivo, ctx.ip ?? undefined);
+  }
 
   @Get('financeiro/resumo')
   resumo(@Query(new ZodValidationPipe(periodoSchema)) periodo: PeriodoDto) {

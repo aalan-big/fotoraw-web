@@ -28,6 +28,7 @@ import { MercadoPagoWebhookService } from './webhooks/mercadopago-webhook.servic
     VendasService,
   ],
   exports: [
-    CredenciaisVendedorService,CobrancaAssinaturasService, AssinaturasMercadoPagoService, RotinaCobrancaService],
+    CredenciaisVendedorService,
+    VendasService,CobrancaAssinaturasService, AssinaturasMercadoPagoService, RotinaCobrancaService],
 })
 export class PagamentosModule {}

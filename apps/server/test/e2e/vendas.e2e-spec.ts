@@ -7,8 +7,10 @@ import { PrismaService } from '../../src/infra/prisma/prisma.service.js';
 import { LimitadorTentativas } from '../../src/modulos/auth/senha/limitador-tentativas.js';
 import {
   MercadoPagoCliente,
+  MercadoPagoRecusouExcecao,
   type PagamentoMp,
 } from '../../src/modulos/pagamentos/provedores/mercadopago/mercadopago.cliente.js';
+import { SenhaService } from '../../src/modulos/auth/senha/senha.service.js';
 import { MercadoPagoWebhookService } from '../../src/modulos/pagamentos/webhooks/mercadopago-webhook.service.js';
 import { limparBanco } from '../utils/banco.js';
 import { criarApp } from '../utils/criar-app.js';
@@ -60,6 +62,17 @@ class MpFalso {
     return p;
   }
 
+  reembolsos: { token: string; id: string }[] = [];
+  /** simula o MP recusando o estorno (ex.: sem saldo na conta do fotógrafo) */
+  recusarEstorno = false;
+  async reembolsar(token: string, id: string) {
+    if (this.recusarEstorno) throw new MercadoPagoRecusouExcecao('Saldo insuficiente para o estorno', 400);
+    this.reembolsos.push({ token, id });
+    const p = this.pagamentos.get(id);
+    if (p) p.status = 'refunded';
+    return { id: 1, status: 'approved' };
+  }
+
   aprovar(id: string, mudar: Partial<PagamentoMp> = {}) {
     const p = this.pagamentos.get(id)!;
     Object.assign(p, { status: 'approved', date_approved: new Date().toISOString(), ...mudar });
@@ -95,6 +108,8 @@ describe('vendas: carrinho → pedido → Pix/cartão → download (e2e)', () =>
     mp.criados.length = 0;
     mp.pagamentos.clear();
     mp.statusCartao = 'approved';
+    mp.reembolsos.length = 0;
+    mp.recusarEstorno = false;
 
     await prisma.plano.create({
       data: {
@@ -318,5 +333,116 @@ describe('vendas: carrinho → pedido → Pix/cartão → download (e2e)', () =>
       .get(MercadoPagoWebhookService)
       .receber({ tipo: 'payment', dataId: '999999', eventoRef: 'ev-mensalidade', payload: {} });
     expect(r.resultado).toMatch(/só registrado/);
+  });
+
+  // --- Fase 6: devolução e contestação ------------------------------------------------
+
+  async function vendaPagaPorPix() {
+    await conectarMp();
+    const criado = await novoPedido().expect(201);
+    await api().post(`/api/publico/pedidos/${criado.body.id}/pix`).expect(200);
+    const idMp = [...mp.pagamentos.keys()][0]!;
+    mp.aprovar(idMp);
+    await app.get(MercadoPagoWebhookService).receber({ tipo: 'payment', dataId: idMp, eventoRef: `ev-${idMp}`, payload: {} });
+    const pedido = await prisma.pedido.findUniqueOrThrow({ where: { id: criado.body.id }, include: { downloads: true } });
+    expect(pedido.status).toBe('PAGO');
+    return { pedido, idMp };
+  }
+
+  async function entrarFotografo() {
+    const r = await api().post('/api/auth/login').send({ email: FOTOGRAFO.email, senha: FOTOGRAFO.senha }).expect(200);
+    return { Authorization: `Bearer ${r.body.acesso}` };
+  }
+
+  it('fotógrafo devolve: estorno no MP, downloads param, sai das vendas, todos avisados', async () => {
+    const { pedido, idMp } = await vendaPagaPorPix();
+    const auth = await entrarFotografo();
+    emails.length = 0;
+
+    const r = await api().post(`/api/pedidos/${pedido.numero}/devolver`).set(auth).send({ motivo: 'foto errada' }).expect(200);
+    expect(r.body).toEqual({ numero: pedido.numero, status: 'ESTORNADO' });
+    expect(mp.reembolsos).toEqual([{ token: TOKEN_VENDEDOR, id: idMp }]);
+
+    const depois = await prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id }, include: { pagamentos: true } });
+    expect(depois.status).toBe('ESTORNADO');
+    expect(depois.pagamentos[0]!.status).toBe('ESTORNADO');
+    expect((await prisma.galeria.findUniqueOrThrow({ where: { id: galeriaId } })).totalVendasCentavos).toBe(0);
+    await api().get(`/api/publico/downloads/${pedido.downloads[0]!.token}`).expect(404);
+    expect(emails.map((e) => e.assunto).sort()).toEqual(
+      [`Pedido #${pedido.numero} cancelado`, `Venda #${pedido.numero} estornada`].sort(),
+    );
+    const audit = await prisma.auditoria.findFirst({ where: { acao: 'pedido.estornado', alvoId: pedido.id } });
+    expect(audit?.depois).toMatchObject({ origem: 'devolucao', motivo: 'foto errada', papel: 'FOTOGRAFO' });
+
+    // o MP avisa o estorno depois: nada se repete; devolver de novo: recusa
+    emails.length = 0;
+    await app.get(MercadoPagoWebhookService).receber({ tipo: 'payment', dataId: idMp, eventoRef: 'ev-refund', payload: {} });
+    expect(emails).toHaveLength(0);
+    await api().post(`/api/pedidos/${pedido.numero}/devolver`).set(auth).send({}).expect(409);
+  });
+
+  it('MP recusa o estorno: o pedido continua pago e a mensagem volta', async () => {
+    const { pedido } = await vendaPagaPorPix();
+    const auth = await entrarFotografo();
+    mp.recusarEstorno = true;
+    const r = await api().post(`/api/pedidos/${pedido.numero}/devolver`).set(auth).send({}).expect(422);
+    expect(r.body.mensagem).toMatch(/Saldo insuficiente/);
+    expect((await prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } })).status).toBe('PAGO');
+  });
+
+  it('contestação no cartão (chargeback) pelo webhook: estorna e avisa o fotógrafo', async () => {
+    const { pedido, idMp } = await vendaPagaPorPix();
+    emails.length = 0;
+    mp.pagamentos.get(idMp)!.status = 'charged_back';
+    const r = await app.get(MercadoPagoWebhookService).receber({ tipo: 'payment', dataId: idMp, eventoRef: 'ev-cb', payload: {} });
+    expect(r.resultado).toMatch(/CONTESTADO/);
+    expect((await prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } })).status).toBe('ESTORNADO');
+    expect(emails.some((e) => e.assunto === `Venda #${pedido.numero} contestada no cartão`)).toBe(true);
+  });
+
+  it('admin acha o pedido pelo número e devolve (motivo obrigatório); outro fotógrafo não', async () => {
+    const { pedido } = await vendaPagaPorPix();
+    await prisma.conta.create({
+      data: {
+        nome: 'Dono',
+        email: 'dono-vendas@fotoraw.local',
+        senhaHash: await app.get(SenhaService).hash('senha-admin-e2e-2026'),
+        slug: 'admin-vendas',
+        papel: 'ADMIN',
+        emailVerificadoEm: new Date(),
+      },
+    });
+    const login = await api()
+      .post('/api/auth/admin/login')
+      .send({ email: 'dono-vendas@fotoraw.local', senha: 'senha-admin-e2e-2026' })
+      .expect(200);
+    const admin = { Authorization: `Bearer ${login.body.acesso}` };
+
+    const achado = await api().get(`/api/admin/pedidos/${pedido.numero}`).set(admin).expect(200);
+    expect(achado.body).toMatchObject({
+      numero: pedido.numero,
+      status: 'PAGO',
+      fotografo: { slug: 'estudio-luz' },
+      comprador: { email: 'maria@exemplo.com' },
+    });
+    await api().get('/api/admin/pedidos/99999').set(admin).expect(404);
+
+    // outro fotógrafo não acha (nem devolve) pedido que não é dele
+    await api().post('/api/auth/cadastro').send({ ...FOTOGRAFO, email: 'outro@fotoraw.local', slug: 'outro' }).expect(201);
+    const outro = await api().post('/api/auth/login').send({ email: 'outro@fotoraw.local', senha: FOTOGRAFO.senha }).expect(200);
+    await api()
+      .post(`/api/pedidos/${pedido.numero}/devolver`)
+      .set({ Authorization: `Bearer ${outro.body.acesso}` })
+      .send({})
+      .expect(404);
+
+    await api().post(`/api/admin/pedidos/${pedido.numero}/devolver`).set(admin).send({}).expect(400);
+    await api()
+      .post(`/api/admin/pedidos/${pedido.numero}/devolver`)
+      .set(admin)
+      .send({ motivo: 'pedido do comprador' })
+      .expect(200);
+    const audit = await prisma.auditoria.findFirst({ where: { acao: 'pedido.estornado', alvoId: pedido.id } });
+    expect(audit?.depois).toMatchObject({ papel: 'ADMIN', motivo: 'pedido do comprador' });
   });
 });

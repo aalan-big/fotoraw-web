@@ -11,7 +11,15 @@ import { LicencasService } from '../../licencas/licencas.service.js';
 import { MercadoPagoCliente, type PagamentoMp } from '../provedores/mercadopago/mercadopago.cliente.js';
 import { CredenciaisVendedorService } from './credenciais-vendedor.service.js';
 import type { CriarPedidoDto, PagarCartaoDto } from './dto/vendas.dto.js';
-import { emailFotosLiberadas, emailVendaRealizada } from './emails-venda.js';
+import { AuditoriaService } from '../../../infra/auditoria/auditoria.service.js';
+import { NotificacoesService } from '../../notificacoes/notificacoes.service.js';
+import {
+  emailFotosLiberadas,
+  emailPedidoEstornado,
+  emailVendaEstornada,
+  emailVendaRealizada,
+  type OrigemEstorno,
+} from './emails-venda.js';
 
 /** comissão de evento quando não dá pra saber o plano (não deveria acontecer) */
 const COMISSAO_PADRAO_PCT = 10;
@@ -67,6 +75,8 @@ export class VendasService {
     private readonly licencas: LicencasService,
     private readonly storage: StorageService,
     private readonly email: EmailService,
+    private readonly auditoria: AuditoriaService,
+    private readonly notificacoes: NotificacoesService,
     config: ConfigService<Env, true>,
   ) {
     this.webUrl = config.get('WEB_URL').replace(/\/$/, '');
@@ -351,10 +361,11 @@ export class VendasService {
 
     if (status === 'APROVADO') return this.confirmarPago(pedidoId, mp);
     if (status === 'ESTORNADO') {
-      // devolução/chargeback: o tratamento completo (bloquear download, avisar) é a Fase 6
-      await this.prisma.pedido.updateMany({ where: { id: pedidoId, status: 'PAGO' }, data: { status: 'ESTORNADO' } });
-      this.logger.warn(`pedido ${pedidoId}: pagamento ${mp.id} ${mp.status}`);
-      return `pedido ${pedidoId}: ${mp.status}`;
+      // estorno pelo MP (ou o nosso, voltando pelo webhook) ou contestação no cartão
+      return this.marcarEstornado(pedidoId, {
+        origem: mp.status === 'charged_back' ? 'contestacao' : 'estorno_mp',
+        motivo: `pagamento ${mp.id}: ${mp.status}`,
+      });
     }
     return `pedido ${pedidoId}: pagamento ${mp.status}`;
   }
@@ -458,6 +469,106 @@ export class VendasService {
       }),
     );
     return `pedido #${pedido.numero} pago`;
+  }
+
+  // --- devolução (Fase 6) ------------------------------------------------------------
+
+  /**
+   * Devolver um pedido pago: pede o estorno total ao Mercado Pago (na conta do
+   * fotógrafo) e marca o pedido. Seleção de pacote sem custo só é cancelada.
+   * Quem pede: o próprio fotógrafo (painel) ou um admin.
+   */
+  async devolver(pedidoId: string, ator: { contaId: string; papel: 'FOTOGRAFO' | 'ADMIN' }, motivo?: string, ip?: string) {
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id: pedidoId },
+      include: { pagamentos: { where: { status: 'APROVADO' }, orderBy: { criadoEm: 'desc' } } },
+    });
+    if (!pedido) throw new NaoEncontradoExcecao('Pedido');
+    if (pedido.status !== 'PAGO') {
+      throw new PedidoIndisponivelExcecao(
+        pedido.status === 'ESTORNADO' ? 'Este pedido já foi devolvido.' : 'Só dá pra devolver pedido pago.',
+      );
+    }
+    const pagamento = pedido.pagamentos[0];
+    if (pedido.totalCentavos > 0) {
+      if (!pagamento) throw new PedidoIndisponivelExcecao('Pagamento aprovado não encontrado para este pedido.');
+      const creds = await this.credenciais.obter(pedido.contaId);
+      // o MP recusa (ex.: saldo insuficiente na conta do fotógrafo) → a mensagem volta pra tela
+      await this.mp.reembolsar(creds.accessToken, pagamento.provedorPagamentoId, `estorno-${pedido.id}`);
+    }
+    await this.marcarEstornado(pedido.id, { origem: 'devolucao', motivo, atorContaId: ator.contaId, papel: ator.papel, ip });
+    return { numero: pedido.numero, status: 'ESTORNADO' as const };
+  }
+
+  /**
+   * Pedido devolvido/contestado: ESTORNADO (downloads param, porque só pedido PAGO
+   * baixa), sai do total de vendas da galeria, avisa comprador, fotógrafo e admin.
+   * Idempotente: o estorno feito aqui volta depois pelo webhook e não repete nada.
+   */
+  private async marcarEstornado(
+    pedidoId: string,
+    info: { origem: OrigemEstorno; motivo?: string; atorContaId?: string; papel?: string; ip?: string },
+  ): Promise<string> {
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id: pedidoId },
+      include: {
+        comprador: true,
+        galeria: { select: { titulo: true, conta: { select: { email: true } } } },
+      },
+    });
+    if (!pedido) return `pedido ${pedidoId} sumiu`;
+
+    const marcou = await this.prisma.$transaction(async (tx) => {
+      const r = await tx.pedido.updateMany({ where: { id: pedido.id, status: 'PAGO' }, data: { status: 'ESTORNADO' } });
+      if (r.count === 0) return false;
+      await tx.pagamento.updateMany({ where: { pedidoId: pedido.id, status: 'APROVADO' }, data: { status: 'ESTORNADO' } });
+      if (pedido.subtotalCentavos > 0) {
+        await tx.galeria.update({
+          where: { id: pedido.galeriaId },
+          data: { totalVendasCentavos: { decrement: pedido.subtotalCentavos } },
+        });
+      }
+      return true;
+    });
+    if (!marcou) return `pedido #${pedido.numero} já estava estornado (ou não estava pago)`;
+
+    await this.auditoria.registrar({
+      acao: 'pedido.estornado',
+      alvoTipo: 'pedido',
+      alvoId: pedido.id,
+      atorContaId: info.atorContaId,
+      ip: info.ip,
+      antes: { status: 'PAGO' },
+      depois: { status: 'ESTORNADO', origem: info.origem, motivo: info.motivo ?? null, papel: info.papel ?? null },
+    });
+    await this.email.enviar(
+      emailPedidoEstornado({
+        para: pedido.comprador.email,
+        nome: pedido.comprador.nome,
+        numero: pedido.numero,
+        galeria: pedido.galeria.titulo,
+        totalCentavos: pedido.totalCentavos,
+        link: `${this.webUrl}/pedido/${pedido.id}`,
+      }),
+    );
+    await this.email.enviar(
+      emailVendaEstornada({
+        para: pedido.galeria.conta.email,
+        numero: pedido.numero,
+        galeria: pedido.galeria.titulo,
+        subtotalCentavos: pedido.subtotalCentavos,
+        origem: info.origem,
+        link: `${this.fotografoUrl}/vendas/${pedido.numero}`,
+      }),
+    );
+    const rotulo = { devolucao: 'devolvido', estorno_mp: 'estornado no Mercado Pago', contestacao: 'CONTESTADO no cartão' }[info.origem];
+    await this.notificacoes.avisarAdmins({
+      titulo: `Pedido #${pedido.numero} ${rotulo}`,
+      corpo: `${pedido.galeria.titulo} · R$ ${(pedido.totalCentavos / 100).toFixed(2).replace('.', ',')}`,
+      url: `/financeiro/pedidos?numero=${pedido.numero}`,
+    });
+    this.logger.warn(`pedido #${pedido.numero}: ${rotulo}`);
+    return `pedido #${pedido.numero} ${rotulo}`;
   }
 
   // --- tela do pedido -------------------------------------------------------------------

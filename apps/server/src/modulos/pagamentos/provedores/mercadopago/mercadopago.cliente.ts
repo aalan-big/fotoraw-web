@@ -158,6 +158,16 @@ export class MercadoPagoCliente {
     });
   }
 
+  /** Estorno total de uma venda (na conta do fotógrafo; o MP devolve a comissão junto). */
+  reembolsar(tokenVendedor: string, id: string, idempotencia: string) {
+    return this.chamar<{ id: number; status: string }>(
+      'POST',
+      `/v1/payments/${encodeURIComponent(id)}/refunds`,
+      {},
+      { token: tokenVendedor, idempotencia },
+    );
+  }
+
   obterPagamento(tokenVendedor: string, id: string): Promise<PagamentoMp> {
     return this.chamar<PagamentoMp>('GET', `/v1/payments/${encodeURIComponent(id)}`, undefined, {
       token: tokenVendedor,

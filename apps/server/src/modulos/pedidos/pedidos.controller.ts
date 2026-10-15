@@ -1,7 +1,10 @@
 import {
+  Body,
   Controller,
   Get,
+  HttpCode,
   Param,
+  Post,
   Query,
   Res,
   UseGuards,
@@ -18,14 +21,22 @@ import {
   type ListarPedidosDto,
   listarPedidosSchema,
 } from './dto/pedidos.dto.js';
+import type { Contexto } from '../auth/auth.service.js';
+import { Ctx } from '../auth/decorators/contexto.decorator.js';
+import { VendasService } from '../pagamentos/vendas/vendas.service.js';
 import { PedidosService } from './pedidos.service.js';
+
+const devolverSchema = z.object({ motivo: z.string().trim().max(300).optional() });
 
 const numeroSchema = z.coerce.number().int().positive();
 
 @Controller('pedidos')
 @UseGuards(JwtGuard)
 export class PedidosController {
-  constructor(private readonly pedidos: PedidosService) {}
+  constructor(
+    private readonly pedidos: PedidosService,
+    private readonly vendas: VendasService,
+  ) {}
 
   @Get()
   async listar(
@@ -56,6 +67,19 @@ export class PedidosController {
     );
 
     return res.send(csv);
+  }
+
+  /** Devolver ao comprador: estorno total no Mercado Pago + downloads desativados. */
+  @Post(':numero/devolver')
+  @HttpCode(200)
+  async devolver(
+    @ContaAtual() conta: Conta,
+    @Param('numero', new ZodValidationPipe(numeroSchema)) numero: number,
+    @Body(new ZodValidationPipe(devolverSchema)) dto: z.infer<typeof devolverSchema>,
+    @Ctx() ctx: Contexto,
+  ) {
+    const pedido = await this.pedidos.obterPorNumero(numero, conta.id);
+    return this.vendas.devolver(pedido.id, { contaId: conta.id, papel: 'FOTOGRAFO' }, dto.motivo, ctx.ip ?? undefined);
   }
 
   @Get(':numero')

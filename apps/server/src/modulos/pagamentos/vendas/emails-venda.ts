@@ -43,6 +43,68 @@ export function emailFotosLiberadas(dados: {
   };
 }
 
+export type OrigemEstorno = 'devolucao' | 'estorno_mp' | 'contestacao';
+
+/** Comprador: pedido estornado (devolvido) — os downloads param. */
+export function emailPedidoEstornado(dados: {
+  para: string;
+  nome: string;
+  numero: number;
+  galeria: string;
+  totalCentavos: number;
+  link: string;
+}): Email {
+  const pago = dados.totalCentavos > 0;
+  return {
+    para: dados.para,
+    assunto: `Pedido #${dados.numero} cancelado`,
+    html: layout(
+      pago ? 'Seu pedido foi estornado' : 'Sua seleção foi cancelada',
+      `<p>Olá, ${escapeHtml(dados.nome.split(' ')[0] ?? dados.nome)}!</p>
+       <p>O pedido <strong>#${dados.numero}</strong> (${escapeHtml(dados.galeria)}) foi cancelado e os
+       downloads dele foram desativados.</p>
+       ${pago ? `<p>O valor de <strong>${reais(dados.totalCentavos)}</strong> volta pelo mesmo meio de pagamento:
+       no Pix, na hora; no cartão, aparece na fatura (pode levar até duas faturas).</p>` : ''}
+       <p>Se não reconhece este cancelamento, fale com o fotógrafo.</p>`,
+      dados.link,
+      'Ver o pedido',
+    ),
+    texto: `Pedido #${dados.numero} cancelado.${pago ? ` ${reais(dados.totalCentavos)} voltam pelo mesmo meio de pagamento.` : ''}`,
+  };
+}
+
+/** Fotógrafo: venda estornada (por ele, pelo admin, pelo MP ou contestação no cartão). */
+export function emailVendaEstornada(dados: {
+  para: string;
+  numero: number;
+  galeria: string;
+  subtotalCentavos: number;
+  origem: OrigemEstorno;
+  link: string;
+}): Email {
+  const contestacao = dados.origem === 'contestacao';
+  return {
+    para: dados.para,
+    assunto: contestacao ? `Venda #${dados.numero} contestada no cartão` : `Venda #${dados.numero} estornada`,
+    html: layout(
+      contestacao ? 'O comprador contestou uma compra no cartão' : 'Uma venda foi estornada',
+      contestacao
+        ? `<p>O comprador do pedido <strong>#${dados.numero}</strong> contestou a compra com o banco do
+           cartão e o Mercado Pago devolveu o valor. Os downloads foram desativados.</p>
+           <p>Se a venda foi legítima, você pode responder à contestação pelo seu Mercado Pago.</p>`
+        : `<p>O pedido <strong>#${dados.numero}</strong> foi estornado e o valor devolvido ao comprador.
+           Os downloads dele foram desativados.</p>`,
+      dados.link,
+      'Ver minhas vendas',
+      [
+        { rotulo: 'Galeria', valor: dados.galeria },
+        { rotulo: 'Valor da venda', valor: reais(dados.subtotalCentavos) },
+      ],
+    ),
+    texto: `Venda #${dados.numero} ${contestacao ? 'contestada no cartão' : 'estornada'} (${reais(dados.subtotalCentavos)}).`,
+  };
+}
+
 /** Fotógrafo: venda nova. */
 export function emailVendaRealizada(dados: {
   para: string;

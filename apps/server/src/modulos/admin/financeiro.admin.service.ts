@@ -54,6 +54,40 @@ export class FinanceiroAdminService {
     private readonly auditoria: AuditoriaService,
   ) {}
 
+  /** Um pedido pelo número (atendimento: devolução, conferir pagamento). */
+  async pedidoPorNumero(numero: number) {
+    const p = await this.prisma.pedido.findUnique({
+      where: { numero },
+      include: {
+        comprador: { select: { nome: true, email: true, whatsapp: true } },
+        galeria: { select: { titulo: true, slug: true, conta: { select: { nome: true, slug: true } } } },
+        pagamentos: {
+          orderBy: { criadoEm: 'desc' },
+          select: { metodo: true, status: true, valorCentavos: true, provedorPagamentoId: true, aprovadoEm: true, criadoEm: true },
+        },
+        _count: { select: { itens: true } },
+      },
+    });
+    if (!p) throw new NaoEncontradoExcecao('Pedido', `#${numero}`);
+    return {
+      id: p.id,
+      numero: p.numero,
+      status: p.status,
+      criadoEm: p.criadoEm,
+      pagoEm: p.pagoEm,
+      fotos: p._count.itens,
+      subtotalCentavos: p.subtotalCentavos,
+      totalCentavos: p.totalCentavos,
+      comissaoCentavos: p.comissaoCentavos,
+      taxaProvedorCentavos: p.taxaProvedorCentavos,
+      repasseCentavos: p.repasseCentavos,
+      comprador: p.comprador,
+      galeria: { titulo: p.galeria.titulo, slug: p.galeria.slug },
+      fotografo: p.galeria.conta,
+      pagamentos: p.pagamentos,
+    };
+  }
+
   /** Painel do período: vendas, comissão, taxas, assinaturas recebidas, série por dia, top fotógrafos. */
   async resumo(periodo: PeriodoDto) {
     const { de, ate } = janela(periodo);

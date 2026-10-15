@@ -11,6 +11,7 @@ const {
   data: pedido,
   error,
   status,
+  refresh,
 } = await useAsyncData(`pedido-${numero}`, () =>
   api<PedidoDetalhe>(`/pedidos/${numero}`),
 );
@@ -59,6 +60,30 @@ const rotuloMetodo: Record<MetodoPagamento, string> = {
   CARTAO: 'Cartão de Crédito',
   BOLETO: 'Boleto Bancário',
 };
+
+// --- devolver ao comprador (estorno total no Mercado Pago) ------------------------
+const devolvendoAberto = ref(false);
+const motivoDevolucao = ref('');
+const devolvendo = ref(false);
+const erroDevolucao = ref('');
+async function devolver() {
+  if (!pedido.value) return;
+  erroDevolucao.value = '';
+  devolvendo.value = true;
+  try {
+    await api(`/pedidos/${pedido.value.numero}/devolver`, {
+      method: 'POST',
+      body: { motivo: motivoDevolucao.value.trim() || undefined },
+    });
+    devolvendoAberto.value = false;
+    await refresh();
+  } catch (e) {
+    erroDevolucao.value =
+      (e as { data?: { mensagem?: string } }).data?.mensagem ?? 'Não foi possível devolver. Tente de novo.';
+  } finally {
+    devolvendo.value = false;
+  }
+}
 
 // --- link whatsapp ----------------------------------------------------------
 const linkWhatsApp = computed(() => {
@@ -272,13 +297,57 @@ const linkWhatsApp = computed(() => {
 
             <!-- status de downloads restantes -->
             <div
-              v-if="item.downloadsRestantes !== undefined"
+              v-if="item.downloadsRestantes !== undefined && (item.limiteDownloads ?? 0) < 1000"
               class="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/90 to-transparent p-2 text-center text-[10px] text-white"
             >
               {{ item.downloadsRestantes }} / {{ item.limiteDownloads }} downloads
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- devolver ao comprador -->
+      <section v-if="pedido.status === 'PAGO'" class="card p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="font-semibold text-text">Devolver ao comprador</h2>
+            <p class="mt-0.5 text-xs text-muted">
+              {{ pedido.totalCentavos > 0
+                ? 'Estorna o valor total pelo Mercado Pago (sai da sua conta lá) e desativa os downloads.'
+                : 'Cancela a seleção do pacote e desativa os downloads.' }}
+            </p>
+          </div>
+          <UiBotao v-if="!devolvendoAberto" variante="secundaria" @click="devolvendoAberto = true">Devolver</UiBotao>
+        </div>
+        <form v-if="devolvendoAberto" class="mt-4 space-y-3" @submit.prevent="devolver">
+          <label class="block text-xs">
+            <span class="mb-1 block text-muted">Motivo (opcional, fica no histórico)</span>
+            <input
+              v-model="motivoDevolucao"
+              maxlength="300"
+              placeholder="Ex.: comprou a foto errada"
+              class="h-10 w-full rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-wine"
+            />
+          </label>
+          <p class="text-xs text-warning">
+            Tem certeza? O comprador recebe {{ moeda(pedido.totalCentavos) }} de volta e isso não dá pra desfazer.
+          </p>
+          <p v-if="erroDevolucao" class="text-xs text-danger">{{ erroDevolucao }}</p>
+          <div class="flex gap-2">
+            <button
+              type="submit"
+              :disabled="devolvendo"
+              class="inline-flex h-10 items-center rounded-lg bg-danger px-4 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {{ devolvendo ? 'Devolvendo…' : 'Sim, devolver' }}
+            </button>
+            <UiBotao variante="fantasma" @click="devolvendoAberto = false">Cancelar</UiBotao>
+          </div>
+        </form>
+      </section>
+      <section v-else-if="pedido.status === 'ESTORNADO'" class="card border-danger/40 p-5 text-sm">
+        <p class="font-semibold text-danger">Pedido estornado</p>
+        <p class="mt-1 text-xs text-muted">O valor voltou para o comprador e os downloads foram desativados.</p>
       </section>
 
       <!-- histórico de pagamento -->

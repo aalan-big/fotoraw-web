@@ -96,11 +96,14 @@ const mostrarTabela = ref(false);
           Vendas de foto, comissão da plataforma e o que falta repassar aos fotógrafos.
         </p>
       </div>
+      <div class="flex flex-wrap gap-2">
+      <UiBotao to="/financeiro/pedidos" variante="secundaria">Pedidos · devolver</UiBotao>
       <UiBotao to="/financeiro/repasses" variante="secundaria">
         Repasses<template v-if="r?.aRepassar.totalCentavos">
           · {{ dinheiro(r.aRepassar.totalCentavos) }} em aberto</template
         >
       </UiBotao>
+      </div>
     </div>
 
     <!-- período -->
