@@ -8,6 +8,7 @@ import type {
   ModoVenda,
   Visibilidade,
 } from '../../infra/prisma/gerado/client.js';
+import { StorageService } from '../../infra/storage/storage.service.js';
 import { urlPublica } from '../../infra/storage/urls.js';
 import { LimitadorTentativas } from '../auth/senha/limitador-tentativas.js';
 import { SenhaService } from '../auth/senha/senha.service.js';
@@ -77,6 +78,16 @@ export interface GaleriaAberta {
   podeComprar: boolean;
   /** avulso aberto, mas o fotógrafo ainda não conectou o Mercado Pago */
   vendasEmBreve: boolean;
+  /** entrega: o cliente baixa direto (já pagou o trabalho) */
+  podeBaixar: boolean;
+  /** pacote: quantas fotos estão incluídas, quantas ainda dá pra escolher sem pagar,
+   *  se dá pra pagar extras e quais fotos já foram escolhidas */
+  pacote: {
+    incluidas: number;
+    restantes: number;
+    extrasDisponiveis: boolean;
+    jaEscolhidas: string[];
+  } | null;
   totalFotos: number;
   fotografo: {
     nome: string;
@@ -99,6 +110,7 @@ export class PublicoService {
     private readonly galerias: GaleriasPublicasRepositorio,
     private readonly senhas: SenhaService,
     private readonly vendedores: CredenciaisVendedorService,
+    private readonly storage: StorageService,
     private readonly config: ConfigService<Env, true>,
   ) {}
 
@@ -144,8 +156,22 @@ export class PublicoService {
       : await this.galerias.listarFotos(galeria.id, dto.pagina, FOTOS_POR_PAGINA, dto.numero);
 
     const { conta } = galeria;
-    const vendeAvulso = situacao === 'ABERTA' && galeria.modoVenda === 'AVULSO';
-    const conectado = vendeAvulso && (await this.vendedores.vendeOnline(galeria.contaId));
+    const aberta = situacao === 'ABERTA';
+    const vendeAvulso = aberta && galeria.modoVenda === 'AVULSO';
+    const ePacote = galeria.modoVenda === 'PACOTE';
+    const conectado =
+      (vendeAvulso || ePacote) && (await this.vendedores.vendeOnline(galeria.contaId));
+    let pacote: GaleriaAberta['pacote'] = null;
+    if (ePacote) {
+      const selecao = await this.galerias.selecaoDoPacote(galeria.id);
+      const incluidas = galeria.fotosIncluidas ?? 0;
+      pacote = {
+        incluidas,
+        restantes: Math.max(0, incluidas - selecao.incluidasUsadas),
+        extrasDisponiveis: conectado && (galeria.precoFotoCentavos ?? 0) > 0,
+        jaEscolhidas: selecao.fotoIds,
+      };
+    }
     return {
       id: galeria.id,
       titulo: galeria.titulo,
@@ -164,8 +190,11 @@ export class PublicoService {
       capaUrl: urlPublica(this.basePreviews, galeria.capaKey),
       publicadaEm: galeria.publicadaEm,
       situacao,
-      podeComprar: conectado,
+      // pacote: escolher as incluídas não depende de pagamento (extras sim)
+      podeComprar: vendeAvulso ? conectado : ePacote && aberta,
       vendasEmBreve: vendeAvulso && !conectado,
+      podeBaixar: galeria.modoVenda === 'ENTREGA' && !encerrada,
+      pacote,
       totalFotos: galeria.totalFotos,
       fotografo: {
         nome: conta.perfil?.nomeFantasia || conta.nome,
@@ -189,6 +218,40 @@ export class PublicoService {
         porPagina: FOTOS_POR_PAGINA,
       },
     };
+  }
+
+  /**
+   * Entrega (trabalho já pago): baixa o original direto, com o código da galeria.
+   * Link simples (<a href>) — a senha, quando existe, vem na query.
+   */
+  async baixarEntrega(
+    contaSlug: string,
+    slug: string,
+    fotoId: string,
+    acesso: { codigo?: string; senha?: string; modo?: string },
+    ip: string,
+  ): Promise<string> {
+    const galeria = await this.galerias.buscarPorLink(contaSlug, slug);
+    if (!galeria) throw new NaoEncontradoExcecao('Galeria');
+    if (galeria.modoVenda !== 'ENTREGA') {
+      throw new DominioExcecao('SO_COMPRANDO', 'As fotos desta galeria são vendidas.', HttpStatus.FORBIDDEN);
+    }
+    if (galeria.visibilidade === 'PRIVADA') {
+      await this.conferirAcesso(galeria, acesso.codigo ?? '', acesso.senha, ip);
+    }
+    if (galeria.status === 'ENCERRADA' || (galeria.encerraEm && galeria.encerraEm <= new Date())) {
+      throw new DominioExcecao('GALERIA_ENCERRADA', 'Esta galeria foi encerrada.', HttpStatus.GONE);
+    }
+    const foto = await this.galerias.fotoDaGaleria(galeria.id, fotoId);
+    if (!foto?.altaKey) throw new NaoEncontradoExcecao('Foto');
+    const nome = `${galeria.slug}-${foto.numeroIdentificacao ?? foto.id.slice(-6)}.jpg`;
+    return this.storage.gerarUrlDownloadAssinada(
+      this.storage.bucketOriginais,
+      foto.altaKey,
+      15 * 60,
+      nome,
+      acesso.modo === 'ver' ? 'inline' : 'attachment',
+    );
   }
 
   /** Quem só tem o código (página /ensaio): devolve pra onde ir. */

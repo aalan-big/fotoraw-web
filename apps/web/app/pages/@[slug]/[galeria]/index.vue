@@ -105,16 +105,52 @@ const g = computed(() => galeria.value);
 const pacote = computed(() => g.value?.modoVenda === 'PACOTE');
 const escolhidas = computed(() => (g.value ? carrinho.itens(g.value.id) : []));
 const escolhida = (foto: FotoPublica) => !!g.value && carrinho.tem(g.value.id, foto.id);
+// pacote: foto que já está numa seleção confirmada não entra de novo
+const jaEscolhida = (foto: FotoPublica) => !!g.value?.pacote?.jaEscolhidas.includes(foto.id);
+const restantes = computed(() => g.value?.pacote?.restantes ?? 0);
+const qtdExtras = computed(() => (pacote.value ? Math.max(0, escolhidas.value.length - restantes.value) : 0));
+// pacote sem extra pago (fotógrafo sem Mercado Pago ou sem preço de extra): para no incluído
+const limiteDoPacote = computed(() => pacote.value && !g.value?.pacote?.extrasDisponiveis);
+const avisoPacote = ref('');
 function alternar(foto: FotoPublica) {
-  if (g.value?.podeComprar) carrinho.alternar(g.value.id, foto);
+  if (!g.value?.podeComprar || jaEscolhida(foto)) return;
+  avisoPacote.value = '';
+  if (limiteDoPacote.value && !escolhida(foto) && escolhidas.value.length >= restantes.value) {
+    avisoPacote.value = `Seu pacote tem ${g.value.pacote?.incluidas ?? 0} fotos e todas já foram escolhidas. Tire uma pra trocar.`;
+    return;
+  }
+  carrinho.alternar(g.value.id, foto);
 }
-// pacote: as N primeiras saem no pacote, o resto paga como extra
-const totalCentavos = computed(() => {
-  if (!g.value) return 0;
-  if (!pacote.value) return carrinho.totalCentavos(g.value.id);
-  const extrasPagas = Math.max(0, escolhidas.value.length - (g.value.fotosIncluidas ?? 0));
-  return extrasPagas * (g.value.precoFotoCentavos ?? 0);
+// o carrinho guarda as regras do pacote (o checkout mostra o resumo certo)
+watch(
+  g,
+  (x) => {
+    if (!x || !import.meta.client) return;
+    carrinho.definirRegras(
+      x.id,
+      x.pacote ? { restantes: x.pacote.restantes, extraCentavos: x.precoFotoCentavos ?? 0 } : null,
+    );
+  },
+  { immediate: true },
+);
+const totalCentavos = computed(() => (g.value ? carrinho.totalCentavos(g.value.id) : 0));
+
+// entrega: link direto do original (com o código da galeria)
+const { apiBase } = useRuntimeConfig().public;
+const ios = ref(false);
+onMounted(() => {
+  ios.value = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 });
+function linkBaixar(foto: FotoPublica) {
+  if (!g.value) return '';
+  const q = new URLSearchParams();
+  if (codigo.value) q.set('codigo', codigo.value);
+  if (ios.value) q.set('modo', 'ver');
+  const s = senhaDaSessao();
+  if (s) q.set('senha', s);
+  const qs = q.toString();
+  return `${apiBase}/publico/galerias/${conta.value}/${slug.value}/fotos/${foto.id}/arquivo${qs ? `?${qs}` : ''}`;
+}
 
 const aberta = ref<number | null>(null);
 
@@ -255,8 +291,23 @@ useSeoMeta({
         v-else-if="g.modoVenda === 'ENTREGA'"
         class="mb-6 rounded-lg border border-info/40 bg-info/10 px-4 py-3 text-sm text-info"
       >
-        Suas fotos estão aqui. O download em alta resolução chega em breve nesta mesma página.
+        Suas fotos estão prontas, em alta resolução e sem marca d'água. Toque em
+        <strong>{{ ios ? 'Abrir' : 'Baixar' }}</strong> em cada foto<template v-if="ios"> e depois toque e segure nela → Salvar na Fotos</template>.
       </p>
+
+      <!-- pacote: quanto já escolheu -->
+      <div v-if="g.pacote && g.situacao === 'ABERTA'" class="mb-6 rounded-lg border border-wine/40 bg-wine-dim px-4 py-3 text-sm">
+        <p class="font-semibold">
+          Seu pacote: {{ g.pacote.incluidas }} {{ g.pacote.incluidas === 1 ? 'foto' : 'fotos' }}
+          <span class="font-normal text-muted">
+            · {{ restantes === 0 ? 'todas já escolhidas' : `faltam ${restantes} pra escolher` }}
+            <template v-if="g.pacote.extrasDisponiveis && g.precoFotoCentavos">
+              · foto extra {{ formatarCentavos(g.precoFotoCentavos) }}</template>
+          </span>
+        </p>
+        <p class="mt-0.5 text-xs text-muted">Toque no + das fotos que você quer e confirme no fim da página.</p>
+      </div>
+      <p v-if="avisoPacote" class="mb-6 text-sm text-warning">{{ avisoPacote }}</p>
 
       <template v-if="g.situacao !== 'ENCERRADA'">
         <!-- busca por número (eventos) -->
@@ -298,7 +349,7 @@ useSeoMeta({
             v-for="(foto, i) in fotos"
             :key="foto.id"
             class="group relative mb-3 cursor-zoom-in break-inside-avoid overflow-hidden rounded-lg border bg-surface"
-            :class="escolhida(foto) ? 'border-wine ring-2 ring-wine' : 'border-border'"
+            :class="escolhida(foto) || jaEscolhida(foto) ? 'border-wine ring-2 ring-wine' : 'border-border'"
             @click="aberta = i"
           >
             <img
@@ -318,8 +369,24 @@ useSeoMeta({
             >
               {{ foto.numero }}
             </span>
+            <span
+              v-if="jaEscolhida(foto)"
+              class="absolute bottom-2 right-2 rounded-full bg-wine px-2.5 py-1 text-[11px] font-semibold text-white"
+            >
+              Escolhida
+            </span>
+            <a
+              v-else-if="g.podeBaixar"
+              :href="linkBaixar(foto)"
+              target="_blank"
+              rel="noopener"
+              class="absolute bottom-2 right-2 rounded-full bg-wine px-3 py-1.5 text-xs font-semibold text-white hover:bg-wine-hover"
+              @click.stop
+            >
+              {{ ios ? 'Abrir' : 'Baixar' }}
+            </a>
             <button
-              v-if="g.podeComprar"
+              v-else-if="g.podeComprar"
               type="button"
               class="absolute bottom-2 right-2 flex size-9 items-center justify-center rounded-full backdrop-blur transition-colors"
               :class="escolhida(foto) ? 'bg-wine text-white' : 'bg-bg/70 text-text hover:bg-wine'"
@@ -350,6 +417,8 @@ useSeoMeta({
       :pode-comprar="g.podeComprar"
       :pacote="pacote"
       :escolhida="escolhida"
+      :ja-escolhida="jaEscolhida"
+      :link-baixar="g.podeBaixar ? linkBaixar : undefined"
       @alternar="alternar"
     />
 
@@ -363,18 +432,21 @@ useSeoMeta({
           <div class="min-w-0">
             <p class="font-semibold">
               <template v-if="pacote">
-                {{ escolhidas.length }} de {{ g.fotosIncluidas ?? 0 }} fotos do pacote
+                {{ Math.min(escolhidas.length, restantes) }} de {{ restantes }} do pacote
+                <template v-if="qtdExtras"> + {{ qtdExtras }} {{ qtdExtras === 1 ? 'extra' : 'extras' }}</template>
               </template>
               <template v-else>
                 {{ escolhidas.length }} {{ escolhidas.length === 1 ? 'foto' : 'fotos' }}
               </template>
               <span v-if="totalCentavos" class="tabular-nums text-wine-tint"> · {{ formatarCentavos(totalCentavos) }}</span>
             </p>
-            <p class="text-xs text-muted">Pix ou cartão · alta resolução, sem marca d'água</p>
+            <p class="text-xs text-muted">
+              {{ pacote && !totalCentavos ? 'Sem custo: já está no seu pacote' : "Pix ou cartão · alta resolução, sem marca d'água" }}
+            </p>
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <UiBotao variante="fantasma" @click="carrinho.limpar(g.id)">Limpar</UiBotao>
-            <UiBotao @click="finalizar">Finalizar compra</UiBotao>
+            <UiBotao @click="finalizar">{{ pacote ? 'Confirmar escolha' : 'Finalizar compra' }}</UiBotao>
           </div>
         </div>
       </div>

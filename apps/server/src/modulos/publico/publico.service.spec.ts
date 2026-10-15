@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { StorageService } from '../../infra/storage/storage.service.js';
 import { SenhaService } from '../auth/senha/senha.service.js';
 import { CredenciaisVendedorService } from '../pagamentos/vendas/credenciais-vendedor.service.js';
 import { PublicoService } from './publico.service.js';
@@ -33,6 +34,7 @@ describe('PublicoService', () => {
         { provide: GaleriasPublicasRepositorio, useValue: repo },
         { provide: SenhaService, useValue: {} },
         { provide: CredenciaisVendedorService, useValue: {} },
+        { provide: StorageService, useValue: {} },
         { provide: ConfigService, useValue: { get: () => 'http://cdn/previews' } },
       ],
     }).compile();

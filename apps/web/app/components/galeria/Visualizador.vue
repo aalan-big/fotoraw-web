@@ -9,6 +9,10 @@ const props = defineProps<{
   /** modo pacote: "escolher" em vez de "comprar" */
   pacote?: boolean;
   escolhida: (foto: FotoPublica) => boolean;
+  /** pacote: já está numa seleção confirmada */
+  jaEscolhida?: (foto: FotoPublica) => boolean;
+  /** entrega: link direto do original */
+  linkBaixar?: (foto: FotoPublica) => string;
 }>();
 const indice = defineModel<number | null>({ required: true });
 const emit = defineEmits<{ alternar: [foto: FotoPublica] }>();
@@ -99,7 +103,20 @@ onUnmounted(() => (document.body.style.overflow = ''));
         </button>
       </div>
 
-      <footer v-if="podeComprar" class="flex items-center justify-center gap-4 px-4 py-4">
+      <footer v-if="linkBaixar" class="flex items-center justify-center px-4 py-4">
+        <a
+          :href="linkBaixar(foto)"
+          target="_blank"
+          rel="noopener"
+          class="inline-flex h-12 items-center rounded-lg bg-wine px-6 font-medium text-white hover:bg-wine-hover"
+        >
+          Baixar em alta resolução
+        </a>
+      </footer>
+      <footer v-else-if="jaEscolhida?.(foto)" class="flex items-center justify-center px-4 py-4 text-sm text-muted">
+        Esta foto já está na sua seleção.
+      </footer>
+      <footer v-else-if="podeComprar" class="flex items-center justify-center gap-4 px-4 py-4">
         <span v-if="!pacote && foto.precoCentavos != null" class="text-lg font-semibold tabular-nums">
           {{ formatarCentavos(foto.precoCentavos) }}
         </span>

@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Headers, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Param, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ZodValidationPipe } from '../../comum/pipes/zod-validation.pipe.js';
 import type { Contexto } from '../auth/auth.service.js';
 import { Ctx } from '../auth/decorators/contexto.decorator.js';
@@ -36,6 +37,21 @@ export class PublicoController {
     @Ctx() ctx: Contexto,
   ) {
     return this.publico.abrirGaleria(conta, galeria, dto, ctx.ip ?? 'sem-ip', senha);
+  }
+
+  /** Entrega: link direto do original (conferido o código). Redireciona pro arquivo. */
+  @Get('galerias/:conta/:galeria/fotos/:foto/arquivo')
+  async baixarEntrega(
+    @Param('conta') conta: string,
+    @Param('galeria') galeria: string,
+    @Param('foto') foto: string,
+    @Query() query: { codigo?: string; senha?: string; modo?: string },
+    @Ctx() ctx: Contexto,
+    @Res() res: Response,
+  ) {
+    const url = await this.publico.baixarEntrega(conta, galeria, foto, query, ctx.ip ?? 'sem-ip');
+    res.setHeader('Cache-Control', 'no-store');
+    res.redirect(302, url);
   }
 
   @Post('acesso')

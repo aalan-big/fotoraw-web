@@ -118,6 +118,25 @@ export class GaleriasPublicasRepositorio {
     });
   }
 
+  /** Pacote: fotos já escolhidas (pedidos pagos) e quantas delas usaram o pacote. */
+  async selecaoDoPacote(galeriaId: string) {
+    const itens = await this.prisma.itemPedido.findMany({
+      where: { pedido: { galeriaId, status: 'PAGO' } },
+      select: { fotoId: true, incluida: true },
+    });
+    return {
+      fotoIds: [...new Set(itens.map((i) => i.fotoId))],
+      incluidasUsadas: itens.filter((i) => i.incluida).length,
+    };
+  }
+
+  fotoDaGaleria(galeriaId: string, fotoId: string) {
+    return this.prisma.foto.findFirst({
+      where: { id: fotoId, galeriaId, status: 'ATIVA', altaKey: { not: null } },
+      select: { id: true, altaKey: true, numeroIdentificacao: true },
+    });
+  }
+
   /** Fotos visíveis, na ordem do desktop; `numero` filtra pela identificação. */
   async listarFotos(galeriaId: string, pagina: number, porPagina: number, numero?: string) {
     const where: Prisma.FotoWhereInput = {

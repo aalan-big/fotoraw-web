@@ -35,6 +35,10 @@ function preencher() {
 }
 const itens = computed(() => (galeriaId.value ? carrinho.itens(galeriaId.value) : []));
 const total = computed(() => (galeriaId.value ? carrinho.totalCentavos(galeriaId.value) : 0));
+// pacote: quantas saem pelo pacote e quantas são extras
+const regra = computed(() => (galeriaId.value ? carrinho.regras[galeriaId.value] : undefined));
+const doPacote = computed(() => (regra.value ? Math.min(itens.value.length, regra.value.restantes) : 0));
+const extras = computed(() => (regra.value ? itens.value.length - doPacote.value : 0));
 
 const form = reactive({ nome: '', email: '', whatsapp: '', cpf: '', termos: false });
 const erros = ref<Record<string, string>>({});
@@ -191,9 +195,11 @@ const campo =
         <p v-if="erroGeral" class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">{{ erroGeral }}</p>
 
         <UiBotao type="submit" tamanho="lg" class="w-full" :disabled="enviando">
-          {{ enviando ? 'Criando pedido…' : 'Ir para o pagamento' }}
+          {{ enviando ? 'Enviando…' : total === 0 ? 'Confirmar escolha' : 'Ir para o pagamento' }}
         </UiBotao>
-        <p class="text-center text-xs text-muted/80">Pix ou cartão de crédito, pelo Mercado Pago.</p>
+        <p class="text-center text-xs text-muted/80">
+          {{ total === 0 ? 'Sem custo: as fotos já estão no seu pacote.' : 'Pix ou cartão de crédito, pelo Mercado Pago.' }}
+        </p>
       </form>
 
       <aside class="card h-fit p-6">
@@ -204,7 +210,17 @@ const campo =
           </li>
         </ul>
         <dl class="mt-5 space-y-2 border-t border-border pt-4 text-sm">
-          <div class="flex justify-between">
+          <template v-if="regra">
+            <div class="flex justify-between">
+              <dt class="text-muted">{{ doPacote }} do pacote</dt>
+              <dd class="tabular-nums">incluídas</dd>
+            </div>
+            <div v-if="extras" class="flex justify-between">
+              <dt class="text-muted">{{ extras }} {{ extras === 1 ? 'extra' : 'extras' }}</dt>
+              <dd class="tabular-nums">{{ formatarCentavos(total) }}</dd>
+            </div>
+          </template>
+          <div v-else class="flex justify-between">
             <dt class="text-muted">{{ itens.length }} {{ itens.length === 1 ? 'foto' : 'fotos' }}</dt>
             <dd class="tabular-nums">{{ formatarCentavos(total) }}</dd>
           </div>

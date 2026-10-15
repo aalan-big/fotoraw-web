@@ -115,6 +115,10 @@ export interface GaleriaAberta {
   podeComprar: boolean;
   /** avulso aberto, mas o fotógrafo ainda não ativou as vendas */
   vendasEmBreve: boolean;
+  /** entrega: o cliente baixa direto */
+  podeBaixar: boolean;
+  /** pacote: incluídas, quantas ainda saem sem pagar, se aceita extra pago, já escolhidas */
+  pacote: { incluidas: number; restantes: number; extrasDisponiveis: boolean; jaEscolhidas: string[] } | null;
   totalFotos: number;
   fotografo: {
     nome: string;

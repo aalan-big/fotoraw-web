@@ -88,8 +88,8 @@ export class VendasService {
     if (galeria.encerraEm && galeria.encerraEm <= new Date()) {
       throw new PedidoIndisponivelExcecao('Esta galeria foi encerrada.');
     }
-    if (galeria.modoVenda !== 'AVULSO') {
-      throw new PedidoIndisponivelExcecao('Esta galeria não vende fotos avulsas.');
+    if (galeria.modoVenda === 'ENTREGA') {
+      throw new PedidoIndisponivelExcecao('Nesta galeria as fotos já estão pagas: é só baixar.');
     }
     if (
       galeria.visibilidade === 'PRIVADA' &&
@@ -97,8 +97,6 @@ export class VendasService {
     ) {
       throw new DominioExcecao('CODIGO_INVALIDO', 'Código da galeria inválido.', HttpStatus.FORBIDDEN);
     }
-    // já busca (e renova, se preciso) as credenciais: a public_key tem que existir pro cartão
-    await this.credenciais.obter(galeria.contaId);
 
     const fotos = await this.prisma.foto.findMany({
       where: { id: { in: dto.fotoIds }, galeriaId: galeria.id, status: 'ATIVA', altaKey: { not: null } },
@@ -109,12 +107,49 @@ export class VendasService {
         'Alguma foto do carrinho não está mais disponível. Volte à galeria e confira.',
       );
     }
-    const itens = fotos.map((f) => ({ fotoId: f.id, precoCentavos: f.precoCentavos ?? galeria.precoFotoCentavos ?? 0 }));
-    if (itens.some((i) => i.precoCentavos <= 0)) {
-      throw new PedidoIndisponivelExcecao('Esta galeria está sem preço definido.');
+    // na ordem que o cliente escolheu (no pacote, as primeiras saem pelo pacote)
+    const ordem = new Map(dto.fotoIds.map((id, i) => [id, i]));
+    fotos.sort((a, b) => ordem.get(a.id)! - ordem.get(b.id)!);
+
+    let itens: { fotoId: string; precoCentavos: number; incluida: boolean }[];
+    if (galeria.modoVenda === 'PACOTE') {
+      // pacote: o trabalho já foi pago (contrato); as N incluídas saem a R$ 0 e o
+      // resto é extra, pelo preço da foto extra
+      const anteriores = await this.prisma.itemPedido.findMany({
+        where: { pedido: { galeriaId: galeria.id, status: 'PAGO' } },
+        select: { fotoId: true, incluida: true },
+      });
+      const jaEscolhidas = new Set(anteriores.map((i) => i.fotoId));
+      if (fotos.some((f) => jaEscolhidas.has(f.id))) {
+        throw new PedidoIndisponivelExcecao('Alguma dessas fotos já está na sua seleção. Volte à galeria e confira.');
+      }
+      let restantes = Math.max(0, (galeria.fotosIncluidas ?? 0) - anteriores.filter((i) => i.incluida).length);
+      itens = fotos.map((f) => {
+        if (restantes > 0) {
+          restantes--;
+          return { fotoId: f.id, precoCentavos: 0, incluida: true };
+        }
+        return { fotoId: f.id, precoCentavos: galeria.precoFotoCentavos ?? 0, incluida: false };
+      });
+      if (itens.some((i) => !i.incluida && i.precoCentavos <= 0)) {
+        throw new PedidoIndisponivelExcecao(
+          `O pacote tem ${galeria.fotosIncluidas ?? 0} fotos e não tem fotos extras. Tire algumas da seleção.`,
+        );
+      }
+    } else {
+      itens = fotos.map((f) => ({
+        fotoId: f.id,
+        precoCentavos: f.precoCentavos ?? galeria.precoFotoCentavos ?? 0,
+        incluida: false,
+      }));
+      if (itens.some((i) => i.precoCentavos <= 0)) {
+        throw new PedidoIndisponivelExcecao('Esta galeria está sem preço definido.');
+      }
     }
 
     const subtotal = itens.reduce((s, i) => s + i.precoCentavos, 0);
+    // tem o que pagar: precisa do Mercado Pago do fotógrafo (e já renova o token / public_key)
+    if (subtotal > 0) await this.credenciais.obter(galeria.contaId);
     const comissaoPct = galeria.modalidade === 'EVENTO' ? await this.comissaoEvento(galeria.contaId) : 0;
     const comissao = Math.round((subtotal * comissaoPct) / 100);
 
@@ -142,7 +177,13 @@ export class VendasService {
       },
       select: { id: true, numero: true },
     });
-    return { id: pedido.id, numero: pedido.numero };
+
+    // pacote só com as incluídas: não tem o que pagar — a seleção vale na hora
+    if (subtotal === 0) {
+      await this.liberar(pedido.id, { taxaProvedorCentavos: 0, pagoEm: new Date() });
+      return { id: pedido.id, numero: pedido.numero, pago: true };
+    }
+    return { id: pedido.id, numero: pedido.numero, pago: false };
   }
 
   /** Comissão de evento do plano da conta (snapshot no pedido). */
@@ -321,11 +362,7 @@ export class VendasService {
   private async confirmarPago(pedidoId: string, mp: PagamentoMp): Promise<string> {
     const pedido = await this.prisma.pedido.findUnique({
       where: { id: pedidoId },
-      include: {
-        itens: { select: { fotoId: true } },
-        comprador: true,
-        galeria: { select: { id: true, titulo: true, conta: { select: { nome: true, email: true } } } },
-      },
+      select: { id: true, numero: true, status: true, totalCentavos: true },
     });
     if (!pedido) return `pedido ${pedidoId} sumiu`;
     if (pedido.status === 'PAGO') return `pedido #${pedido.numero} já estava pago`;
@@ -341,19 +378,34 @@ export class VendasService {
     const taxaProvedor = Math.round(
       (mp.fee_details ?? []).filter((f) => f.type === 'mercadopago_fee').reduce((s, f) => s + f.amount, 0) * 100,
     );
+    return this.liberar(pedido.id, {
+      taxaProvedorCentavos: taxaProvedor,
+      pagoEm: mp.date_approved ? new Date(mp.date_approved) : new Date(),
+    });
+  }
+
+  /**
+   * Pedido pago (ou seleção de pacote sem custo): vira PAGO, cria os downloads,
+   * soma nas vendas da galeria e avisa comprador e fotógrafo. Só um caminho
+   * consegue (updateMany condicional) — idempotente.
+   */
+  private async liberar(pedidoId: string, dados: { taxaProvedorCentavos: number; pagoEm: Date }): Promise<string> {
+    const pedido = await this.prisma.pedido.findUnique({
+      where: { id: pedidoId },
+      include: {
+        itens: { select: { fotoId: true, incluida: true } },
+        comprador: true,
+        galeria: { select: { id: true, titulo: true, conta: { select: { nome: true, email: true } } } },
+      },
+    });
+    if (!pedido) return `pedido ${pedidoId} sumiu`;
+    const taxaProvedor = dados.taxaProvedorCentavos;
     const repasse = pedido.subtotalCentavos - pedido.descontoCentavos - pedido.comissaoCentavos - taxaProvedor;
-    const expira = DOWNLOAD_VALE_ATE;
 
     const confirmou = await this.prisma.$transaction(async (tx) => {
-      // só um caminho (cartão / webhook / reconsulta) vira o pedido pra PAGO
       const r = await tx.pedido.updateMany({
         where: { id: pedido.id, status: { not: 'PAGO' } },
-        data: {
-          status: 'PAGO',
-          pagoEm: mp.date_approved ? new Date(mp.date_approved) : new Date(),
-          taxaProvedorCentavos: taxaProvedor,
-          repasseCentavos: repasse,
-        },
+        data: { status: 'PAGO', pagoEm: dados.pagoEm, taxaProvedorCentavos: taxaProvedor, repasseCentavos: repasse },
       });
       if (r.count === 0) return false;
       await tx.download.createMany({
@@ -362,19 +414,22 @@ export class VendasService {
           fotoId: i.fotoId,
           compradorId: pedido.compradorId,
           token: randomBytes(24).toString('base64url'),
-          expiraEm: expira,
+          expiraEm: DOWNLOAD_VALE_ATE,
           limiteBaixadas: DOWNLOAD_LIMITE,
         })),
         skipDuplicates: true,
       });
-      await tx.galeria.update({
-        where: { id: pedido.galeriaId },
-        data: { totalVendasCentavos: { increment: pedido.subtotalCentavos } },
-      });
+      if (pedido.subtotalCentavos > 0) {
+        await tx.galeria.update({
+          where: { id: pedido.galeriaId },
+          data: { totalVendasCentavos: { increment: pedido.subtotalCentavos } },
+        });
+      }
       return true;
     });
     if (!confirmou) return `pedido #${pedido.numero} já estava pago`;
 
+    const incluidas = pedido.itens.filter((i) => i.incluida).length;
     await this.email.enviar(
       emailFotosLiberadas({
         para: pedido.comprador.email,
@@ -394,6 +449,7 @@ export class VendasService {
         numero: pedido.numero,
         galeria: pedido.galeria.titulo,
         quantidade: pedido.itens.length,
+        incluidas,
         subtotalCentavos: pedido.subtotalCentavos,
         comissaoCentavos: pedido.comissaoCentavos,
         taxaProvedorCentavos: taxaProvedor,

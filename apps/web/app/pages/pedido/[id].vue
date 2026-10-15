@@ -165,7 +165,7 @@ function aoVoltar() {
           </svg>
         </UiPastilha>
         <div>
-          <p class="font-semibold">Pagamento confirmado!</p>
+          <p class="font-semibold">{{ p.totalCentavos === 0 ? 'Seleção confirmada!' : 'Pagamento confirmado!' }}</p>
           <p class="text-sm text-muted">Suas fotos em alta resolução, sem marca d'água. Também mandamos este link para {{ p.comprador.email }}.</p>
         </div>
       </div>

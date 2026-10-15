@@ -18,14 +18,15 @@ export function emailFotosLiberadas(dados: {
   areaUrl: string;
 }): Email {
   const fotos = dados.quantidade === 1 ? '1 foto' : `${dados.quantidade} fotos`;
+  const semCusto = dados.totalCentavos === 0;
   return {
     para: dados.para,
     assunto: `Suas fotos de ${dados.galeria} estão liberadas`,
     html: layout(
-      'Pagamento confirmado! Suas fotos estão prontas',
+      semCusto ? 'Seleção confirmada! Suas fotos estão prontas' : 'Pagamento confirmado! Suas fotos estão prontas',
       `<p>Olá, ${escapeHtml(dados.nome.split(' ')[0] ?? dados.nome)}!</p>
-       <p>Recebemos o pagamento do pedido <strong>#${dados.numero}</strong>. Suas fotos em alta
-       resolução, sem marca d'água, já podem ser baixadas.</p>
+       <p>${semCusto ? 'Recebemos a sua seleção' : 'Recebemos o pagamento'} do pedido <strong>#${dados.numero}</strong>.
+       Suas fotos em alta resolução, sem marca d'água, já podem ser baixadas.</p>
        <p>Você pode baixar sempre que quiser, enquanto a galeria estiver no ar. Também dá pra
        ver todas as suas compras em <a href="${dados.areaUrl}" style="color:#7a1f2b">Minhas fotos</a>,
        entrando com um código que chega no seu e-mail (sem senha).</p>`,
@@ -35,7 +36,7 @@ export function emailFotosLiberadas(dados: {
         { rotulo: 'Galeria', valor: dados.galeria },
         { rotulo: 'Fotógrafo', valor: dados.fotografo },
         { rotulo: 'Fotos', valor: fotos },
-        { rotulo: 'Total pago', valor: reais(dados.totalCentavos) },
+        ...(semCusto ? [] : [{ rotulo: 'Total pago', valor: reais(dados.totalCentavos) }]),
       ],
     ),
     texto: `Pagamento do pedido #${dados.numero} confirmado (${fotos}, ${reais(dados.totalCentavos)}). Baixe em: ${dados.link} — ou em ${dados.areaUrl}.`,
@@ -48,6 +49,8 @@ export function emailVendaRealizada(dados: {
   numero: number;
   galeria: string;
   quantidade: number;
+  /** pacote: quantas saíram pelo pacote (sem custo) */
+  incluidas?: number;
   subtotalCentavos: number;
   comissaoCentavos: number;
   taxaProvedorCentavos: number;
@@ -55,6 +58,26 @@ export function emailVendaRealizada(dados: {
   link: string;
 }): Email {
   const fotos = dados.quantidade === 1 ? '1 foto' : `${dados.quantidade} fotos`;
+  const incluidas = dados.incluidas ?? 0;
+  if (dados.subtotalCentavos === 0) {
+    // pacote: o cliente só escolheu as fotos incluídas
+    return {
+      para: dados.para,
+      assunto: `Seleção #${dados.numero}: ${fotos} escolhidas em ${dados.galeria}`,
+      html: layout(
+        'Seu cliente escolheu as fotos do pacote',
+        `<p>A seleção <strong>#${dados.numero}</strong> foi confirmada pelo cliente. As fotos já
+         estão liberadas pra ele baixar.</p>`,
+        dados.link,
+        'Ver no painel',
+        [
+          { rotulo: 'Galeria', valor: dados.galeria },
+          { rotulo: 'Fotos escolhidas', valor: fotos },
+        ],
+      ),
+      texto: `Seleção #${dados.numero}: ${fotos} escolhidas em ${dados.galeria}.`,
+    };
+  }
   return {
     para: dados.para,
     assunto: `Venda #${dados.numero}: ${fotos} em ${dados.galeria}`,
@@ -66,7 +89,7 @@ export function emailVendaRealizada(dados: {
       'Ver minhas vendas',
       [
         { rotulo: 'Galeria', valor: dados.galeria },
-        { rotulo: 'Fotos', valor: fotos },
+        { rotulo: 'Fotos', valor: incluidas ? `${fotos} (${incluidas} do pacote)` : fotos },
         { rotulo: 'Valor da venda', valor: reais(dados.subtotalCentavos) },
         { rotulo: 'Comissão FotoRAW', valor: reais(dados.comissaoCentavos) },
         { rotulo: 'Taxa Mercado Pago', valor: reais(dados.taxaProvedorCentavos) },
