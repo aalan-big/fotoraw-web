@@ -1,5 +1,7 @@
+import { randomInt } from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -146,14 +148,23 @@ export class SyncService {
     }
 
     // 5. Visibilidade e código de acesso
+    // entrega vai sem marca d'água: nunca fica aberta na vitrine, nem em evento
     const visibilidade =
-      dto.visibilidade ??
-      (dto.modalidade === 'EVENTO' ? 'PUBLICA' : 'PRIVADA');
+      dto.modoVenda === 'ENTREGA'
+        ? 'PRIVADA'
+        : (dto.visibilidade ??
+          (dto.modalidade === 'EVENTO' ? 'PUBLICA' : 'PRIVADA'));
 
-    let codigoAcesso = dto.codigoAcesso;
+    // privada sem código (nova, ou pública que virou privada): gera um
+    const atual = await this.prisma.galeria.findUnique({
+      where: {
+        contaId_ensaioIdDesktop: { contaId, ensaioIdDesktop: dto.ensaioIdDesktop },
+      },
+      select: { codigoAcesso: true },
+    });
+    let codigoAcesso = dto.codigoAcesso ?? atual?.codigoAcesso ?? undefined;
     if (visibilidade === 'PRIVADA' && !codigoAcesso) {
-      const prefixo = (conta.slug.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4) || 'FOTO').toUpperCase();
-      codigoAcesso = `${prefixo}-${Math.floor(1000 + Math.random() * 9000)}`;
+      codigoAcesso = await this.gerarCodigoAcesso(conta.slug);
     }
 
     let senhaHash: string | null = null;
@@ -206,6 +217,7 @@ export class SyncService {
         cidade: dto.cidade,
         uf: dto.uf,
         encerraEm: dto.encerraEm,
+        ...(codigoAcesso ? { codigoAcesso } : {}),
         ...(senhaHash ? { senhaHash } : {}),
       },
     });
@@ -313,6 +325,21 @@ export class SyncService {
       totalItens: dto.fotos.length,
       urlsUpload,
     };
+  }
+
+  /** PREFIXO-1234; `codigo_acesso` é único no banco, então confere antes. */
+  private async gerarCodigoAcesso(slugConta: string): Promise<string> {
+    const prefixo = (slugConta.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4) || 'FOTO').toUpperCase();
+    for (let tentativa = 0; tentativa < 10; tentativa++) {
+      const digitos = tentativa < 5 ? 4 : 6;
+      const codigo = `${prefixo}-${randomInt(10 ** (digitos - 1), 10 ** digitos)}`;
+      const existe = await this.prisma.galeria.findUnique({
+        where: { codigoAcesso: codigo },
+        select: { id: true },
+      });
+      if (!existe) return codigo;
+    }
+    throw new ConflictException('Não foi possível gerar um código de acesso. Tente de novo.');
   }
 
   async confirmarLote(
@@ -481,6 +508,8 @@ export class SyncService {
       status: 'CONCLUIDO',
       totalFotos,
       linkPublico,
+      visibilidade: lote.galeria.visibilidade,
+      codigoAcesso: lote.galeria.codigoAcesso,
     };
   }
 

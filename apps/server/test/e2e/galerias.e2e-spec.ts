@@ -236,4 +236,46 @@ describe('galerias e sync (e2e)', () => {
     expect(resMetricas.body.totalGalerias).toBe(1);
     expect(resMetricas.body.totalFotos).toBe(2);
   });
+  it('evento em modo entrega (sem marca d’água) vira galeria privada com código', async () => {
+    const resCad = await api().post('/api/auth/cadastro').send(FOTOGRAFO).expect(201);
+    const resDisp = await api().post('/api/auth/dispositivo').send(MAQUINA).expect(200);
+    const token = resDisp.body.tokenApi;
+
+    const publicar = async (chave: string, modoVenda: 'AVULSO' | 'ENTREGA') => {
+      const lote = await api()
+        .post('/api/sync/lotes')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          chaveIdempotencia: chave,
+          ensaioIdDesktop: 'ensaio-entrega',
+          titulo: 'Corrida Fechada',
+          modalidade: 'EVENTO',
+          modoVenda,
+          precoFotoCentavos: modoVenda === 'AVULSO' ? 1000 : undefined,
+          fotos: [{ fotoIdDesktop: 'f1', tamanhoAltaBytes: 1000 }],
+        })
+        .expect(201);
+      const base = `${resCad.body.conta.id}/${lote.body.galeriaId}`;
+      bucket.set(`previews/${base}/f1.webp`, 100);
+      bucket.set(`originais/${base}/f1.jpg`, 1000);
+      return api()
+        .post(`/api/sync/lotes/${lote.body.loteId}/confirmar`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ fotos: [{ fotoIdDesktop: 'f1' }] })
+        .expect(201);
+    };
+
+    // avulso: pública, sem código
+    const avulso = await publicar('lote-a', 'AVULSO');
+    expect(avulso.body).toMatchObject({ visibilidade: 'PUBLICA', codigoAcesso: null });
+
+    // a mesma galeria republicada como entrega: fecha e ganha código
+    const entrega = await publicar('lote-b', 'ENTREGA');
+    expect(entrega.body.visibilidade).toBe('PRIVADA');
+    expect(entrega.body.codigoAcesso).toMatch(/^FOTO-\d{4}$/);
+
+    // republicar de novo mantém o mesmo código
+    const denovo = await publicar('lote-c', 'ENTREGA');
+    expect(denovo.body.codigoAcesso).toBe(entrega.body.codigoAcesso);
+  });
 });
