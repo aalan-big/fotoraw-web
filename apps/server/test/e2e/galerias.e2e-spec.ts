@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { EmailService } from '../../src/infra/email/email.service.js';
 import { PrismaService } from '../../src/infra/prisma/prisma.service.js';
+import { StorageService } from '../../src/infra/storage/storage.service.js';
 import { LimitadorTentativas } from '../../src/modulos/auth/senha/limitador-tentativas.js';
 import { limparBanco } from '../utils/banco.js';
 import { criarApp } from '../utils/criar-app.js';
@@ -23,6 +24,8 @@ const MAQUINA = {
 describe('galerias e sync (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  // bucket simulado: chave → tamanho em bytes (o que o desktop "subiu")
+  const bucket = new Map<string, number>();
   const api = () => request(app.getHttpServer());
 
   beforeAll(async () => {
@@ -32,11 +35,17 @@ describe('galerias e sync (e2e)', () => {
       }),
     );
     prisma = app.get(PrismaService);
+    const storage = app.get(StorageService);
+    vi.spyOn(storage, 'verificarObjetoExiste').mockImplementation(async (_b, chave) => bucket.has(chave));
+    vi.spyOn(storage, 'obterTamanhoObjetoBytes').mockImplementation(
+      async (_b, chave) => bucket.get(chave) ?? null,
+    );
   });
 
   beforeEach(async () => {
     await limparBanco(app);
     app.get(LimitadorTentativas).reiniciar();
+    bucket.clear();
 
     await prisma.plano.createMany({
       data: [
@@ -105,6 +114,7 @@ describe('galerias e sync (e2e)', () => {
           fotoIdDesktop: 'foto-001',
           largura: 3000,
           altura: 2000,
+          tamanhoAltaBytes: 5_000_000,
           numeroIdentificacao: '142',
           ordem: 1,
         },
@@ -112,6 +122,7 @@ describe('galerias e sync (e2e)', () => {
           fotoIdDesktop: 'foto-002',
           largura: 3000,
           altura: 2000,
+          tamanhoAltaBytes: 4_000_000,
           numeroIdentificacao: '142',
           ordem: 2,
         },
@@ -127,8 +138,34 @@ describe('galerias e sync (e2e)', () => {
     expect(resSync.body.loteId).toBeDefined();
     expect(resSync.body.urlsUpload).toHaveLength(4); // 2 previews + 2 altas
     const loteId = resSync.body.loteId;
+    const base = `${resCad.body.conta.id}/${resSync.body.galeriaId}`;
 
-    // 4. Desktop confirma upload
+    // 4a. Sem os arquivos no bucket a confirmação é recusada
+    await api()
+      .post(`/api/sync/lotes/${loteId}/confirmar`)
+      .set('Authorization', `Bearer ${tokenApiDesktop}`)
+      .send({ fotos: [{ fotoIdDesktop: 'foto-001' }, { fotoIdDesktop: 'foto-002' }] })
+      .expect(400);
+
+    // 4b. Só as prévias subiram: falta a alta → recusa
+    bucket.set(`previews/${base}/foto-001.webp`, 200_000);
+    bucket.set(`previews/${base}/foto-002.webp`, 200_000);
+    await api()
+      .post(`/api/sync/lotes/${loteId}/confirmar`)
+      .set('Authorization', `Bearer ${tokenApiDesktop}`)
+      .send({ fotos: [{ fotoIdDesktop: 'foto-001' }, { fotoIdDesktop: 'foto-002' }] })
+      .expect(400);
+
+    // 4c. Foto que não é do lote → recusa
+    bucket.set(`originais/${base}/foto-001.jpg`, 4_900_000);
+    bucket.set(`originais/${base}/foto-002.jpg`, 4_000_000);
+    await api()
+      .post(`/api/sync/lotes/${loteId}/confirmar`)
+      .set('Authorization', `Bearer ${tokenApiDesktop}`)
+      .send({ fotos: [{ fotoIdDesktop: 'foto-intrusa' }] })
+      .expect(400);
+
+    // 4d. Desktop confirma upload (chaves do corpo são ignoradas)
     const resConfirm = await api()
       .post(`/api/sync/lotes/${loteId}/confirmar`)
       .set('Authorization', `Bearer ${tokenApiDesktop}`)
@@ -136,11 +173,11 @@ describe('galerias e sync (e2e)', () => {
         fotos: [
           {
             fotoIdDesktop: 'foto-001',
-            previewKey: `previews/${resCad.body.conta.id}/${resSync.body.galeriaId}/foto-001.webp`,
+            previewKey: 'previews/outra-conta/outra-galeria/roubada.webp',
+            altaKey: 'originais/outra-conta/outra-galeria/roubada.jpg',
           },
           {
             fotoIdDesktop: 'foto-002',
-            previewKey: `previews/${resCad.body.conta.id}/${resSync.body.galeriaId}/foto-002.webp`,
           },
         ],
       })
@@ -148,6 +185,14 @@ describe('galerias e sync (e2e)', () => {
 
     expect(resConfirm.body.status).toBe('CONCLUIDO');
     expect(resConfirm.body.totalFotos).toBe(2);
+
+    const gravadas = await prisma.foto.findMany({ orderBy: { ordem: 'asc' } });
+    expect(gravadas.map((f) => f.previewKey)).toEqual([
+      `previews/${base}/foto-001.webp`,
+      `previews/${base}/foto-002.webp`,
+    ]);
+    expect(gravadas[0]?.altaKey).toBe(`originais/${base}/foto-001.jpg`);
+    expect(Number(gravadas[0]?.tamanhoAltaBytes)).toBe(4_900_000); // medido no bucket
 
     // 5. Fotógrafo lista suas galerias na Web
     const resLista = await api()

@@ -61,7 +61,8 @@ export type IniciarSyncLoteDto = z.infer<typeof iniciarSyncLoteSchema>;
 
 export const confirmarFotoItemSchema = z.object({
   fotoIdDesktop: z.string().min(1),
-  previewKey: z.string().min(1),
+  // ignoradas: as chaves valem as que o server gerou no iniciarLote
+  previewKey: z.string().optional(),
   altaKey: z.string().optional(),
   largura: z.number().int().positive().optional(),
   altura: z.number().int().positive().optional(),

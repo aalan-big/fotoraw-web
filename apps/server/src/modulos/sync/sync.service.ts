@@ -243,7 +243,8 @@ export class SyncService {
 
     for (const f of dto.fotos) {
       const previewKey = `previews/${contaId}/${galeria.id}/${f.fotoIdDesktop}.webp`;
-      const altaKey = `originais/${contaId}/${galeria.id}/${f.fotoIdDesktop}.jpg`;
+      const altaKey =
+        f.temAlta !== false ? `originais/${contaId}/${galeria.id}/${f.fotoIdDesktop}.jpg` : null;
 
       const urlPutPreview = await this.storage.gerarUrlUpload(
         this.storage.bucketPreviews,
@@ -257,7 +258,7 @@ export class SyncService {
         chave: previewKey,
       });
 
-      if (f.temAlta !== false) {
+      if (altaKey) {
         const urlPutAlta = await this.storage.gerarUrlUpload(
           this.storage.bucketOriginais,
           altaKey,
@@ -333,13 +334,31 @@ export class SyncService {
       throw new NotFoundException('Lote de sincronização não encontrado');
     }
 
-    // 1. Valida existência dos arquivos físicos no R2 e mede tamanhos reais
+    // 1. As chaves vêm do registro criado no iniciarLote (nunca do corpo):
+    //    assim ninguém aponta uma foto pro arquivo de outra conta no bucket.
+    const registros = await this.prisma.foto.findMany({
+      where: {
+        galeriaId: lote.galeria.id,
+        fotoIdDesktop: { in: dto.fotos.map((f) => f.fotoIdDesktop) },
+      },
+      select: { fotoIdDesktop: true, previewKey: true, altaKey: true },
+    });
+    const chaves = new Map(registros.map((r) => [r.fotoIdDesktop, r]));
+
+    // 2. Valida existência dos arquivos físicos no R2 e mede tamanhos reais
     const tamanhosReais = new Map<string, number>();
 
     for (const f of dto.fotos) {
+      const registro = chaves.get(f.fotoIdDesktop);
+      if (!registro) {
+        throw new BadRequestException(
+          `A foto ${f.fotoIdDesktop} não faz parte deste lote.`,
+        );
+      }
+
       const previewExiste = await this.storage.verificarObjetoExiste(
         this.storage.bucketPreviews,
-        f.previewKey,
+        registro.previewKey,
       );
       if (!previewExiste) {
         throw new BadRequestException(
@@ -347,10 +366,10 @@ export class SyncService {
         );
       }
 
-      if (f.altaKey) {
+      if (registro.altaKey) {
         const tamanhoReal = await this.storage.obterTamanhoObjetoBytes(
           this.storage.bucketOriginais,
-          f.altaKey,
+          registro.altaKey,
         );
         if (tamanhoReal === null) {
           throw new BadRequestException(
@@ -361,7 +380,7 @@ export class SyncService {
       }
     }
 
-    // 2. Recalcula a cota de armazenamento da conta com os tamanhos reais medidos no R2
+    // 3. Recalcula a cota de armazenamento da conta com os tamanhos reais medidos no R2
     const licenca = await this.licencas.atual(contaId);
     if (licenca.recursos.limite_armazenamento_mb != null) {
       const limiteBytes = BigInt(licenca.recursos.limite_armazenamento_mb) * 1024n * 1024n;
@@ -394,7 +413,7 @@ export class SyncService {
       data: { status: 'PROCESSANDO' },
     });
 
-    // 3. Atualiza fotos confirmadas com os tamanhos reais medidos
+    // 4. Atualiza fotos confirmadas com os tamanhos reais medidos
     for (const f of dto.fotos) {
       const tamanhoFinal = tamanhosReais.get(f.fotoIdDesktop) ?? f.tamanhoAltaBytes ?? undefined;
 
@@ -404,8 +423,6 @@ export class SyncService {
           fotoIdDesktop: f.fotoIdDesktop,
         },
         data: {
-          previewKey: f.previewKey,
-          altaKey: f.altaKey ?? undefined,
           largura: f.largura ?? undefined,
           altura: f.altura ?? undefined,
           tamanhoAltaBytes: tamanhoFinal,
@@ -413,11 +430,12 @@ export class SyncService {
       });
     }
 
-    // Define foto de capa
-    let capaKey = dto.capaKey;
-    if (!capaKey && dto.fotos.length > 0) {
-      capaKey = dto.fotos[0]?.previewKey;
-    }
+    // Define foto de capa: só vale uma prévia desta galeria
+    const previewsDoLote = registros.map((r) => r.previewKey);
+    const capaKey =
+      dto.capaKey && previewsDoLote.includes(dto.capaKey)
+        ? dto.capaKey
+        : chaves.get(dto.fotos[0]?.fotoIdDesktop ?? '')?.previewKey;
 
     const totalFotos = await this.prisma.foto.count({
       where: { galeriaId: lote.galeria.id, status: 'ATIVA' },
