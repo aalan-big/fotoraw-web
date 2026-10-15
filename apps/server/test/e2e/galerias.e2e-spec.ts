@@ -287,4 +287,37 @@ describe('galerias e sync (e2e)', () => {
     const denovo = await publicar('lote-c', 'ENTREGA');
     expect(denovo.body.codigoAcesso).toBe(entrega.body.codigoAcesso);
   });
+
+  it('muda o preço sem reenviar fotos: pelo painel e pelo desktop', async () => {
+    const cad = await api().post('/api/auth/cadastro').send(FOTOGRAFO).expect(201);
+    const web = { Authorization: `Bearer ${cad.body.acesso}` };
+    const disp = await api().post('/api/auth/dispositivo').send(MAQUINA).expect(200);
+    const desktop = { Authorization: `Bearer ${disp.body.tokenApi}` };
+    const contaId = cad.body.conta.id as string;
+
+    const g = await prisma.galeria.create({
+      data: { contaId, ensaioIdDesktop: 'ens-precos', titulo: 'Corrida', slug: 'corrida', modoVenda: 'AVULSO', precoFotoCentavos: 1500, status: 'PUBLICADA' },
+    });
+    await prisma.foto.create({ data: { galeriaId: g.id, fotoIdDesktop: 'f1', previewKey: 'p1', precoCentavos: 2500 } });
+
+    // painel: R$ 15 → R$ 12; a foto que tinha preço próprio passa a seguir a galeria
+    const r = await api().patch(`/api/galerias/${g.id}/precos`).set(web).send({ precoFotoCentavos: 1200 }).expect(200);
+    expect(r.body.precoFotoCentavos).toBe(1200);
+    expect((await prisma.foto.findFirstOrThrow({ where: { galeriaId: g.id } })).precoCentavos).toBeNull();
+    await api().patch(`/api/galerias/${g.id}/precos`).set(web).send({ precoFotoCentavos: 50 }).expect(400); // < R$ 1
+    await api().patch(`/api/galerias/${g.id}/precos`).set(web).send({ precoFotoCentavos: null }).expect(400); // avulso sem preço
+    await api().patch(`/api/galerias/${g.id}/precos`).set(web).send({}).expect(400);
+
+    // desktop ("salvar só os valores"): pelo id do ensaio, com o token da máquina
+    const d = await api().patch('/api/sync/galerias/ens-precos/precos').set(desktop).send({ precoFotoCentavos: 1000 }).expect(200);
+    expect(d.body.precoFotoCentavos).toBe(1000);
+    await api().patch('/api/sync/galerias/nao-publicado/precos').set(desktop).send({ precoFotoCentavos: 1000 }).expect(404);
+
+    // entrega não tem preço; galeria de outra conta não é achada
+    const entrega = await prisma.galeria.create({
+      data: { contaId, ensaioIdDesktop: 'ens-entrega', titulo: 'Entrega', slug: 'entrega', modoVenda: 'ENTREGA', status: 'PUBLICADA' },
+    });
+    await api().patch(`/api/galerias/${entrega.id}/precos`).set(web).send({ precoFotoCentavos: 1000 }).expect(400);
+    await api().patch('/api/galerias/01a13fa3-7a33-70ad-a7b0-f04a3acc72c4/precos').set(web).send({ precoFotoCentavos: 1000 }).expect(404);
+  });
 });

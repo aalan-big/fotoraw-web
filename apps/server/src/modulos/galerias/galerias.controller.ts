@@ -15,6 +15,8 @@ import { ContaAtual } from '../auth/decorators/conta-atual.decorator.js';
 import { Ctx } from '../auth/decorators/contexto.decorator.js';
 import { JwtGuard } from '../auth/guards/jwt.guard.js';
 import {
+  type AlterarPrecosDto,
+  alterarPrecosSchema,
   type AlterarStatusGaleriaDto,
   alterarStatusGaleriaSchema,
   type ListarGaleriasDto,
@@ -58,5 +60,16 @@ export class GaleriasController {
     @Ctx() ctx: Contexto,
   ) {
     return this.galerias.alterarStatus(id, conta.id, dto.status, ctx.ip ?? undefined);
+  }
+
+  /** Muda os valores sem reenviar fotos. */
+  @Patch(':id/precos')
+  async alterarPrecos(
+    @ContaAtual() conta: Conta,
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body(new ZodValidationPipe(alterarPrecosSchema)) dto: AlterarPrecosDto,
+    @Ctx() ctx: Contexto,
+  ) {
+    return this.galerias.alterarPrecos(id, conta.id, dto, ctx.ip ?? undefined);
   }
 }

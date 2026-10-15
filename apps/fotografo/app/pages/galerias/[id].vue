@@ -55,6 +55,55 @@ const rotuloStatus: Record<StatusGaleria, string> = {
   RASCUNHO: 'Rascunho',
 };
 
+// --- valores (sem reenviar fotos) ----------------------------------------------
+const editandoValores = ref(false);
+const salvandoValores = ref(false);
+const erroValores = ref('');
+const valores = reactive({ precoFoto: '', fotosIncluidas: '', precoPacote: '' });
+
+const paraTexto = (c: number | null) => (c == null ? '' : (c / 100).toFixed(2).replace('.', ','));
+const paraCentavos = (t: string) => {
+  const n = Number(t.trim().replace(/\./g, '').replace(',', '.'));
+  return t.trim() === '' || Number.isNaN(n) ? null : Math.round(n * 100);
+};
+
+function abrirValores() {
+  if (!galeria.value) return;
+  valores.precoFoto = paraTexto(galeria.value.precoFotoCentavos);
+  valores.fotosIncluidas = galeria.value.fotosIncluidas == null ? '' : String(galeria.value.fotosIncluidas);
+  valores.precoPacote = paraTexto(galeria.value.precoPacoteCentavos);
+  erroValores.value = '';
+  editandoValores.value = true;
+}
+
+async function salvarValores() {
+  if (!galeria.value) return;
+  erroValores.value = '';
+  const pacote = galeria.value.modoVenda === 'PACOTE';
+  const corpo: Record<string, number | null> = { precoFotoCentavos: paraCentavos(valores.precoFoto) };
+  if (!pacote && corpo.precoFotoCentavos == null) {
+    erroValores.value = 'Informe o preço por foto';
+    return;
+  }
+  if (pacote) {
+    const incl = Number(valores.fotosIncluidas);
+    if (valores.fotosIncluidas.trim() !== '' && !Number.isNaN(incl)) corpo.fotosIncluidas = incl;
+    const pac = paraCentavos(valores.precoPacote);
+    if (pac != null) corpo.precoPacoteCentavos = pac;
+  }
+  salvandoValores.value = true;
+  try {
+    await api(`/galerias/${id}/precos`, { method: 'PATCH', body: corpo });
+    editandoValores.value = false;
+    await refresh();
+  } catch (e) {
+    const d = (e as { data?: { mensagem?: string; erros?: { mensagem: string }[] } }).data;
+    erroValores.value = d?.erros?.[0]?.mensagem ?? d?.mensagem ?? 'Não foi possível salvar';
+  } finally {
+    salvandoValores.value = false;
+  }
+}
+
 // --- ações da galeria -------------------------------------------------------
 const modalQrAberto = ref(false);
 const linkCopiado = ref(false);
@@ -299,11 +348,60 @@ const fotosFiltradas = computed(() => {
 
         <!-- configuração de venda -->
         <div class="card p-5">
-          <h3 class="text-xs font-semibold uppercase tracking-wider text-muted">
-            Configuração de Venda
-          </h3>
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-muted">
+              Configuração de Venda
+            </h3>
+            <button
+              v-if="galeria.modoVenda !== 'ENTREGA' && !editandoValores"
+              type="button"
+              class="rounded-md border border-wine/60 px-2.5 py-1 text-xs font-semibold text-wine-tint transition-colors hover:bg-wine hover:text-white"
+              @click="abrirValores"
+            >
+              Editar valores
+            </button>
+          </div>
 
-          <dl class="mt-3 space-y-2 text-xs">
+          <!-- editar valores: vale na hora, sem reenviar fotos -->
+          <form v-if="editandoValores" class="mt-4 space-y-3 text-xs" @submit.prevent="salvarValores">
+            <label class="block">
+              <span class="mb-1 block text-muted">
+                {{ galeria.modoVenda === 'PACOTE' ? 'Preço da foto extra (R$)' : 'Preço por foto (R$)' }}
+              </span>
+              <input
+                v-model="valores.precoFoto"
+                inputmode="decimal"
+                placeholder="15,00"
+                class="h-10 w-full rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-wine"
+              />
+            </label>
+            <template v-if="galeria.modoVenda === 'PACOTE'">
+              <label class="block">
+                <span class="mb-1 block text-muted">Fotos incluídas no pacote</span>
+                <input
+                  v-model="valores.fotosIncluidas"
+                  inputmode="numeric"
+                  class="h-10 w-full rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-wine"
+                />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-muted">Preço do pacote (R$)</span>
+                <input
+                  v-model="valores.precoPacote"
+                  inputmode="decimal"
+                  class="h-10 w-full rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-wine"
+                />
+              </label>
+            </template>
+            <p class="text-[11px] text-muted">Vale na hora na vitrine. Nenhuma foto é reenviada.</p>
+            <p v-if="erroValores" class="text-danger">{{ erroValores }}</p>
+            <div class="flex gap-2">
+              <UiBotao type="submit" :disabled="salvandoValores">{{ salvandoValores ? 'Salvando…' : 'Salvar' }}</UiBotao>
+              <UiBotao variante="fantasma" @click="editandoValores = false">Cancelar</UiBotao>
+            </div>
+          </form>
+
+          <dl v-else class="mt-3 space-y-2 text-xs">
             <div class="flex items-center justify-between">
               <dt class="text-muted">Modo de venda</dt>
               <dd class="font-medium text-text capitalize">{{ galeria.modoVenda.toLowerCase() }}</dd>
@@ -328,8 +426,8 @@ const fotosFiltradas = computed(() => {
             </div>
           </dl>
 
-          <p class="mt-4 text-[11px] text-muted">
-            Preços e modos de venda são definidos no FotoRAW Desktop antes de publicar.
+          <p v-if="!editandoValores" class="mt-4 text-[11px] text-muted">
+            O modo de venda muda no FotoRAW Desktop. Se publicar de novo pelo desktop, valem os valores de lá.
           </p>
         </div>
 

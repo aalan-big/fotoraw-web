@@ -61,6 +61,32 @@ export class GaleriasRepositorio {
     });
   }
 
+  /**
+   * Novos valores da galeria. Mudou o preço por foto: as fotos que tinham preço
+   * próprio passam a seguir o da galeria (senão "mudei e não mudou").
+   */
+  async atualizarPrecos(
+    id: string,
+    dados: { precoFotoCentavos?: number | null; fotosIncluidas?: number; precoPacoteCentavos?: number },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      if (dados.precoFotoCentavos !== undefined) {
+        await tx.foto.updateMany({ where: { galeriaId: id }, data: { precoCentavos: null } });
+      }
+      return tx.galeria.update({
+        where: { id },
+        data: dados,
+        select: {
+          id: true,
+          modoVenda: true,
+          precoFotoCentavos: true,
+          fotosIncluidas: true,
+          precoPacoteCentavos: true,
+        },
+      });
+    });
+  }
+
   async atualizarStatus(id: string, contaId: string, status: StatusGaleria) {
     return this.prisma.galeria.updateMany({
       where: { id, contaId },

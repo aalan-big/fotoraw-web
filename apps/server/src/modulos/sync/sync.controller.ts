@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -21,6 +22,8 @@ import {
   type IniciarSyncLoteDto,
   iniciarSyncLoteSchema,
 } from './dto/sync.dto.js';
+import { type AlterarPrecosDto, alterarPrecosSchema } from '../galerias/dto/galerias.dto.js';
+import { GaleriasService } from '../galerias/galerias.service.js';
 import { SyncService } from './sync.service.js';
 
 const uuidSchema = z.uuid();
@@ -28,7 +31,21 @@ const uuidSchema = z.uuid();
 @Controller('sync')
 @UseGuards(TokenApiGuard)
 export class SyncController {
-  constructor(private readonly sync: SyncService) {}
+  constructor(
+    private readonly sync: SyncService,
+    private readonly galerias: GaleriasService,
+  ) {}
+
+  /** "Salvar só os valores" no desktop: muda o preço sem reenviar fotos. */
+  @Patch('galerias/:ensaioIdDesktop/precos')
+  async alterarPrecos(
+    @ContaAtual() conta: Conta,
+    @Param('ensaioIdDesktop') ensaioIdDesktop: string,
+    @Body(new ZodValidationPipe(alterarPrecosSchema)) dto: AlterarPrecosDto,
+    @Ctx() ctx: Contexto,
+  ) {
+    return this.galerias.alterarPrecosPorEnsaio(ensaioIdDesktop, conta.id, dto, ctx.ip ?? undefined);
+  }
 
   @Post('lotes')
   async iniciarLote(

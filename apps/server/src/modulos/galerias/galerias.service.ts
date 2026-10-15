@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.js';
 import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
 import type { StatusGaleria } from '../../infra/prisma/gerado/client.js';
 import { StorageService } from '../../infra/storage/storage.service.js';
-import type { ListarGaleriasDto } from './dto/galerias.dto.js';
+import type { AlterarPrecosDto, ListarGaleriasDto } from './dto/galerias.dto.js';
 import { GaleriasRepositorio } from './repositorios/galerias.repositorio.js';
 
 @Injectable()
@@ -122,6 +122,64 @@ export class GaleriasService {
     });
 
     return { id, status: novoStatus };
+  }
+
+  /** Painel e desktop ("salvar só os valores"): muda preço sem reenviar fotos. */
+  async alterarPrecos(id: string, contaId: string, dto: AlterarPrecosDto, ip?: string, origem = 'painel') {
+    const galeria = await this.repositorio.porId(id, contaId);
+    if (!galeria) throw new NotFoundException('Galeria não encontrada');
+    return this.aplicarPrecos(galeria, contaId, dto, ip, origem);
+  }
+
+  async alterarPrecosPorEnsaio(ensaioIdDesktop: string, contaId: string, dto: AlterarPrecosDto, ip?: string) {
+    const galeria = await this.repositorio.porEnsaioDesktop(contaId, ensaioIdDesktop);
+    if (!galeria || galeria.excluidoEm) {
+      throw new NotFoundException('Este ensaio ainda não foi publicado na vitrine');
+    }
+    return this.aplicarPrecos(galeria, contaId, dto, ip, 'desktop');
+  }
+
+  private async aplicarPrecos(
+    galeria: {
+      id: string;
+      modoVenda: string;
+      precoFotoCentavos: number | null;
+      fotosIncluidas: number | null;
+      precoPacoteCentavos: number | null;
+    },
+    contaId: string,
+    dto: AlterarPrecosDto,
+    ip: string | undefined,
+    origem: string,
+  ) {
+    if (galeria.modoVenda === 'ENTREGA') {
+      throw new BadRequestException('Galeria de entrega não tem preço (as fotos já foram pagas).');
+    }
+    if (galeria.modoVenda === 'AVULSO' && dto.precoFotoCentavos === null) {
+      throw new BadRequestException('Venda avulsa precisa de um preço por foto.');
+    }
+    const dados = {
+      ...(dto.precoFotoCentavos !== undefined ? { precoFotoCentavos: dto.precoFotoCentavos } : {}),
+      ...(galeria.modoVenda === 'PACOTE' && dto.fotosIncluidas !== undefined ? { fotosIncluidas: dto.fotosIncluidas } : {}),
+      ...(galeria.modoVenda === 'PACOTE' && dto.precoPacoteCentavos !== undefined
+        ? { precoPacoteCentavos: dto.precoPacoteCentavos }
+        : {}),
+    };
+    const depois = await this.repositorio.atualizarPrecos(galeria.id, dados);
+    await this.auditoria.registrar({
+      acao: 'galeria.precos_alterados',
+      alvoTipo: 'galeria',
+      alvoId: galeria.id,
+      atorContaId: contaId,
+      ip,
+      antes: {
+        precoFotoCentavos: galeria.precoFotoCentavos,
+        fotosIncluidas: galeria.fotosIncluidas,
+        precoPacoteCentavos: galeria.precoPacoteCentavos,
+      },
+      depois: { ...dados, origem },
+    });
+    return depois;
   }
 
   async obterMetricas(contaId: string) {
