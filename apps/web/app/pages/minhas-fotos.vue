@@ -68,12 +68,16 @@ const total = computed(() => grupos.value.reduce((s, g) => s + g.fotos.length, 0
               </template>
             </p>
           </div>
-          <UiBotao variante="secundaria" @click="sair">
-            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button
+            type="button"
+            class="inline-flex h-11 items-center gap-2 rounded-lg border border-wine bg-wine-dim px-5 text-[15px] font-semibold text-text transition-colors hover:bg-wine hover:text-white"
+            @click="sair"
+          >
+            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 17l5-5-5-5M20 12H9M12 21H5a2 2 0 01-2-2V5a2 2 0 012-2h7" />
             </svg>
-            Sair
-          </UiBotao>
+            Sair da conta
+          </button>
         </div>
 
         <p v-if="ios && total" class="mt-6 text-sm text-muted">
