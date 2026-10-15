@@ -1,2 +1,6 @@
 User-Agent: *
-Disallow:
+Disallow: /checkout
+Disallow: /pedido/
+Disallow: /minhas-fotos
+
+Sitemap: https://fotoraw.com.br/sitemap.xml

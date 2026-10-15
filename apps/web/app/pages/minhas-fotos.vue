@@ -40,6 +40,22 @@ function sair() {
   grupos.value = [];
 }
 
+// LGPD: apagar meus dados (nome, e-mail, WhatsApp, CPF)
+const apagando = ref(false);
+const confirmarApagar = ref(false);
+async function apagarDados() {
+  apagando.value = true;
+  try {
+    await comprador.chamar('/compradores/eu', { method: 'DELETE' });
+    sair();
+  } catch {
+    erro.value = 'Não foi possível apagar agora. Tente de novo.';
+  } finally {
+    apagando.value = false;
+    confirmarApagar.value = false;
+  }
+}
+
 const link = (token: string) => `${apiBase}/publico/downloads/${token}/arquivo${ios.value ? '?modo=ver' : ''}`;
 const total = computed(() => grupos.value.reduce((s, g) => s + g.fotos.length, 0));
 </script>
@@ -121,6 +137,39 @@ const total = computed(() => grupos.value.reduce((s, g) => s + g.fotos.length, 0
             </li>
           </ul>
         </section>
+
+        <!-- LGPD -->
+        <div class="mt-16 border-t border-border pt-6 text-sm text-muted">
+          <p>
+            Seus dados (nome, e-mail, WhatsApp e CPF) são usados só pros seus pedidos.
+            <NuxtLink to="/privacidade" class="underline-offset-4 hover:text-text hover:underline">Privacidade</NuxtLink>
+          </p>
+          <button
+            v-if="!confirmarApagar"
+            type="button"
+            class="mt-2 text-danger underline-offset-4 hover:underline"
+            @click="confirmarApagar = true"
+          >
+            Apagar meus dados
+          </button>
+          <div v-else class="mt-3 rounded-lg border border-danger/40 bg-danger/10 p-4">
+            <p class="text-text">
+              Apagar seus dados pessoais? Você perde o acesso a estas fotos por aqui (baixe antes o que quiser guardar).
+              Os pedidos ficam registrados sem o seu nome, e-mail, WhatsApp ou CPF.
+            </p>
+            <div class="mt-3 flex gap-2">
+              <button
+                type="button"
+                :disabled="apagando"
+                class="inline-flex h-10 items-center rounded-lg bg-danger px-4 font-semibold text-white disabled:opacity-50"
+                @click="apagarDados"
+              >
+                {{ apagando ? 'Apagando…' : 'Sim, apagar' }}
+              </button>
+              <UiBotao variante="fantasma" @click="confirmarApagar = false">Cancelar</UiBotao>
+            </div>
+          </div>
+        </div>
       </template>
     </ClientOnly>
   </div>

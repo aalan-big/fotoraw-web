@@ -94,6 +94,22 @@ export class GaleriasPublicasRepositorio {
     });
   }
 
+  /** Tudo que pode ir pro Google: galerias abertas (evento público e portfólio). */
+  paraSitemap() {
+    return this.prisma.galeria.findMany({
+      where: {
+        status: 'PUBLICADA',
+        excluidoEm: null,
+        visibilidade: { in: ['PUBLICA', 'PORTFOLIO'] },
+        conta: { excluidoEm: null, status: { not: 'BLOQUEADA' } },
+        OR: [{ encerraEm: null }, { encerraEm: { gt: new Date() } }],
+      },
+      orderBy: { publicadaEm: 'desc' },
+      take: 5000,
+      select: { slug: true, atualizadoEm: true, conta: { select: { slug: true } } },
+    });
+  }
+
   /** Perfil público do fotógrafo (/@slug). */
   buscarFotografo(slug: string) {
     return this.prisma.conta.findFirst({

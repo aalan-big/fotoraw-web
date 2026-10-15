@@ -160,4 +160,22 @@ describe('área do comprador "Minhas fotos" (e2e)', () => {
     await api().get('/api/galerias').set(auth).expect(401);
   });
 
+  it('LGPD: apagar meus dados anonimiza o comprador e mantém o pedido', async () => {
+    await compraPaga('lia@exemplo.com', 'Corrida 5k', 'corrida-5k', 1);
+    const { acesso, comprador } = await entrar('lia@exemplo.com');
+    const auth = { Authorization: `Bearer ${acesso}` };
+    await api().delete('/api/compradores/eu').set(auth).expect(200);
+
+    const c = await prisma.comprador.findUniqueOrThrow({ where: { id: comprador.id } });
+    expect(c).toMatchObject({ nome: 'Comprador removido', whatsapp: null, cpf: null });
+    expect(c.email).toBe(`removido-${comprador.id}@fotoraw.invalid`);
+    expect(await prisma.pedido.count({ where: { compradorId: comprador.id } })).toBe(1);
+    expect(await prisma.codigoComprador.count({ where: { email: 'lia@exemplo.com' } })).toBe(0);
+
+    // o mesmo e-mail entra de novo como cliente novo, sem as compras antigas
+    const novo = await entrar('lia@exemplo.com');
+    expect(novo.comprador.id).not.toBe(comprador.id);
+    const fotos = await api().get('/api/compradores/eu/fotos').set({ Authorization: `Bearer ${novo.acesso}` }).expect(200);
+    expect(fotos.body).toEqual([]);
+  });
 });

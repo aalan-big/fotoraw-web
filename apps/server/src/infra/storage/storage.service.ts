@@ -1,4 +1,5 @@
 import {
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
@@ -90,6 +91,31 @@ export class StorageService {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Apaga objetos (prévias de versões antigas). Melhor esforço: falhou, só loga —
+   * sobra um arquivo esquecido no bucket, nada quebra.
+   */
+  async removerObjetos(bucket: string, chaves: string[]): Promise<number> {
+    let removidos = 0;
+    for (let i = 0; i < chaves.length; i += 1000) {
+      const lote = chaves.slice(i, i + 1000);
+      try {
+        await this.s3.send(
+          new DeleteObjectsCommand({
+            Bucket: bucket,
+            Delete: { Objects: lote.map((Key) => ({ Key })), Quiet: true },
+          }),
+        );
+        removidos += lote.length;
+      } catch (erro) {
+        this.logger.warn(
+          `não removeu ${lote.length} objeto(s) de ${bucket}: ${erro instanceof Error ? erro.message : erro}`,
+        );
+      }
+    }
+    return removidos;
   }
 
   /**

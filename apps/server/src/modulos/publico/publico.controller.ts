@@ -22,6 +22,11 @@ export class PublicoController {
     return this.publico.listarGalerias(dto);
   }
 
+  @Get('sitemap')
+  sitemap() {
+    return this.publico.sitemap();
+  }
+
   @Get('fotografos/:slug')
   perfilFotografo(@Param('slug') slug: string) {
     return this.publico.perfilFotografo(slug);

@@ -16,6 +16,8 @@ export default defineNuxtConfig({
       apiBase: 'http://localhost:3001/api',
       // apps/fotografo (área do fotógrafo). Sobrescreva com NUXT_PUBLIC_FOTOGRAFO_URL.
       fotografoUrl: 'http://localhost:3002',
+      // e-mail de contato nas páginas de privacidade/termos. NUXT_PUBLIC_CONTATO_EMAIL; vazio = a linha some.
+      contatoEmail: '',
     },
   },
 

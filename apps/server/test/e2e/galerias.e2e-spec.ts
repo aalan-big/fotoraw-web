@@ -26,6 +26,7 @@ describe('galerias e sync (e2e)', () => {
   let prisma: PrismaService;
   // bucket simulado: chave → tamanho em bytes (o que o desktop "subiu")
   const bucket = new Map<string, number>();
+  const removidos: string[] = [];
   const api = () => request(app.getHttpServer());
 
   beforeAll(async () => {
@@ -37,6 +38,10 @@ describe('galerias e sync (e2e)', () => {
     prisma = app.get(PrismaService);
     const storage = app.get(StorageService);
     vi.spyOn(storage, 'verificarObjetoExiste').mockImplementation(async (_b, chave) => bucket.has(chave));
+    vi.spyOn(storage, 'removerObjetos').mockImplementation(async (_b, chaves) => {
+      removidos.push(...chaves);
+      return chaves.length;
+    });
     vi.spyOn(storage, 'obterTamanhoObjetoBytes').mockImplementation(
       async (_b, chave) => bucket.get(chave) ?? null,
     );
@@ -46,6 +51,7 @@ describe('galerias e sync (e2e)', () => {
     await limparBanco(app);
     app.get(LimitadorTentativas).reiniciar();
     bucket.clear();
+    removidos.length = 0;
 
     await prisma.plano.createMany({
       data: [
@@ -319,5 +325,65 @@ describe('galerias e sync (e2e)', () => {
     });
     await api().patch(`/api/galerias/${entrega.id}/precos`).set(web).send({ precoFotoCentavos: 1000 }).expect(400);
     await api().patch('/api/galerias/01a13fa3-7a33-70ad-a7b0-f04a3acc72c4/precos').set(web).send({ precoFotoCentavos: 1000 }).expect(404);
+  });
+
+  it('republicar: a vitrine segue com a versão no ar até confirmar; foto tirada no desktop sai; prévia velha é apagada', async () => {
+    const cad = await api().post('/api/auth/cadastro').send(FOTOGRAFO).expect(201);
+    const disp = await api().post('/api/auth/dispositivo').send(MAQUINA).expect(200);
+    const desktop = { Authorization: `Bearer ${disp.body.tokenApi}` };
+    const slugConta = cad.body.conta.slug as string;
+
+    const publicar = async (chave: string, fotos: string[]) => {
+      const lote = await api()
+        .post('/api/sync/lotes')
+        .set(desktop)
+        .send({
+          chaveIdempotencia: chave,
+          ensaioIdDesktop: 'ens-rep',
+          titulo: 'Corrida Republicada',
+          modalidade: 'EVENTO',
+          modoVenda: 'AVULSO',
+          precoFotoCentavos: 1000,
+          fotos: fotos.map((id, i) => ({ fotoIdDesktop: id, tamanhoAltaBytes: 1000, ordem: i })),
+        })
+        .expect(201);
+      const confirmar = async () => {
+        for (const u of lote.body.urlsUpload as { tipo: string; chave: string }[]) {
+          bucket.set(u.chave, u.tipo === 'alta' ? 1000 : 100);
+        }
+        await api()
+          .post(`/api/sync/lotes/${lote.body.loteId}/confirmar`)
+          .set(desktop)
+          .send({ fotos: fotos.map((id) => ({ fotoIdDesktop: id })) })
+          .expect(201);
+      };
+      return { lote, confirmar };
+    };
+    const vitrine = async () =>
+      (await api().get(`/api/publico/galerias/${slugConta}/corrida-republicada`).expect(200)).body as {
+        fotos: { itens: { url: string }[]; total: number };
+      };
+
+    const v1 = await publicar('rep-1', ['a', 'b']);
+    await v1.confirmar();
+    const antes = await vitrine();
+    expect(antes.fotos.total).toBe(2);
+    const urlA1 = antes.fotos.itens[0]!.url;
+
+    // republica sem a foto "b" e com uma nova "c"; ainda subindo…
+    const v2 = await publicar('rep-2', ['a', 'c']);
+    const durante = await vitrine();
+    expect(durante.fotos.total).toBe(2); // a e b de antes; c ainda oculta
+    expect(durante.fotos.itens[0]!.url).toBe(urlA1); // a prévia no ar não muda
+
+    await v2.confirmar();
+    const depois = await vitrine();
+    expect(depois.fotos.total).toBe(2); // a e c
+    expect(depois.fotos.itens[0]!.url).not.toBe(urlA1);
+    const b = await prisma.foto.findFirstOrThrow({ where: { fotoIdDesktop: 'b' } });
+    expect(b.status).toBe('OCULTA'); // não apaga: quem comprou ainda baixa
+    expect(removidos.some((k) => urlA1.endsWith(k))).toBe(true); // prévia velha da "a"
+    const g = await prisma.galeria.findFirstOrThrow({ where: { slug: 'corrida-republicada' } });
+    expect(g.totalFotos).toBe(2);
   });
 });

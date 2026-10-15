@@ -315,6 +315,20 @@ export class PublicoService {
     return linhas.map(({ capaKey, ...g }) => ({ ...g, capaUrl: urlPublica(this.basePreviews, capaKey) }));
   }
 
+  /** Pro sitemap.xml do site: galerias abertas e os perfis que têm alguma. */
+  async sitemap() {
+    const galerias = await this.galerias.paraSitemap();
+    const perfis = new Map<string, Date>();
+    for (const g of galerias) {
+      const atual = perfis.get(g.conta.slug);
+      if (!atual || g.atualizadoEm > atual) perfis.set(g.conta.slug, g.atualizadoEm);
+    }
+    return {
+      galerias: galerias.map((g) => ({ caminho: `/@${g.conta.slug}/${g.slug}`, atualizadoEm: g.atualizadoEm })),
+      perfis: [...perfis].map(([slug, atualizadoEm]) => ({ caminho: `/@${slug}`, atualizadoEm })),
+    };
+  }
+
   /** fotoraw.com.br/@slug — perfil + o que ele tem na vitrine (eventos e portfólio). */
   async perfilFotografo(slug: string) {
     const conta = await this.galerias.buscarFotografo(slug);

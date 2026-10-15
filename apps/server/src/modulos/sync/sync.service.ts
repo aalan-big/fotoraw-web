@@ -317,11 +317,12 @@ export class SyncService {
           numeroIdentificacao: f.numeroIdentificacao,
           precoCentavos: f.precoCentavos,
           ordem: f.ordem,
-          status: 'ATIVA',
+          // só aparece na vitrine quando a confirmação conferir os arquivos no bucket
+          status: 'OCULTA',
         },
         update: {
-          previewKey,
-          thumbKey,
+          // previewKey/thumbKey ficam os atuais até a confirmação: enquanto a versão nova
+          // sobe, a vitrine continua mostrando a anterior (sem imagem quebrada)
           altaKey,
           largura: f.largura,
           altura: f.altura,
@@ -375,8 +376,12 @@ export class SyncService {
       throw new NotFoundException('Lote de sincronização não encontrado');
     }
 
-    // 1. As chaves vêm do registro criado no iniciarLote (nunca do corpo):
-    //    assim ninguém aponta uma foto pro arquivo de outra conta no bucket.
+    // 1. As chaves são as que o server gerou pra ESTE lote (nunca as do corpo):
+    //    ninguém aponta uma foto pro arquivo de outra conta no bucket.
+    const versao = lote.id.replace(/-/g, '').slice(-10);
+    const base = `previews/${contaId}/${lote.galeria.id}`;
+    const novaPrevia = (fotoId: string) => `${base}/${fotoId}.${versao}.webp`;
+    const novaMiniatura = (fotoId: string) => `${base}/${fotoId}.${versao}.mini.webp`;
     const registros = await this.prisma.foto.findMany({
       where: {
         galeriaId: lote.galeria.id,
@@ -400,7 +405,7 @@ export class SyncService {
 
       const previewExiste = await this.storage.verificarObjetoExiste(
         this.storage.bucketPreviews,
-        registro.previewKey,
+        novaPrevia(f.fotoIdDesktop),
       );
       if (!previewExiste) {
         throw new BadRequestException(
@@ -410,8 +415,10 @@ export class SyncService {
 
       // miniatura é opcional (desktop antigo não manda): sem ela a grade usa a prévia
       if (
-        registro.thumbKey &&
-        !(await this.storage.verificarObjetoExiste(this.storage.bucketPreviews, registro.thumbKey))
+        !(await this.storage.verificarObjetoExiste(
+          this.storage.bucketPreviews,
+          novaMiniatura(f.fotoIdDesktop),
+        ))
       ) {
         semMiniatura.add(f.fotoIdDesktop);
       }
@@ -463,9 +470,15 @@ export class SyncService {
       data: { status: 'PROCESSANDO' },
     });
 
-    // 4. Atualiza fotos confirmadas com os tamanhos reais medidos
+    // 4. Tudo conferido: as fotos passam pra versão nova e aparecem na vitrine
+    const antigas: string[] = [];
     for (const f of dto.fotos) {
       const tamanhoFinal = tamanhosReais.get(f.fotoIdDesktop) ?? f.tamanhoAltaBytes ?? undefined;
+      const registro = chaves.get(f.fotoIdDesktop)!;
+      const previa = novaPrevia(f.fotoIdDesktop);
+      const miniatura = semMiniatura.has(f.fotoIdDesktop) ? null : novaMiniatura(f.fotoIdDesktop);
+      if (registro.previewKey !== previa) antigas.push(registro.previewKey);
+      if (registro.thumbKey && registro.thumbKey !== miniatura) antigas.push(registro.thumbKey);
 
       await this.prisma.foto.updateMany({
         where: {
@@ -473,20 +486,31 @@ export class SyncService {
           fotoIdDesktop: f.fotoIdDesktop,
         },
         data: {
+          previewKey: previa,
+          thumbKey: miniatura,
+          status: 'ATIVA',
           largura: f.largura ?? undefined,
           altura: f.altura ?? undefined,
           tamanhoAltaBytes: tamanhoFinal,
-          ...(semMiniatura.has(f.fotoIdDesktop) ? { thumbKey: null } : {}),
         },
       });
     }
 
-    // Define foto de capa: só vale uma prévia desta galeria
-    const previewsDoLote = registros.map((r) => r.previewKey);
+    // 5. Foto que saiu do ensaio no desktop sai da vitrine. Oculta, não apaga:
+    //    quem já comprou continua baixando o original.
+    await this.prisma.foto.updateMany({
+      where: {
+        galeriaId: lote.galeria.id,
+        status: 'ATIVA',
+        fotoIdDesktop: { notIn: dto.fotos.map((f) => f.fotoIdDesktop) },
+      },
+      data: { status: 'OCULTA' },
+    });
+
+    // Define foto de capa: só vale uma prévia deste lote
+    const previewsDoLote = dto.fotos.map((f) => novaPrevia(f.fotoIdDesktop));
     const capaKey =
-      dto.capaKey && previewsDoLote.includes(dto.capaKey)
-        ? dto.capaKey
-        : chaves.get(dto.fotos[0]?.fotoIdDesktop ?? '')?.previewKey;
+      dto.capaKey && previewsDoLote.includes(dto.capaKey) ? dto.capaKey : previewsDoLote[0];
 
     const totalFotos = await this.prisma.foto.count({
       where: { galeriaId: lote.galeria.id, status: 'ATIVA' },
@@ -501,6 +525,13 @@ export class SyncService {
         ...(capaKey ? { capaKey } : {}),
       },
     });
+
+    // prévias das versões anteriores: ninguém mais aponta pra elas (o cache do
+    // Cloudflare expira sozinho). Só chaves desta conta/galeria.
+    const removiveis = antigas.filter((k) => k.startsWith(`${base}/`));
+    if (removiveis.length) {
+      await this.storage.removerObjetos(this.storage.bucketPreviews, removiveis);
+    }
 
     await this.prisma.syncLote.update({
       where: { id: loteId },

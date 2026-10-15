@@ -198,4 +198,14 @@ describe('vitrine: galeria pública (e2e)', () => {
     expect(res.body.galerias.map((g: { slug: string }) => g.slug)).toEqual(['aberta']);
     await api().get('/api/publico/fotografos/ninguem').expect(404);
   });
+
+  it('sitemap: só galeria aberta e o perfil dela (privada, rascunho e encerrada ficam de fora)', async () => {
+    await criarGaleria({ slug: 'aberta' });
+    await criarGaleria({ slug: 'privada', visibilidade: 'PRIVADA', codigoAcesso: 'LUZ-4444' });
+    await criarGaleria({ slug: 'rascunho', status: 'RASCUNHO' });
+    await criarGaleria({ slug: 'vencida', encerraEm: new Date(Date.now() - 60_000) });
+    const r = await api().get('/api/publico/sitemap').expect(200);
+    expect(r.body.galerias.map((g: { caminho: string }) => g.caminho)).toEqual(['/@estudio-luz/aberta']);
+    expect(r.body.perfis.map((p: { caminho: string }) => p.caminho)).toEqual(['/@estudio-luz']);
+  });
 });

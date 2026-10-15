@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { DominioExcecao } from '../../comum/excecoes/dominio.excecao.js';
 import type { Env } from '../../config/env.js';
+import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
 import { EmailService } from '../../infra/email/email.service.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { StorageService } from '../../infra/storage/storage.service.js';
@@ -44,6 +45,7 @@ export class CompradoresService {
     private readonly jwt: JwtService,
     private readonly email: EmailService,
     private readonly storage: StorageService,
+    private readonly auditoria: AuditoriaService,
     config: ConfigService<Env, true>,
   ) {
     // derivado: um token de comprador nunca vale como token de fotógrafo (e vice-versa)
@@ -133,6 +135,37 @@ export class CompradoresService {
       },
     });
     return this.perfil(c);
+  }
+
+  /**
+   * LGPD: apaga os dados pessoais (nome, e-mail, WhatsApp, CPF). Os pedidos ficam
+   * — são registro financeiro — mas sem como chegar na pessoa. Depois disso o
+   * e-mail antigo pode comprar de novo como cliente novo.
+   */
+  async apagarMeusDados(compradorId: string, ip?: string) {
+    await this.prisma.$transaction([
+      this.prisma.codigoComprador.deleteMany({
+        where: { email: (await this.prisma.comprador.findUniqueOrThrow({ where: { id: compradorId } })).email },
+      }),
+      this.prisma.comprador.update({
+        where: { id: compradorId },
+        data: {
+          nome: 'Comprador removido',
+          email: `removido-${compradorId}@fotoraw.invalid`,
+          whatsapp: null,
+          cpf: null,
+          googleId: null,
+        },
+      }),
+    ]);
+    await this.auditoria.registrar({
+      acao: 'comprador.dados_apagados',
+      alvoTipo: 'comprador',
+      alvoId: compradorId,
+      ip,
+      depois: { motivo: 'pedido do titular (LGPD)' },
+    });
+    return { apagado: true };
   }
 
   /** Tudo que ele comprou (pedidos pagos), agrupado por galeria, mais recente primeiro. */
