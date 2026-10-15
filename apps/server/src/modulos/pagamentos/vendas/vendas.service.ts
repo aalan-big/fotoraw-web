@@ -506,7 +506,7 @@ export class VendasService {
   // --- download -------------------------------------------------------------------------
 
   /** Link temporário do original em alta. Conta como uma baixada. */
-  async baixar(token: string) {
+  async baixar(token: string, modo: 'baixar' | 'ver' = 'baixar') {
     const d = await this.prisma.download.findUnique({
       where: { token },
       include: {
@@ -534,6 +534,7 @@ export class VendasService {
       d.foto.altaKey,
       15 * 60,
       `fotoraw-${d.pedido.numero}-${d.fotoId.slice(-6)}.jpg`,
+      modo === 'ver' ? 'inline' : 'attachment',
     );
     return { url, baixadas: d.baixadas + 1, limite: d.limiteBaixadas };
   }

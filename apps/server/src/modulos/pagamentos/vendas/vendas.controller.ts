@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../../../comum/pipes/zod-validation.pipe.js';
@@ -53,5 +54,21 @@ export class VendasController {
   @Get('downloads/:token')
   baixar(@Param('token') token: string) {
     return this.vendas.baixar(token);
+  }
+
+  /**
+   * Link direto (sem JavaScript): conta a baixada e redireciona pro arquivo.
+   * `?modo=ver` abre a foto na tela (no iPhone: tocar e segurar → Salvar na Fotos);
+   * sem modo, baixa como arquivo.
+   */
+  @Get('downloads/:token/arquivo')
+  async arquivo(
+    @Param('token') token: string,
+    @Query('modo') modo: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { url } = await this.vendas.baixar(token, modo === 'ver' ? 'ver' : 'baixar');
+    res.setHeader('Cache-Control', 'no-store');
+    res.redirect(302, url);
   }
 }

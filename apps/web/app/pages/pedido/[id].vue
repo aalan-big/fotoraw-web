@@ -124,20 +124,24 @@ function escolherPix() {
 }
 
 // --- downloads --------------------------------------------------------------------
-const baixando = ref<string | null>(null);
-const erroDownload = ref('');
-async function baixar(token: string) {
-  erroDownload.value = '';
-  baixando.value = token;
-  try {
-    const r = await api<{ url: string }>(`/publico/downloads/${token}`);
-    window.location.href = r.url;
-    setTimeout(() => refresh(), 1500);
-  } catch (e) {
-    erroDownload.value = (e as { data?: { mensagem?: string } }).data?.mensagem ?? 'Não foi possível baixar agora.';
-  } finally {
-    baixando.value = null;
-  }
+// Link de verdade (funciona mesmo antes do JavaScript carregar, e dentro do app de
+// e-mail): o server conta a baixada e redireciona pro arquivo. No iPhone/iPad a foto
+// abre na tela (tocar e segurar → Salvar na Fotos); no resto, baixa como arquivo.
+const { apiBase } = useRuntimeConfig().public;
+const ios = ref(false);
+onMounted(() => {
+  ios.value =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+});
+function linkArquivo(token: string) {
+  return `${apiBase}/publico/downloads/${token}/arquivo${ios.value ? '?modo=ver' : ''}`;
+}
+// volta pra aba: atualiza o contador de downloads restantes
+onMounted(() => document.addEventListener('visibilitychange', aoVoltar));
+onUnmounted(() => document.removeEventListener('visibilitychange', aoVoltar));
+function aoVoltar() {
+  if (document.visibilityState === 'visible' && p.value.status === 'PAGO') refresh();
 }
 </script>
 
@@ -165,7 +169,9 @@ async function baixar(token: string) {
           <p class="text-sm text-muted">Suas fotos em alta resolução, sem marca d'água. Também mandamos este link para {{ p.comprador.email }}.</p>
         </div>
       </div>
-      <p v-if="erroDownload" class="mt-4 text-sm text-danger">{{ erroDownload }}</p>
+      <p v-if="ios" class="mt-4 text-sm text-muted">
+        No iPhone a foto abre na tela: toque e segure nela e escolha <strong class="text-text">Salvar na Fotos</strong>.
+      </p>
       <ul class="mt-6 grid gap-4 sm:grid-cols-2">
         <li v-for="item in p.itens" :key="item.fotoId" class="card flex items-center gap-4 p-3">
           <img v-if="item.miniaturaUrl" :src="item.miniaturaUrl" alt="" class="size-20 shrink-0 rounded-md object-cover" />
@@ -175,14 +181,16 @@ async function baixar(token: string) {
               {{ item.download.limite - item.download.baixadas }} downloads restantes
             </p>
           </div>
-          <UiBotao
-            v-if="item.download"
-            variante="secundaria"
-            :disabled="baixando === item.download.token || item.download.baixadas >= item.download.limite"
-            @click="baixar(item.download.token)"
+          <a
+            v-if="item.download && item.download.baixadas < item.download.limite"
+            :href="linkArquivo(item.download.token)"
+            target="_blank"
+            rel="noopener"
+            class="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-2 px-4 text-sm font-medium text-text transition-colors hover:border-muted/40"
           >
-            {{ baixando === item.download.token ? 'Abrindo…' : 'Baixar' }}
-          </UiBotao>
+            {{ ios ? 'Abrir foto' : 'Baixar' }}
+          </a>
+          <span v-else-if="item.download" class="text-xs text-muted">Limite atingido</span>
         </li>
       </ul>
     </section>

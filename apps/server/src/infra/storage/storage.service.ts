@@ -99,14 +99,16 @@ export class StorageService {
     bucket: string,
     chave: string,
     expiraEmSegundos = 3600,
-    /** baixa como arquivo com esse nome (em vez de abrir no navegador) */
+    /** nome do arquivo ao salvar */
     nomeArquivo?: string,
+    /** attachment = baixa como arquivo; inline = abre no navegador */
+    disposicao: 'attachment' | 'inline' = 'attachment',
   ): Promise<string> {
     const comando = new GetObjectCommand({
       Bucket: bucket,
       Key: chave,
       ...(nomeArquivo
-        ? { ResponseContentDisposition: `attachment; filename="${nomeArquivo.replace(/"/g, '')}"` }
+        ? { ResponseContentDisposition: `${disposicao}; filename="${nomeArquivo.replace(/"/g, '')}"` }
         : {}),
     });
 

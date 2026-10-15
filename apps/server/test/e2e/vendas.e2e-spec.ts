@@ -247,6 +247,16 @@ describe('vendas: carrinho → pedido → Pix/cartão → download (e2e)', () =>
     }
     const limite = await api().get(`/api/publico/downloads/${token}`).expect(410);
     expect(limite.body.codigo).toBe('LIMITE_DOWNLOADS');
+
+    // link direto (sem JS): redireciona pro arquivo e também conta
+    const token2 = tela.body.itens[1].download.token as string;
+    const ver = await api().get(`/api/publico/downloads/${token2}/arquivo`).query({ modo: 'ver' }).expect(302);
+    expect(ver.headers.location).toContain('X-Amz-Signature');
+    expect(decodeURIComponent(ver.headers.location)).toContain('inline;');
+    const baixar = await api().get(`/api/publico/downloads/${token2}/arquivo`).expect(302);
+    expect(decodeURIComponent(baixar.headers.location)).toContain('attachment;');
+    const d2 = await prisma.download.findUniqueOrThrow({ where: { token: token2 } });
+    expect(d2.baixadas).toBe(2);
     await api().get('/api/publico/downloads/token-que-nao-existe').expect(404);
   });
 
