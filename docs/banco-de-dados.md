@@ -248,7 +248,7 @@ selecao.status       rascunho | enviada | aprovada          (fase 2)
 | Publicar (desktop → web) | `tokens_api` → `licencas.recursos` (limites) → `sync_lotes` → `galerias` upsert → `fotos` upsert → URLs → confirmar → `sync_lotes` concluído |
 | Comprar foto de evento | `compradores` upsert por e-mail → `pedidos` aberto → `itens_pedido` (snapshot) → `pagamentos` Pix → webhook → `webhooks_recebidos` → `pagamentos` aprovado → `pedidos` pago → `downloads` → e-mail |
 | Acessar ensaio privado | `galerias.codigo_acesso` + `senha_hash` → cookie de sessão da galeria → (fase 2) `selecoes` |
-| Desktop puxa vendas | `GET /sync/pedidos?desde=` → `pedidos` + itens com `foto_id_desktop` → `sincronizado_desktop_em` |
+| Desktop puxa vendas | `GET /sync/pedidos?cursor=` (pagos e estornados, por `atualizado_em`, 200 por página) → `pedidos` + itens com `foto_id_desktop` → `sincronizado_desktop_em` |
 | Assinar PRO | `assinaturas` → provedor → `faturas` por ciclo → webhook → `periodo_atual_fim` → `licencas.valida_ate` |
 | Inadimplência | fatura vencida + N dias → `assinaturas.inadimplente` → `licencas.suspensa` → `contas.suspensa` (vitrine no ar, publicar bloqueado) |
 | Admin emite licença | `licencas` (cortesia/vitalícia, `emitida_por`) → `auditoria` |

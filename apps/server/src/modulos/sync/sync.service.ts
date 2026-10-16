@@ -568,50 +568,90 @@ export class SyncService {
     };
   }
 
-  async puxarPedidos(contaId: string, desde?: Date) {
+  /**
+   * Pedidos pagos e estornados que mudaram depois do cursor, do mais antigo pro
+   * mais novo. O desktop repete enquanto `temMais` e guarda o `cursor` — se a
+   * rede cair no meio, continua de onde parou. O cursor é `atualizadoEm|id`
+   * pra não pular pedidos com o mesmo instante na virada da página.
+   */
+  async puxarPedidos(contaId: string, cursor?: string) {
+    const LIMITE = 200;
+    const depois = decodificarCursor(cursor);
     const pedidos = await this.prisma.pedido.findMany({
       where: {
         contaId,
-        status: 'PAGO',
-        ...(desde ? { pagoEm: { gte: desde } } : {}),
+        status: { in: ['PAGO', 'ESTORNADO'] },
+        ...(depois
+          ? {
+              OR: [
+                { atualizadoEm: { gt: depois.em } },
+                ...(depois.id ? [{ atualizadoEm: depois.em, id: { gt: depois.id } }] : []),
+              ],
+            }
+          : {}),
       },
       include: {
+        galeria: { select: { ensaioIdDesktop: true } },
         itens: {
           include: {
-            foto: {
-              select: {
-                id: true,
-                fotoIdDesktop: true,
-                numeroIdentificacao: true,
-              },
-            },
+            foto: { select: { fotoIdDesktop: true, numeroIdentificacao: true } },
           },
         },
-        comprador: {
-          select: {
-            nome: true,
-            email: true,
-            whatsapp: true,
-          },
-        },
+        comprador: { select: { nome: true, email: true, whatsapp: true } },
       },
-      orderBy: { pagoEm: 'desc' },
-      take: 100,
+      orderBy: [{ atualizadoEm: 'asc' }, { id: 'asc' }],
+      take: LIMITE + 1,
     });
 
-    return pedidos.map((p) => ({
-      numero: p.numero.toString(),
-      galeriaId: p.galeriaId,
-      comprador: p.comprador,
-      subtotalCentavos: p.subtotalCentavos,
-      totalCentavos: p.totalCentavos,
-      repasseCentavos: p.repasseCentavos,
-      pagoEm: p.pagoEm?.toISOString(),
-      itens: p.itens.map((i) => ({
-        fotoIdDesktop: i.foto.fotoIdDesktop,
-        numeroIdentificacao: i.foto.numeroIdentificacao,
-        precoCentavos: i.precoCentavos,
+    const temMais = pedidos.length > LIMITE;
+    const pagina = pedidos.slice(0, LIMITE);
+    const ultimo = pagina.at(-1);
+
+    if (pagina.length) {
+      // SQL cru de propósito: pelo Prisma o @updatedAt mexeria no atualizadoEm
+      // e o pedido voltaria na próxima página
+      const ids = pagina.map((p) => p.id);
+      await this.prisma.$executeRaw`
+        UPDATE pedidos SET sincronizado_desktop_em = now()
+        WHERE id = ANY(${ids}::uuid[])`;
+    }
+
+    return {
+      pedidos: pagina.map((p) => ({
+        id: p.id,
+        numero: p.numero.toString(),
+        galeriaId: p.galeriaId,
+        ensaioIdDesktop: p.galeria.ensaioIdDesktop,
+        status: p.status,
+        comprador: p.comprador,
+        subtotalCentavos: p.subtotalCentavos,
+        descontoCentavos: p.descontoCentavos,
+        taxaClienteCentavos: p.taxaClienteCentavos,
+        totalCentavos: p.totalCentavos,
+        comissaoCentavos: p.comissaoCentavos,
+        repasseCentavos: p.repasseCentavos,
+        pagoEm: p.pagoEm?.toISOString() ?? null,
+        atualizadoEm: p.atualizadoEm.toISOString(),
+        itens: p.itens.map((i) => ({
+          fotoIdDesktop: i.foto.fotoIdDesktop,
+          numeroIdentificacao: i.foto.numeroIdentificacao,
+          precoCentavos: i.precoCentavos,
+          incluida: i.incluida,
+        })),
       })),
-    }));
+      cursor: ultimo ? `${ultimo.atualizadoEm.toISOString()}|${ultimo.id}` : (cursor ?? null),
+      temMais,
+    };
   }
 }
+
+/** `"2026-10-16T12:00:00.000Z|<uuid>"` (ou só a data, aceito por compatibilidade). */
+function decodificarCursor(cursor?: string): { em: Date; id?: string } | undefined {
+  if (!cursor) return undefined;
+  const [data, id] = cursor.split('|');
+  const em = new Date(data);
+  if (Number.isNaN(em.getTime())) throw new BadRequestException('Cursor inválido');
+  if (id !== undefined && !/^[0-9a-f-]{36}$/i.test(id)) throw new BadRequestException('Cursor inválido');
+  return { em, id };
+}
+

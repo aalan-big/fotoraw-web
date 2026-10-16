@@ -145,7 +145,7 @@ Layout: menu lateral fixo (mesma linguagem do desktop: item ativo vinho, seçõe
 | `financeiro` | `GET /financeiro/saldo` · `GET /financeiro/repasses` · `GET /financeiro/mercado-pago/conectar` (redirect OAuth) · `GET /financeiro/mercado-pago/callback` · `DELETE /financeiro/mercado-pago` · `PATCH /financeiro/taxas` |
 | `galerias` (fotógrafo) | `GET /galerias` · `GET /galerias/:id` · `PATCH /galerias/:id/status` |
 | `pedidos` (fotógrafo) | `GET /pedidos` · `GET /pedidos/:numero` · `PATCH /pedidos/:numero/entregue` |
-| `sync` (desktop, token_api) | `PUT /sync/perfil` · `POST /sync/lotes` · `POST /sync/lotes/:id/confirmar` · `GET /sync/pedidos?desde=` |
+| `sync` (desktop, token_api) | `PUT /sync/perfil` · `POST /sync/lotes` · `POST /sync/lotes/:id/confirmar` · `GET /sync/pedidos?cursor=` |
 
 Guards: `JwtGuard` (web), `TokenApiGuard` (desktop), `PapelGuard('admin')`.
 

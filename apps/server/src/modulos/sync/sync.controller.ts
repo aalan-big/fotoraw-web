@@ -66,12 +66,12 @@ export class SyncController {
     return this.sync.confirmarLote(id, conta.id, dto, ctx.ip ?? undefined);
   }
 
+  /** Vendas (pagas e estornadas) pro desktop, paginadas por `cursor`. */
   @Get('pedidos')
   async puxarPedidos(
     @ContaAtual() conta: Conta,
-    @Query('desde') desde?: string,
+    @Query('cursor') cursor?: string,
   ) {
-    const dataDesde = desde ? new Date(desde) : undefined;
-    return this.sync.puxarPedidos(conta.id, dataDesde);
+    return this.sync.puxarPedidos(conta.id, cursor || undefined);
   }
 }
