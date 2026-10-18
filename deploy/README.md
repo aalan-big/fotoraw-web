@@ -117,6 +117,23 @@ sudo -iu fotoraw bash -c 'cd ~/fotoraw && pnpm admin:criar --nome "Alan" --email
 sudo -iu fotoraw pm2 startup      # copie e rode a linha que ele imprimir
 ```
 
+Proteção da VPS compartilhada (obrigatório — em 10/2026 o server caindo em loop no Node 20
+encheu o disco e derrubou o banco do SeuPercurso). Só afeta o usuário `fotoraw`:
+
+```bash
+systemctl cat pm2-fotoraw | grep PATH        # /opt/node22/bin tem que vir primeiro
+mkdir -p /etc/systemd/system/pm2-fotoraw.service.d
+printf '[Service]\nLimitCORE=0\n' > /etc/systemd/system/pm2-fotoraw.service.d/sem-core.conf
+echo 'fotoraw hard core 0' > /etc/security/limits.d/fotoraw-sem-core.conf
+systemctl daemon-reload && systemctl restart pm2-fotoraw
+sudo -iu fotoraw pm2 install pm2-logrotate
+sudo -iu fotoraw pm2 set pm2-logrotate:max_size 50M
+sudo -iu fotoraw pm2 set pm2-logrotate:retain 5
+```
+
+O `ecosystem.config.cjs` roda tudo em `fork` com o node 22 fixo e para de reiniciar após 15
+quedas seguidas; o `publicar.sh` mostra no fim o modo e o node de cada processo.
+
 O Caddy (ainda como root):
 
 ```bash
