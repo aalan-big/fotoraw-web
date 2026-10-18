@@ -65,5 +65,12 @@ echo "    modo e node de cada processo (esperado: fork_mode e 22.x):"
 lista_pm2 | sed 's/^/      /'
 echo
 echo "saúde: curl -s http://localhost:${PORTA_API:-4001}/api/saude"
-curl -s --max-time 10 "http://localhost:${PORTA_API:-4001}/api/saude" || true
+# o server leva alguns segundos pra subir depois do reload: tenta por até 60 s
+saude=""
+for _ in $(seq 1 20); do
+  saude=$(curl -s --max-time 5 "http://localhost:${PORTA_API:-4001}/api/saude" || true)
+  [[ "$saude" == *'"status":"ok"'* ]] && break
+  sleep 3
+done
+echo "    ${saude:-sem resposta em 60 s — veja: pm2 logs server --lines 50}"
 echo

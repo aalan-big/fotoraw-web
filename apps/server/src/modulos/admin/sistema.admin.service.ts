@@ -6,6 +6,7 @@ import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
 import type { Conta, Prisma } from '../../infra/prisma/gerado/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import type { Contexto } from '../auth/auth.service.js';
+import { lerDisco } from '../notificacoes/vigia-disco.service.js';
 import { SaudeService } from '../saude/saude.service.js';
 import type { ListarAuditoriaDto, ListarSyncDto, ListarWebhooksDto } from './dto/sistema.dto.js';
 import { ROTULO_ACAO, rotuloAcao } from './resumo-conta.js';
@@ -112,6 +113,7 @@ export class SistemaAdminService {
       syncTravado,
       ultimoWebhook,
       ultimoSync,
+      disco,
     ] = await Promise.all([
       this.saude.verificar(),
       this.prisma.webhookRecebido.count({ where: { erro: { not: null } } }),
@@ -132,12 +134,15 @@ export class SistemaAdminService {
         orderBy: { iniciadoEm: 'desc' },
         select: { iniciadoEm: true },
       }),
+      // disco da VPS (compartilhada com o SeuPercurso); null se não der pra ler
+      lerDisco().catch(() => null),
     ]);
     return {
       ambiente: this.ambiente,
       versaoNode: process.version,
       noArHaSegundos: Math.round((Date.now() - INICIO) / 1000),
       memoriaMb: Math.round(process.memoryUsage().rss / 1_048_576),
+      disco,
       banco: banco.banco,
       email: this.emailConfigurado ? 'configurado' : 'so_log',
       storage: this.storageConfigurado ? 'configurado' : 'ausente',

@@ -84,6 +84,14 @@ const indicadores = computed<Indicador[]>(() => {
       detalhe: `último lote ${s.sync.ultimoEm ? dataHora(s.sync.ultimoEm) : 'nunca'}`,
     },
     {
+      rotulo: 'Disco da VPS',
+      valor: s.disco ? `${s.disco.usoPct}% usado` : 'sem leitura',
+      ok: !!s.disco && s.disco.usoPct < 80,
+      detalhe: s.disco
+        ? `${s.disco.livreGb.toLocaleString('pt-BR')} GB livres de ${s.disco.totalGb} GB · aviso no celular a partir de 80%`
+        : undefined,
+    },
+    {
       rotulo: 'API',
       valor: `no ar há ${tempo(s.noArHaSegundos)}`,
       ok: true,

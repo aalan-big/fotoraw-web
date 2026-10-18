@@ -330,6 +330,7 @@ export interface SaudeSistema {
   versaoNode: string;
   noArHaSegundos: number;
   memoriaMb: number;
+  disco: { usoPct: number; livreGb: number; totalGb: number } | null;
   banco: 'ok' | 'erro';
   email: 'configurado' | 'so_log';
   storage: 'configurado' | 'ausente';
