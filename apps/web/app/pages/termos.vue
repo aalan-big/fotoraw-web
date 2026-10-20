@@ -14,6 +14,11 @@ const secoes = [
       'Cada foto comprada é entregue em arquivo digital em alta resolução, sem marca d’água, para uso pessoal (guardar, imprimir, postar nas suas redes). Uso comercial ou revenda dependem de autorização do fotógrafo.',
   },
   {
+    titulo: 'Prévias da galeria',
+    texto:
+      'As fotos da galeria são prévias com marca d’água, feitas só para você escolher o que comprar. Toda foto é protegida por direito autoral desde que foi tirada (Lei 9.610/98): tirar print, remover ou esconder a marca d’água (inclusive com aplicativos de IA) e publicar ou usar a prévia sem comprar são proibidos e podem gerar responsabilidade civil e criminal.',
+  },
+  {
     titulo: 'Pagamento',
     texto:
       'O pagamento é feito por Pix ou cartão de crédito, processado pelo Mercado Pago. O FotoRAW não vê nem guarda os dados do seu cartão. O valor cobrado é o mostrado no carrinho, sem taxas adicionais.',

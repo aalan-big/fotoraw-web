@@ -408,6 +408,10 @@ useSeoMeta({
             {{ carregandoMais ? 'Carregando…' : 'Carregar mais fotos' }}
           </UiBotao>
         </div>
+
+        <p v-if="fotos.length && !g.podeBaixar" class="mt-8 text-center text-xs text-muted">
+          Fotos protegidas por direito autoral · Lei 9.610/98
+        </p>
       </template>
     </div>
 

@@ -103,6 +103,10 @@ onUnmounted(() => (document.body.style.overflow = ''));
         </button>
       </div>
 
+      <!-- só na prévia com marca; na entrega a foto já é do cliente -->
+      <p v-if="!linkBaixar" class="px-4 pt-3 text-center text-[11px] leading-snug text-muted">
+        Foto protegida por direito autoral (Lei 9.610/98). Remover a marca d'água ou usar sem comprar é crime.
+      </p>
       <footer v-if="linkBaixar" class="flex items-center justify-center px-4 py-4">
         <a
           :href="linkBaixar(foto)"
