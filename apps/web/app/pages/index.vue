@@ -337,6 +337,13 @@ const diferenciais = [
             <UiBotao to="/planos" variante="secundaria" tamanho="lg">Ver planos</UiBotao>
           </div>
         </div>
+
+        <p class="mt-6 text-sm text-muted">
+          Já tem conta?
+          <NuxtLink to="/download" class="font-medium text-wine-tint hover:underline">
+            Baixe o FotoRAW para Windows
+          </NuxtLink>
+        </p>
       </div>
     </section>
   </div>

@@ -18,6 +18,9 @@ export default defineNuxtConfig({
       fotografoUrl: 'http://localhost:3002',
       // e-mail de contato nas páginas de privacidade/termos. NUXT_PUBLIC_CONTATO_EMAIL; vazio = a linha some.
       contatoEmail: '',
+      // instalador do desktop no R2 (página /download). NUXT_PUBLIC_INSTALADOR_URL / _VERSAO.
+      instaladorUrl: 'https://fotos.fotoraw.com.br/app/FotoRAW_0.3.1_x64-setup.exe',
+      instaladorVersao: '0.3.1',
     },
   },
 

@@ -14,6 +14,7 @@ useSeoMeta({ title: 'Plano & Assinatura' });
 
 const api = useApi();
 const sessao = useSessao();
+const { webUrl } = useRuntimeConfig().public;
 
 // --- Carregamento de dados --------------------------------------------------
 const { data: statusPlano, refresh: refreshStatus, status: statusRequisicao } = await useAsyncData(
@@ -562,6 +563,10 @@ const recursosLicenca = computed(() => {
           <p class="text-xs text-muted leading-relaxed">
             <strong>Dica de ativação automática:</strong> Ao abrir o FotoRAW Desktop e fazer login com seu e-mail e senha, esta licença é ativada instantaneamente sem necessidade de colar a chave.
           </p>
+
+          <UiBotao :to="`${webUrl}/download`" variante="secundaria" class="w-full">
+            Baixar o FotoRAW Desktop (Windows)
+          </UiBotao>
         </div>
       </UiCartao>
 

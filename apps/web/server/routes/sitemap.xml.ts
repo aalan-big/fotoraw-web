@@ -5,7 +5,7 @@ interface Entrada {
   atualizadoEm: string;
 }
 
-const FIXAS = ['/', '/eventos', '/planos', '/ensaio', '/termos', '/privacidade'];
+const FIXAS = ['/', '/eventos', '/planos', '/ensaio', '/download', '/termos', '/privacidade'];
 
 export default defineEventHandler(async (event) => {
   const { apiBase } = useRuntimeConfig().public;
