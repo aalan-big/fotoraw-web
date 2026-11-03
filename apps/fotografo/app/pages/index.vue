@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import type {
+  Dispositivo,
+  MetricasGalerias,
+  MetricasVendas,
+  PedidoResumo,
+  SaldoFotografo,
+} from '~/types/api';
+
 definePageMeta({ layout: 'painel', middleware: 'autenticado' });
 useSeoMeta({ title: 'Início' });
 
@@ -6,6 +14,35 @@ const sessao = useSessao();
 const api = useApi();
 const { webUrl } = useRuntimeConfig().public;
 const eu = computed(() => sessao.eu);
+
+// --- dados do painel (cada um falha sozinho: o início nunca quebra por um card) ----
+const { data: resumo } = await useAsyncData('inicio', async () => {
+  const [dispositivos, saldo, vendas, galerias, ultimos] = await Promise.allSettled([
+    api<Dispositivo[]>('/me/dispositivos'),
+    api<SaldoFotografo>('/financeiro/saldo'),
+    api<MetricasVendas>('/pedidos/metricas'),
+    api<MetricasGalerias>('/galerias/metricas'),
+    api<{ itens: PedidoResumo[] }>('/pedidos', { query: { pagina: 1, limite: 5, status: 'PAGO' } }),
+  ]);
+  const ok = <T,>(r: PromiseSettledResult<T>) => (r.status === 'fulfilled' ? r.value : null);
+  return {
+    dispositivos: ok(dispositivos),
+    mpConectado: ok(saldo)?.conexaoMercadoPago.conectado ?? false,
+    vendas: ok(vendas),
+    galerias: ok(galerias),
+    ultimos: ok(ultimos)?.itens ?? [],
+  };
+});
+const desktopConectado = computed(() => (resumo.value?.dispositivos?.length ?? 0) > 0);
+const mpConectado = computed(() => resumo.value?.mpConectado ?? false);
+
+function moeda(centavos: number): string {
+  return (centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+function dataHora(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+}
 
 // --- saudação e link público ------------------------------------------------
 const saudacao = computed(() => {
@@ -87,16 +124,20 @@ const passos = computed<Passo[]>(() => {
     {
       id: 'desktop',
       titulo: 'Conectar o FotoRAW desktop',
-      texto: 'Entre no desktop com este mesmo e-mail e senha.',
-      feito: false,
-      acao: { rotulo: 'Como fazer', to: '/dispositivos' },
+      texto: desktopConectado.value
+        ? 'Desktop conectado a esta conta.'
+        : 'Entre no desktop com este mesmo e-mail e senha.',
+      feito: desktopConectado.value,
+      acao: desktopConectado.value ? undefined : { rotulo: 'Como fazer', to: '/dispositivos' },
     },
     {
       id: 'mp',
       titulo: 'Conectar o Mercado Pago',
-      texto: 'Sem isso a galeria publica, mas não vende.',
-      feito: false,
-      acao: { rotulo: 'Em breve', to: '/financeiro' },
+      texto: mpConectado.value
+        ? 'As vendas caem direto na sua conta do Mercado Pago.'
+        : 'Sem isso a galeria publica, mas não vende.',
+      feito: mpConectado.value,
+      acao: mpConectado.value ? undefined : { rotulo: 'Conectar', to: '/financeiro' },
     },
   ];
 });
@@ -193,9 +234,17 @@ const dataBr = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
           </svg>
         </span>
         <div class="min-w-0">
-          <p class="rotulo">Vendas no mês</p>
-          <p class="text-2xl font-semibold tabular-nums">R$ 0,00</p>
-          <p class="text-xs text-muted">nenhuma venda ainda</p>
+          <p class="rotulo">Vendas</p>
+          <p class="text-2xl font-semibold tabular-nums">
+            {{ moeda(resumo?.vendas?.totalFaturadoCentavos ?? 0) }}
+          </p>
+          <p class="text-xs text-muted">
+            <template v-if="resumo?.vendas?.totalPedidosPagos">
+              {{ resumo.vendas.totalPedidosPagos }}
+              {{ resumo.vendas.totalPedidosPagos === 1 ? 'pedido pago' : 'pedidos pagos' }}
+            </template>
+            <template v-else>nenhuma venda ainda</template>
+          </p>
         </div>
       </div>
       <div class="card flex items-start gap-4 p-5">
@@ -213,9 +262,11 @@ const dataBr = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
           </svg>
         </span>
         <div class="min-w-0">
-          <p class="rotulo">A receber</p>
-          <p class="text-2xl font-semibold tabular-nums">R$ 0,00</p>
-          <p class="text-xs text-muted">repasse via Mercado Pago</p>
+          <p class="rotulo">Você recebeu</p>
+          <p class="text-2xl font-semibold tabular-nums">
+            {{ moeda(resumo?.vendas?.totalRepasseCentavos ?? 0) }}
+          </p>
+          <p class="text-xs text-muted">direto na sua conta do Mercado Pago</p>
         </div>
       </div>
       <div class="card flex items-start gap-4 p-5">
@@ -233,9 +284,16 @@ const dataBr = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
           </svg>
         </span>
         <div class="min-w-0">
-          <p class="rotulo">Galerias no ar</p>
-          <p class="text-2xl font-semibold tabular-nums">0</p>
-          <p class="text-xs text-muted">publique pelo desktop</p>
+          <p class="rotulo">Galerias</p>
+          <p class="text-2xl font-semibold tabular-nums">
+            {{ resumo?.galerias?.totalGalerias ?? 0 }}
+          </p>
+          <p class="text-xs text-muted">
+            <template v-if="resumo?.galerias?.totalFotos">
+              {{ resumo.galerias.totalFotos.toLocaleString('pt-BR') }} fotos publicadas
+            </template>
+            <template v-else>publique pelo desktop</template>
+          </p>
         </div>
       </div>
     </div>
@@ -422,8 +480,40 @@ const dataBr = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
 
     <!-- atividade -->
     <section class="card p-5">
-      <h2 class="font-semibold">Atividade recente</h2>
+      <div class="flex items-center justify-between gap-4">
+        <h2 class="font-semibold">Últimas vendas</h2>
+        <NuxtLink
+          v-if="resumo?.ultimos.length"
+          to="/vendas"
+          class="text-sm font-medium text-wine-tint hover:underline"
+        >
+          Ver todas →
+        </NuxtLink>
+      </div>
+      <ul v-if="resumo?.ultimos.length" class="mt-3 divide-y divide-border">
+        <li v-for="p in resumo.ultimos" :key="p.id">
+          <NuxtLink
+            :to="`/vendas/${p.numero}`"
+            class="-mx-2 flex items-center gap-4 rounded-lg px-2 py-3 transition-colors hover:bg-surface-2/40"
+          >
+            <span class="font-mono text-sm font-medium">#{{ p.numero }}</span>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm">{{ p.compradorNome }}</p>
+              <p class="truncate text-xs text-muted">
+                {{ p.galeriaTitulo }} · {{ p.totalItens }} {{ p.totalItens === 1 ? 'foto' : 'fotos' }}
+              </p>
+            </div>
+            <div class="shrink-0 text-right">
+              <p class="text-sm font-semibold tabular-nums text-success">
+                {{ moeda(p.repasseCentavos) }}
+              </p>
+              <p class="text-xs text-muted">{{ dataHora(p.pagoEm ?? p.criadoEm) }}</p>
+            </div>
+          </NuxtLink>
+        </li>
+      </ul>
       <div
+        v-else
         class="mt-4 flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-6 py-10 text-center"
       >
         <span class="pastilha size-12 text-muted">
@@ -444,7 +534,11 @@ const dataBr = (iso: string) => new Date(iso).toLocaleDateString('pt-BR');
           Quando você publicar a primeira galeria pelo desktop, as vendas e os pedidos aparecem
           aqui.
         </p>
-        <NuxtLink to="/dispositivos" class="text-sm font-medium text-wine-tint hover:underline">
+        <NuxtLink
+          v-if="!desktopConectado"
+          to="/dispositivos"
+          class="text-sm font-medium text-wine-tint hover:underline"
+        >
           Como conectar o desktop →
         </NuxtLink>
       </div>
