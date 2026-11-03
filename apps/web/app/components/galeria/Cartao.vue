@@ -37,13 +37,15 @@ async function compartilhar(e: Event) {
     :to="destino"
     class="group relative block aspect-3/4 overflow-hidden rounded-xl border border-border bg-surface transition-all hover:-translate-y-1 hover:border-wine/60 hover:shadow-[0_20px_50px_-20px_rgba(134,18,34,0.6)]"
   >
-    <!-- capa em tela cheia -->
+    <!-- capa em tela cheia; sem eventos: o botão direito pega o link
+         (abrir em nova aba), não a imagem (salvar imagem) -->
     <img
       v-if="galeria.capaUrl"
       :src="galeria.capaUrl"
       :alt="galeria.titulo"
-      class="absolute inset-0 size-full object-cover transition-transform duration-700 group-hover:scale-105"
+      class="pointer-events-none absolute inset-0 size-full select-none object-cover transition-transform duration-700 group-hover:scale-105"
       loading="lazy"
+      draggable="false"
     />
     <div v-else class="absolute inset-0">
       <div
