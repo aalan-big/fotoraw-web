@@ -576,12 +576,17 @@ export class SyncService {
    * antes de republicar por cima (vale a última publicação).
    */
   async listarGalerias(contaId: string, tokenApi?: TokenApi) {
-    const [conta, galerias] = await Promise.all([
-      this.prisma.conta.findUniqueOrThrow({ where: { id: contaId }, select: { slug: true } }),
+    const [conta, galerias, conexaoMp] = await Promise.all([
+      this.prisma.conta.findUniqueOrThrow({ where: { id: contaId }, select: { slug: true, status: true } }),
       this.prisma.galeria.findMany({
         where: { contaId, excluidoEm: null, status: { not: 'RASCUNHO' } },
         orderBy: { criadoEm: 'desc' },
         take: 500,
+      }),
+      // mesma regra da vitrine (CredenciaisVendedorService.vendeOnline)
+      this.prisma.conexaoPagamento.findFirst({
+        where: { contaId, provedor: 'MERCADOPAGO', revogadoEm: null },
+        select: { id: true },
       }),
     ]);
     const ids = galerias.map((g) => g.id);
@@ -607,6 +612,7 @@ export class SyncService {
     const web = this.webUrl.replace(/\/$/, '');
 
     return {
+      conta: { status: conta.status, vendasAtivas: Boolean(conexaoMp) },
       galerias: galerias.map((g) => {
         const lote = lotePor.get(g.id);
         const disp = lote?.tokenApi.dispositivo ?? null;

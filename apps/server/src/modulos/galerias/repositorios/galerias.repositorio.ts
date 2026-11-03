@@ -87,10 +87,10 @@ export class GaleriasRepositorio {
     });
   }
 
-  async atualizarStatus(id: string, contaId: string, status: StatusGaleria) {
+  async atualizarStatus(id: string, contaId: string, status: StatusGaleria, limparEncerraEm = false) {
     return this.prisma.galeria.updateMany({
       where: { id, contaId },
-      data: { status },
+      data: { status, ...(limparEncerraEm ? { encerraEm: null } : {}) },
     });
   }
 

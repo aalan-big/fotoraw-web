@@ -22,7 +22,12 @@ import {
   type IniciarSyncLoteDto,
   iniciarSyncLoteSchema,
 } from './dto/sync.dto.js';
-import { type AlterarPrecosDto, alterarPrecosSchema } from '../galerias/dto/galerias.dto.js';
+import {
+  type AlterarPrecosDto,
+  alterarPrecosSchema,
+  type AlterarStatusGaleriaDto,
+  alterarStatusGaleriaSchema,
+} from '../galerias/dto/galerias.dto.js';
 import { GaleriasService } from '../galerias/galerias.service.js';
 import { SyncService } from './sync.service.js';
 
@@ -61,6 +66,17 @@ export class SyncController {
     @Ctx() ctx: Contexto,
   ) {
     return this.galerias.alterarPrecosPorEnsaio(ensaioIdDesktop, conta.id, dto, ctx.ip ?? undefined);
+  }
+
+  /** Pausar, retomar, encerrar e reabrir pelo desktop. */
+  @Patch('galerias/:ensaioIdDesktop/status')
+  async alterarStatus(
+    @ContaAtual() conta: Conta,
+    @Param('ensaioIdDesktop') ensaioIdDesktop: string,
+    @Body(new ZodValidationPipe(alterarStatusGaleriaSchema)) dto: AlterarStatusGaleriaDto,
+    @Ctx() ctx: Contexto,
+  ) {
+    return this.galerias.alterarStatusPorEnsaio(ensaioIdDesktop, conta, dto.status, ctx.ip ?? undefined);
   }
 
   @Post('lotes')

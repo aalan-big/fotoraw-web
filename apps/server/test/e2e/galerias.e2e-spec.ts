@@ -476,4 +476,64 @@ describe('galerias e sync (e2e)', () => {
     await api().get('/api/sync/galerias/ens-casa/fotos?pagina=0').set(desktop2).expect(400);
     await api().get('/api/sync/galerias').expect(401);
   });
+
+  it('desktop pausa, retoma, encerra e reabre a galeria; conta suspensa não reabre', async () => {
+    const cad = await api().post('/api/auth/cadastro').send(FOTOGRAFO).expect(201);
+    const contaId = cad.body.conta.id as string;
+    const pc = await api().post('/api/auth/dispositivo').send(MAQUINA).expect(200);
+    const desktop = { Authorization: `Bearer ${pc.body.tokenApi}` };
+    const g = await prisma.galeria.create({
+      data: { contaId, ensaioIdDesktop: 'ens-1', titulo: 'Corrida', slug: 'corrida', modoVenda: 'AVULSO', status: 'PUBLICADA' },
+    });
+    const status = (s: string, ensaio = 'ens-1') =>
+      api().patch(`/api/sync/galerias/${ensaio}/status`).set(desktop).send({ status: s });
+
+    // campo conta no topo da lista: sem Mercado Pago, não vende
+    const l = await api().get('/api/sync/galerias').set(desktop).expect(200);
+    expect(l.body.conta).toEqual({ status: 'ATIVA', vendasAtivas: false });
+    await prisma.conexaoPagamento.create({
+      data: { contaId, provedor: 'MERCADOPAGO', provedorUsuarioId: '123', accessTokenCifrado: 'x', refreshTokenCifrado: 'y' },
+    });
+    expect((await api().get('/api/sync/galerias').set(desktop).expect(200)).body.conta.vendasAtivas).toBe(true);
+
+    expect((await status('PAUSADA').expect(200)).body).toEqual({ id: g.id, status: 'PAUSADA' });
+    await status('PUBLICADA').expect(200);
+    await status('ENCERRADA').expect(200);
+    // reabrir depois da data de encerrar: a data sai
+    await prisma.galeria.update({ where: { id: g.id }, data: { encerraEm: new Date(Date.now() - 60_000) } });
+    await status('PUBLICADA').expect(200);
+    const reaberta = await prisma.galeria.findUniqueOrThrow({ where: { id: g.id } });
+    expect(reaberta).toMatchObject({ status: 'PUBLICADA', encerraEm: null });
+    const aud = await prisma.auditoria.findFirst({ where: { alvoId: g.id }, orderBy: { criadoEm: 'desc' } });
+    expect(aud?.depois).toMatchObject({ status: 'PUBLICADA', origem: 'desktop', encerraEm: null });
+
+    await status('RASCUNHO').expect(400);
+
+    // galeria de outra conta, excluída ou que não existe: 404
+    const outra = await api()
+      .post('/api/auth/cadastro')
+      .send({ ...FOTOGRAFO, email: 'outro@fotoraw.local', slug: 'outro-fotografo' })
+      .expect(201);
+    await prisma.galeria.create({
+      data: { contaId: outra.body.conta.id, ensaioIdDesktop: 'ens-alheio', titulo: 'Alheio', slug: 'alheio', modoVenda: 'AVULSO', status: 'PUBLICADA' },
+    });
+    await status('PAUSADA', 'ens-alheio').expect(404);
+    await prisma.galeria.create({
+      data: { contaId, ensaioIdDesktop: 'ens-apagado', titulo: 'Apagado', slug: 'apagado', modoVenda: 'AVULSO', status: 'PUBLICADA', excluidoEm: new Date() },
+    });
+    const apagada = await status('PAUSADA', 'ens-apagado').expect(404);
+    expect(apagada.body.message ?? apagada.body.mensagem).toBe('Este ensaio não está mais na vitrine');
+    await status('PAUSADA', 'nao-existe').expect(404);
+
+    // suspensa: pausa e encerra, mas não reabre a encerrada
+    await prisma.conta.update({ where: { id: contaId }, data: { status: 'SUSPENSA' } });
+    expect((await api().get('/api/sync/galerias').set(desktop).expect(200)).body.conta.status).toBe('SUSPENSA');
+    await status('ENCERRADA').expect(200);
+    expect((await status('PUBLICADA').expect(403)).body.codigo).toBe('CONTA_SUSPENSA');
+
+    // bloqueada: nada
+    await prisma.conta.update({ where: { id: contaId }, data: { status: 'BLOQUEADA' } });
+    await status('PAUSADA').expect(403);
+    await api().get('/api/sync/galerias').set(desktop).expect(403);
+  });
 });

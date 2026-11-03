@@ -1,8 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import { DominioExcecao } from '../../comum/excecoes/dominio.excecao.js';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.js';
 import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
-import type { StatusGaleria } from '../../infra/prisma/gerado/client.js';
+import type { Conta, StatusGaleria } from '../../infra/prisma/gerado/client.js';
 import { StorageService } from '../../infra/storage/storage.service.js';
 import type { AlterarPrecosDto, ListarGaleriasDto } from './dto/galerias.dto.js';
 import { GaleriasRepositorio } from './repositorios/galerias.repositorio.js';
@@ -107,21 +108,52 @@ export class GaleriasService {
     if (!galeria) {
       throw new NotFoundException('Galeria não encontrada');
     }
+    return this.aplicarStatus(galeria, contaId, novoStatus, ip, 'painel');
+  }
 
-    const antesStatus = galeria.status;
-    await this.repositorio.atualizarStatus(id, contaId, novoStatus);
+  /** Desktop: pausar, retomar, encerrar e reabrir pelo ensaio. */
+  async alterarStatusPorEnsaio(ensaioIdDesktop: string, conta: Conta, novoStatus: StatusGaleria, ip?: string) {
+    const galeria = await this.repositorio.porEnsaioDesktop(conta.id, ensaioIdDesktop);
+    if (!galeria || galeria.excluidoEm || galeria.status === 'RASCUNHO') {
+      throw new NotFoundException('Este ensaio não está mais na vitrine');
+    }
+    // o guard do token já barra a conta bloqueada; fica aqui pra regra não depender dele
+    if (conta.status === 'BLOQUEADA') {
+      throw new DominioExcecao('CONTA_BLOQUEADA', 'Esta conta está bloqueada. Fale com o suporte', HttpStatus.FORBIDDEN);
+    }
+    if (conta.status === 'SUSPENSA' && galeria.status === 'ENCERRADA' && novoStatus === 'PUBLICADA') {
+      throw new DominioExcecao(
+        'CONTA_SUSPENSA',
+        'Sua conta está suspensa por falta de pagamento: dá pra pausar e encerrar, mas reabrir só depois de regularizar',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    return this.aplicarStatus(galeria, conta.id, novoStatus, ip, 'desktop');
+  }
+
+  private async aplicarStatus(
+    galeria: { id: string; status: StatusGaleria; encerraEm: Date | null },
+    contaId: string,
+    novoStatus: StatusGaleria,
+    ip: string | undefined,
+    origem: string,
+  ) {
+    // reabrir uma galeria que já tinha passado da data de encerrar: tira a data
+    const limparEncerraEm =
+      novoStatus === 'PUBLICADA' && galeria.encerraEm !== null && galeria.encerraEm.getTime() <= Date.now();
+    await this.repositorio.atualizarStatus(galeria.id, contaId, novoStatus, limparEncerraEm);
 
     await this.auditoria.registrar({
       acao: 'galeria.status_alterado',
       alvoTipo: 'galeria',
-      alvoId: id,
+      alvoId: galeria.id,
       atorContaId: contaId,
       ip,
-      antes: { status: antesStatus },
-      depois: { status: novoStatus },
+      antes: { status: galeria.status, ...(limparEncerraEm ? { encerraEm: galeria.encerraEm } : {}) },
+      depois: { status: novoStatus, origem, ...(limparEncerraEm ? { encerraEm: null } : {}) },
     });
 
-    return { id, status: novoStatus };
+    return { id: galeria.id, status: novoStatus };
   }
 
   /** Painel e desktop ("salvar só os valores"): muda preço sem reenviar fotos. */
