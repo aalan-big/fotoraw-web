@@ -47,3 +47,10 @@ export const alterarStatusLicencaSchema = z.object({
   motivo: z.string().trim().min(3).max(300),
 });
 export type AlterarStatusLicencaDto = z.infer<typeof alterarStatusLicencaSchema>;
+
+export const estenderLicencaSchema = z.object({
+  /** somados a partir da validade atual (ou de hoje, se já venceu) */
+  dias: z.number().int().min(1).max(365),
+  motivo: z.string().trim().min(3).max(300),
+});
+export type EstenderLicencaDto = z.infer<typeof estenderLicencaSchema>;

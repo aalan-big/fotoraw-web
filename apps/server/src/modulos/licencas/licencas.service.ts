@@ -6,6 +6,7 @@ import {
   LicencaEncerradaExcecao,
   OutraLicencaAtivaExcecao,
   PlanoNaoEncontradoExcecao,
+  ValidadeNaoAjustavelExcecao,
   ValidadeObrigatoriaExcecao,
 } from './licencas.excecoes.js';
 import { type RecursosLicenca, recursosDoPlano } from './recursos-licenca.js';
@@ -169,6 +170,30 @@ export class LicencasService {
       if (ativa && ativa.id !== id) throw new OutraLicencaAtivaExcecao(ativa.chave);
     }
     const depois = await this.repo.alterarStatus(id, status, motivo);
+    return { antes, depois };
+  }
+
+  /**
+   * Admin dá mais dias (trial ou cortesia). Conta a partir da validade atual ou
+   * de hoje, o que for depois. Vencida volta a valer se a conta não tiver outra ativa.
+   */
+  async estenderValidade(id: string, dias: number): Promise<{ antes: Licenca; depois: Licenca }> {
+    const antes = await this.repo.porId(id);
+    if (!antes) throw new NaoEncontradoExcecao('Licença', id);
+    if (antes.tipo === 'ASSINATURA' || antes.tipo === 'VITALICIA') {
+      throw new ValidadeNaoAjustavelExcecao(antes.tipo);
+    }
+    if (antes.status === 'REVOGADA') throw new LicencaEncerradaExcecao(antes.status);
+    if (antes.status === 'EXPIRADA') {
+      const ativa = await this.repo.ativaMaisRecente(antes.contaId);
+      if (ativa) throw new OutraLicencaAtivaExcecao(ativa.chave);
+    }
+    const base = Math.max(Date.now(), antes.validaAte?.getTime() ?? 0);
+    const depois = await this.repo.ajustarValidade(
+      id,
+      new Date(base + dias * DIA_MS),
+      antes.status === 'EXPIRADA' ? 'ATIVA' : undefined,
+    );
     return { antes, depois };
   }
 

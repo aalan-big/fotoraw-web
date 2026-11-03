@@ -232,6 +232,61 @@ describe('admin (e2e)', () => {
       expect(r.body.licenca.validaAte).toBeNull();
     });
 
+    it('estender validade: soma dias, revive a vencida e recusa vitalícia', async () => {
+      const { id } = await cadastrarFotografo();
+      const desktop = await tokenDesktop();
+      const admin = await entrarAdmin();
+      const DIA = 24 * 3600 * 1000;
+      const trial = await prisma.licenca.findFirstOrThrow({ where: { contaId: id } });
+
+      const r = await api()
+        .patch(`/api/admin/licencas/${trial.id}/validade`)
+        .set('Authorization', admin)
+        .send({ dias: 30, motivo: 'fotógrafo testador' })
+        .expect(200);
+      // soma em cima da validade atual, não de hoje
+      expect(new Date(r.body.validaAte).getTime()).toBe(trial.validaAte!.getTime() + 30 * DIA);
+      expect(r.body.motivo).toBe(trial.motivo);
+
+      // vencida: conta cai no gratuito; estender conta a partir de hoje e volta a valer
+      await prisma.licenca.update({
+        where: { id: trial.id },
+        data: { validaAte: new Date(Date.now() - DIA) },
+      });
+      let lic = await api().get('/api/licencas/atual').set('Authorization', desktop).expect(200);
+      expect(lic.body.plano).toBe('gratuito');
+      const r2 = await api()
+        .patch(`/api/admin/licencas/${trial.id}/validade`)
+        .set('Authorization', admin)
+        .send({ dias: 14, motivo: 'mais um teste' })
+        .expect(200);
+      expect(r2.body.status).toBe('ATIVA');
+      expect(new Date(r2.body.validaAte).getTime()).toBeGreaterThan(Date.now() + 13 * DIA);
+      lic = await api().get('/api/licencas/atual').set('Authorization', desktop).expect(200);
+      expect(lic.body.plano).toBe('trial');
+      expect(lic.body.diasRestantes).toBe(14);
+
+      const aud = await prisma.auditoria.findMany({ where: { acao: 'licenca.estender' } });
+      expect(aud).toHaveLength(2);
+
+      const vit = await api()
+        .post('/api/admin/licencas')
+        .set('Authorization', admin)
+        .send({ contaId: id, tipo: 'VITALICIA', planoBaseId: planoPro, motivo: 'fundador' })
+        .expect(201);
+      await api()
+        .patch(`/api/admin/licencas/${vit.body.licenca.id}/validade`)
+        .set('Authorization', admin)
+        .send({ dias: 30, motivo: 'não faz sentido' })
+        .expect(422);
+      // o trial foi revogado pela vitalícia: não volta mais
+      await api()
+        .patch(`/api/admin/licencas/${trial.id}/validade`)
+        .set('Authorization', admin)
+        .send({ dias: 30, motivo: 'revogada' })
+        .expect(422);
+    });
+
     it('suspender derruba pro gratuito; reativar volta; revogar é definitivo', async () => {
       const { id } = await cadastrarFotografo();
       const desktop = await tokenDesktop();

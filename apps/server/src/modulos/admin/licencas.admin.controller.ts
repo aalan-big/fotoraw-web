@@ -9,9 +9,11 @@ import { idSchema } from './dto/contas.dto.js';
 import {
   type AlterarStatusLicencaDto,
   type EmitirLicencaDto,
+  type EstenderLicencaDto,
   type ListarLicencasDto,
   alterarStatusLicencaSchema,
   emitirLicencaSchema,
+  estenderLicencaSchema,
   listarLicencasSchema,
 } from './dto/licencas.dto.js';
 import { LicencasAdminService } from './licencas.admin.service.js';
@@ -43,5 +45,15 @@ export class LicencasAdminController {
     @Ctx() ctx: Contexto,
   ) {
     return this.licencas.alterarStatus(admin, id, dto, ctx);
+  }
+
+  @Patch(':id/validade')
+  estender(
+    @ContaAtual() admin: Conta,
+    @Param('id', new ZodValidationPipe(idSchema)) id: string,
+    @Body(new ZodValidationPipe(estenderLicencaSchema)) dto: EstenderLicencaDto,
+    @Ctx() ctx: Contexto,
+  ) {
+    return this.licencas.estender(admin, id, dto, ctx);
   }
 }

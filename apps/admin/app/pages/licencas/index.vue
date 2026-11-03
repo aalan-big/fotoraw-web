@@ -15,7 +15,7 @@ const filtro = reactive({
   pagina: 1,
 });
 
-const { data: lista, status } = await useAsyncData(
+const { data: lista, status, refresh } = await useAsyncData(
   'admin-licencas',
   () =>
     api<Paginado<Licenca>>('/admin/licencas', {
@@ -31,6 +31,15 @@ const { data: lista, status } = await useAsyncData(
     watch: [() => filtro.tipo, () => filtro.status, () => filtro.venceEmDias, () => filtro.pagina],
   },
 );
+
+// clicar na linha abre as ações da licença; a lista recarrega por trás quando algo muda
+const aberta = ref<Licenca | null>(null);
+function aposAlterar(nova: Licenca) {
+  if (aberta.value) aberta.value = { ...aberta.value, ...nova, conta: aberta.value.conta };
+  refresh();
+}
+const vencida = (l: Licenca) =>
+  l.status === 'ATIVA' && !!l.validaAte && new Date(l.validaAte).getTime() < Date.now();
 </script>
 
 <template>
@@ -89,19 +98,21 @@ const { data: lista, status } = await useAsyncData(
           <th class="px-4 py-2.5">Emitida</th>
         </tr>
       </template>
-      <tr v-for="l in lista?.itens" :key="l.id" class="hover:bg-surface-2/60">
+      <tr
+        v-for="l in lista?.itens"
+        :key="l.id"
+        class="cursor-pointer hover:bg-surface-2/60"
+        @click="aberta = l"
+      >
         <td class="px-4 py-2.5">
-          <NuxtLink
-            :to="`/fotografos/${l.contaId}`"
-            class="block font-medium hover:text-wine-tint"
-            >{{ l.conta?.nome }}</NuxtLink
-          >
+          <span class="block font-medium hover:text-wine-tint">{{ l.conta?.nome }}</span>
           <span class="block text-xs text-muted">@{{ l.conta?.slug }}</span>
         </td>
         <td class="px-4 py-2.5 font-mono text-xs">{{ l.chave }}</td>
         <td class="px-4 py-2.5">{{ rotuloTipoLicenca[l.tipo] }}</td>
         <td class="px-4 py-2.5">
-          <UiEtiqueta :cor="corStatus[l.status]">{{ rotuloStatus[l.status] }}</UiEtiqueta>
+          <UiEtiqueta v-if="vencida(l)" :cor="corStatus.VENCIDA">Vencida</UiEtiqueta>
+          <UiEtiqueta v-else :cor="corStatus[l.status]">{{ rotuloStatus[l.status] }}</UiEtiqueta>
         </td>
         <td class="px-4 py-2.5 text-xs">{{ l.validaAte ? data(l.validaAte) : 'não vence' }}</td>
         <td class="px-4 py-2.5 text-xs text-muted">{{ data(l.emitidaEm) }}</td>
@@ -114,5 +125,7 @@ const { data: lista, status } = await useAsyncData(
       :por-pagina="lista.porPagina"
       :total="lista.total"
     />
+
+    <LicencaModal :licenca="aberta" @fechar="aberta = null" @alterado="aposAlterar" />
   </div>
 </template>

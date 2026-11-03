@@ -36,6 +36,11 @@ export class LicencasRepositorio {
     return this.prisma.licenca.update({ where: { id }, data: { status: 'EXPIRADA' } });
   }
 
+  /** Nova validade; `status` só quando uma vencida volta a valer. O motivo fica intacto (guarda o plano). */
+  ajustarValidade(id: string, validaAte: Date, status?: Licenca['status']): Promise<Licenca> {
+    return this.prisma.licenca.update({ where: { id }, data: { validaAte, status } });
+  }
+
   porId(id: string): Promise<Licenca | null> {
     return this.prisma.licenca.findUnique({ where: { id } });
   }

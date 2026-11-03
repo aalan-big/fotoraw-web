@@ -31,3 +31,14 @@ export class OutraLicencaAtivaExcecao extends DominioExcecao {
     );
   }
 }
+
+export class ValidadeNaoAjustavelExcecao extends DominioExcecao {
+  constructor(tipo: string) {
+    super(
+      'VALIDADE_NAO_AJUSTAVEL',
+      tipo === 'ASSINATURA'
+        ? 'A validade da assinatura segue os pagamentos — pra dar dias grátis, cancele a assinatura e emita uma cortesia'
+        : 'Licença vitalícia não vence',
+    );
+  }
+}

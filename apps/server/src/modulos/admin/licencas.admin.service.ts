@@ -7,6 +7,7 @@ import { LicencasService } from '../licencas/licencas.service.js';
 import type {
   AlterarStatusLicencaDto,
   EmitirLicencaDto,
+  EstenderLicencaDto,
   ListarLicencasDto,
 } from './dto/licencas.dto.js';
 import { ContasAdminRepositorio } from './repositorios/contas.admin.repositorio.js';
@@ -80,6 +81,26 @@ export class LicencasAdminService {
       ip: ctx.ip,
       antes: { status: antes.status },
       depois: { status: depois.status, motivo: dto.motivo, contaId: depois.contaId },
+    });
+    return depois;
+  }
+
+  async estender(admin: Conta, id: string, dto: EstenderLicencaDto, ctx: Contexto) {
+    const { antes, depois } = await this.licencas.estenderValidade(id, dto.dias);
+    await this.auditoria.registrar({
+      acao: 'licenca.estender',
+      alvoTipo: 'licenca',
+      alvoId: id,
+      atorContaId: admin.id,
+      ip: ctx.ip,
+      antes: { status: antes.status, validaAte: antes.validaAte?.toISOString() ?? null },
+      depois: {
+        status: depois.status,
+        validaAte: depois.validaAte?.toISOString() ?? null,
+        dias: dto.dias,
+        motivo: dto.motivo,
+        contaId: depois.contaId,
+      },
     });
     return depois;
   }
