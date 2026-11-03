@@ -382,6 +382,8 @@ export interface VisaoGeral {
   webhooksComErro: number;
   dispositivosConectados: number;
   galeriasNoAr: number;
+  /** backups do banco do desktop guardados na nuvem */
+  backups: { quantidade: number; bytes: number; contasComBackupRecente: number };
   ultimasContas: {
     id: string;
     nome: string;

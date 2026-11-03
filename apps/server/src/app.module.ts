@@ -6,6 +6,7 @@ import { PrismaModule } from './infra/prisma/prisma.module.js';
 import { StorageModule } from './infra/storage/storage.module.js';
 import { AdminModule } from './modulos/admin/admin.module.js';
 import { AuthModule } from './modulos/auth/auth.module.js';
+import { BackupsModule } from './modulos/backups/backups.module.js';
 import { CompradoresModule } from './modulos/compradores/compradores.module.js';
 import { ContasModule } from './modulos/contas/contas.module.js';
 import { FinanceiroModule } from './modulos/financeiro/financeiro.module.js';
@@ -40,6 +41,7 @@ import { SyncModule } from './modulos/sync/sync.module.js';
     PlanosModule,
     PagamentosModule,
     CompradoresModule,
+    BackupsModule,
   ],
 })
 export class AppModule {}

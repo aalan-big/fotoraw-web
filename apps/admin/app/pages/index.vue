@@ -97,7 +97,7 @@ const licencasAtivas = computed(() => {
       <!-- dinheiro e uso -->
       <section>
         <h2 class="rotulo">Este mês</h2>
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <UiStat
             rotulo="Vendas"
             :valor="dinheiro(v.vendasMes.totalCentavos)"
@@ -114,6 +114,11 @@ const licencasAtivas = computed(() => {
             rotulo="No ar"
             :valor="v.galeriasNoAr"
             :detalhe="`galerias · ${v.dispositivosConectados} desktops conectados`"
+          />
+          <UiStat
+            rotulo="Backups do desktop"
+            :valor="v.backups.contasComBackupRecente"
+            :detalhe="`fotógrafos com backup nas últimas 48 h · ${v.backups.quantidade} guardados (${tamanhoArquivo(v.backups.bytes)})`"
           />
         </div>
       </section>

@@ -233,6 +233,13 @@ enum TipoSync {
   @@map("tipo_sync")
 }
 
+enum StatusBackup {
+  ENVIANDO  @map("enviando")
+  CONCLUIDO @map("concluido")
+
+  @@map("status_backup")
+}
+
 enum StatusSync {
   RECEBIDO    @map("recebido")
   PROCESSANDO @map("processando")
@@ -282,6 +289,7 @@ model Conta {
   sessoesWeb        SessaoWeb[]
   tokensVerificacao TokenVerificacao[]
   inscricoesPush    InscricaoPush[]
+  backupsDesktop    BackupDesktop[]
 
   @@index([status])
   @@map("contas")
@@ -371,8 +379,9 @@ model Dispositivo {
   ultimoVistoEm DateTime @default(now()) @map("ultimo_visto_em")
   criadoEm      DateTime @default(now()) @map("criado_em")
 
-  conta     Conta      @relation(fields: [contaId], references: [id], onDelete: Cascade)
-  tokensApi TokenApi[]
+  conta          Conta           @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  tokensApi      TokenApi[]
+  backupsDesktop BackupDesktop[]
 
   @@unique([contaId, fingerprint])
   @@map("dispositivos")
@@ -630,8 +639,8 @@ model Foto {
 
 /// Quem compra na vitrine. Sem contaId (compra de vários fotógrafos), sem senha (link mágico).
 model Comprador {
-  id              String   @id @default(uuid(7)) @db.Uuid
-  email           String   @unique
+  id              String    @id @default(uuid(7)) @db.Uuid
+  email           String    @unique
   nome            String
   whatsapp        String?
   /// só dígitos; exigido pelo provedor pra Pix acima de certo valor
@@ -652,14 +661,14 @@ model Comprador {
 
 /// Código de 6 dígitos por e-mail pra entrar na área "Minhas fotos" (sem senha).
 model CodigoComprador {
-  id          String    @id @default(uuid(7)) @db.Uuid
-  email       String
+  id         String    @id @default(uuid(7)) @db.Uuid
+  email      String
   /// sha256 do código — o código em si só vai no e-mail
-  codigoHash  String    @map("codigo_hash")
-  expiraEm    DateTime  @map("expira_em")
-  tentativas  Int       @default(0)
-  usadoEm     DateTime? @map("usado_em")
-  criadoEm    DateTime  @default(now()) @map("criado_em")
+  codigoHash String    @map("codigo_hash")
+  expiraEm   DateTime  @map("expira_em")
+  tentativas Int       @default(0)
+  usadoEm    DateTime? @map("usado_em")
+  criadoEm   DateTime  @default(now()) @map("criado_em")
 
   @@index([email, criadoEm])
   @@map("codigos_comprador")
@@ -835,6 +844,31 @@ model SyncLote {
 
   @@index([contaId, status])
   @@map("sync_lotes")
+}
+
+/// Cópia do banco do desktop (clientes, agenda, financeiro…) num arquivo compactado em
+/// fotoraw-originais/backups/<contaId>/. Todos os planos. Guarda 7 diários + 4 semanais.
+model BackupDesktop {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  contaId       String       @map("conta_id") @db.Uuid
+  /// computador que mandou (null = dispositivo já removido)
+  dispositivoId String?      @map("dispositivo_id") @db.Uuid
+  chave         String       @unique
+  tamanhoBytes  Int          @map("tamanho_bytes")
+  /// sha256 do arquivo, pro desktop conferir na hora de restaurar
+  sha256        String
+  versaoApp     String?      @map("versao_app")
+  /// contagens que o desktop manda pra lista mostrar ("38 ensaios, 120 clientes")
+  resumo        Json?
+  status        StatusBackup @default(ENVIANDO)
+  criadoEm      DateTime     @default(now()) @map("criado_em")
+  concluidoEm   DateTime?    @map("concluido_em")
+
+  conta       Conta        @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  dispositivo Dispositivo? @relation(fields: [dispositivoId], references: [id], onDelete: SetNull)
+
+  @@index([contaId, status, criadoEm])
+  @@map("backups_desktop")
 }
 
 // ===========================================================================

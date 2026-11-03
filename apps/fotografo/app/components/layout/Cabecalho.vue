@@ -58,6 +58,7 @@ const itens = [
   { rotulo: 'Minha conta', to: '/conta' },
   { rotulo: 'Perfil público', to: '/perfil' },
   { rotulo: 'Dispositivos', to: '/dispositivos' },
+  { rotulo: 'Backups do desktop', to: '/backups' },
 ];
 </script>
 

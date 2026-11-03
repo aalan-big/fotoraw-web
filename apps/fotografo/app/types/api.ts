@@ -80,6 +80,19 @@ export interface Dispositivo {
   tokenExpiraEm: string | null;
 }
 
+/** Cópia do banco do desktop guardada na nuvem (GET /me/backups). */
+export interface BackupDesktop {
+  id: string;
+  criadoEm: string;
+  concluidoEm: string | null;
+  tamanhoBytes: number;
+  sha256: string;
+  versaoApp: string | null;
+  /** contagens que o desktop mandou: { ensaios: 38, clientes: 120, … } */
+  resumo: Record<string, number> | null;
+  computador: string | null;
+}
+
 /** Formato de erro do server (HttpExcecaoFiltro). */
 export interface ErroApi {
   status: number;

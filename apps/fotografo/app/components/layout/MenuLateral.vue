@@ -37,6 +37,11 @@ const secoes = [
       },
       { rotulo: 'Dispositivos', to: '/dispositivos', icone: 'M3 5h18v11H3zM8 20h8' },
       {
+        rotulo: 'Backups do desktop',
+        to: '/backups',
+        icone: 'M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9zM12 10v6M9 13l3 3 3-3',
+      },
+      {
         rotulo: 'Conta',
         to: '/conta',
         icone:

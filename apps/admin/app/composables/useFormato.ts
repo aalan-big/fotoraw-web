@@ -2,6 +2,12 @@
 export const dinheiro = (centavos: number) =>
   (centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+/** bytes → "320 MB" / "1,4 GB" */
+export const tamanhoArquivo = (bytes: number) =>
+  bytes >= 1024 ** 3
+    ? `${(bytes / 1024 ** 3).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} GB`
+    : `${Math.round(bytes / 1024 ** 2)} MB`;
+
 export const data = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleDateString('pt-BR') : '—';
 

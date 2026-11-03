@@ -32,6 +32,8 @@ export class VisaoGeralAdminController {
       webhooksComErro,
       dispositivosConectados,
       galeriasNoAr,
+      backups,
+      contasComBackupRecente,
       ultimasContas,
       ultimasAuditorias,
     ] = await Promise.all([
@@ -64,6 +66,19 @@ export class VisaoGeralAdminController {
         where: { revogadoEm: null, OR: [{ expiraEm: null }, { expiraEm: { gt: agora } }] },
       }),
       this.prisma.galeria.count({ where: { status: 'PUBLICADA', excluidoEm: null } }),
+      this.prisma.backupDesktop.aggregate({
+        where: { status: 'CONCLUIDO' },
+        _count: { _all: true },
+        _sum: { tamanhoBytes: true },
+      }),
+      // fez backup nas últimas 48 h = o desktop está mandando
+      this.prisma.backupDesktop.groupBy({
+        by: ['contaId'],
+        where: {
+          status: 'CONCLUIDO',
+          concluidoEm: { gte: new Date(agora.getTime() - 2 * DIA_MS) },
+        },
+      }),
       this.prisma.conta.findMany({
         where: fotografo,
         orderBy: { criadoEm: 'desc' },
@@ -113,6 +128,11 @@ export class VisaoGeralAdminController {
       webhooksComErro,
       dispositivosConectados,
       galeriasNoAr,
+      backups: {
+        quantidade: backups._count._all,
+        bytes: backups._sum.tamanhoBytes ?? 0,
+        contasComBackupRecente: contasComBackupRecente.length,
+      },
       ultimasContas: ultimasContas.map((c) => ({
         ...c,
         emailVerificado: c.emailVerificadoEm !== null,
