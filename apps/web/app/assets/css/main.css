@@ -1,6 +1,20 @@
 @import 'tailwindcss';
 @import '@fotoraw/tema/theme.css';
 
+/* cursor de texto piscando só em campo de digitar — com a "navegação por
+   cursor" do navegador (F7) ligada, ele aparecia em qualquer texto da página */
+@layer base {
+  body {
+    caret-color: transparent;
+  }
+  input,
+  textarea,
+  select,
+  [contenteditable]:not([contenteditable='false']) {
+    caret-color: auto;
+  }
+}
+
 /* utilitários curtos da vitrine */
 @utility card {
   @apply bg-surface border border-border rounded-lg;
