@@ -45,6 +45,7 @@ describe('galerias e sync (e2e)', () => {
     vi.spyOn(storage, 'obterTamanhoObjetoBytes').mockImplementation(
       async (_b, chave) => bucket.get(chave) ?? null,
     );
+    vi.spyOn(storage, 'gerarUrlDownloadAssinada').mockImplementation(async (_b, chave) => `assinada:${chave}`);
   });
 
   beforeEach(async () => {
@@ -385,5 +386,94 @@ describe('galerias e sync (e2e)', () => {
     expect(removidos.some((k) => urlA1.endsWith(k))).toBe(true); // prévia velha da "a"
     const g = await prisma.galeria.findFirstOrThrow({ where: { slug: 'corrida-republicada' } });
     expect(g.totalFotos).toBe(2);
+  });
+
+  it('outro computador: lista as galerias da conta e as fotos com link de download do original', async () => {
+    const cad = await api().post('/api/auth/cadastro').send(FOTOGRAFO).expect(201);
+    const contaId = cad.body.conta.id as string;
+    const pc1 = await api().post('/api/auth/dispositivo').send(MAQUINA).expect(200);
+    const pc2 = await api()
+      .post('/api/auth/dispositivo')
+      .send({ ...MAQUINA, fingerprint: 'fp-pc-estudio-02', nomeMaquina: 'PC Estúdio' })
+      .expect(200);
+    const desktop1 = { Authorization: `Bearer ${pc1.body.tokenApi}` };
+    const desktop2 = { Authorization: `Bearer ${pc2.body.tokenApi}` };
+
+    // o PC 1 publica um evento com 2 fotos; a "b" sai na republicação
+    const publicar = async (chave: string, fotos: string[]) => {
+      const lote = await api()
+        .post('/api/sync/lotes')
+        .set(desktop1)
+        .send({
+          chaveIdempotencia: chave,
+          ensaioIdDesktop: 'ens-casa',
+          titulo: 'Corrida de Casa',
+          modalidade: 'EVENTO',
+          categoria: 'CORRIDA_RUA',
+          modoVenda: 'AVULSO',
+          precoFotoCentavos: 1500,
+          dataEvento: '2026-11-02',
+          fotos: fotos.map((id, i) => ({ fotoIdDesktop: id, tamanhoAltaBytes: 1000, ordem: i, numeroIdentificacao: '7' })),
+        })
+        .expect(201);
+      for (const u of lote.body.urlsUpload as { tipo: string; chave: string }[]) {
+        bucket.set(u.chave, u.tipo === 'alta' ? 1000 : 100);
+      }
+      await api()
+        .post(`/api/sync/lotes/${lote.body.loteId}/confirmar`)
+        .set(desktop1)
+        .send({ fotos: fotos.map((id) => ({ fotoIdDesktop: id })) })
+        .expect(201);
+    };
+    await publicar('casa-1', ['a', 'b']);
+    await publicar('casa-2', ['a', 'c']);
+
+    // rascunho (envio que nunca confirmou) e galeria de outra conta não aparecem
+    await prisma.galeria.create({
+      data: { contaId, ensaioIdDesktop: 'ens-rascunho', titulo: 'Rascunho', slug: 'rascunho', modoVenda: 'AVULSO' },
+    });
+    const outra = await api()
+      .post('/api/auth/cadastro')
+      .send({ ...FOTOGRAFO, email: 'outro@fotoraw.local', slug: 'outro-fotografo' })
+      .expect(201);
+    await prisma.galeria.create({
+      data: { contaId: outra.body.conta.id, ensaioIdDesktop: 'ens-alheio', titulo: 'Alheio', slug: 'alheio', modoVenda: 'AVULSO', status: 'PUBLICADA' },
+    });
+
+    const l2 = await api().get('/api/sync/galerias').set(desktop2).expect(200);
+    expect(l2.body.galerias).toHaveLength(1);
+    expect(l2.body.galerias[0]).toMatchObject({
+      ensaioIdDesktop: 'ens-casa',
+      titulo: 'Corrida de Casa',
+      modalidade: 'EVENTO',
+      modoVenda: 'AVULSO',
+      precoFotoCentavos: 1500,
+      dataEvento: '2026-11-02',
+      status: 'PUBLICADA',
+      totalFotos: 2,
+      tamanhoAltaBytes: 2000, // a + c; a "b" saiu da vitrine
+      linkPublico: expect.stringMatching(/\/@fotografo-galerias\/corrida-de-casa$/),
+      ultimaPublicacao: { dispositivoNome: 'MacBook Pro', esteComputador: false },
+    });
+    const l1 = await api().get('/api/sync/galerias').set(desktop1).expect(200);
+    expect(l1.body.galerias[0].ultimaPublicacao.esteComputador).toBe(true);
+
+    const f = await api().get('/api/sync/galerias/ens-casa/fotos').set(desktop2).expect(200);
+    expect(f.body).toMatchObject({ pagina: 1, temMais: false });
+    expect(f.body.fotos.map((x: { fotoIdDesktop: string }) => x.fotoIdDesktop)).toEqual(['a', 'c']);
+    expect(f.body.fotos[0]).toMatchObject({
+      numeroIdentificacao: '7',
+      tamanhoAltaBytes: 1000,
+      urlAlta: `assinada:originais/${contaId}/${l2.body.galerias[0].galeriaId}/a.jpg`,
+      urlMiniatura: expect.stringMatching(/a\.[0-9a-f]{10}\.mini\.webp$/),
+    });
+    const p2 = await api().get('/api/sync/galerias/ens-casa/fotos?pagina=2').set(desktop2).expect(200);
+    expect(p2.body.fotos).toHaveLength(0);
+
+    // galeria de outra conta, inexistente ou sem token: nada
+    await api().get('/api/sync/galerias/ens-alheio/fotos').set(desktop2).expect(404);
+    await api().get('/api/sync/galerias/nao-existe/fotos').set(desktop2).expect(404);
+    await api().get('/api/sync/galerias/ens-casa/fotos?pagina=0').set(desktop2).expect(400);
+    await api().get('/api/sync/galerias').expect(401);
   });
 });

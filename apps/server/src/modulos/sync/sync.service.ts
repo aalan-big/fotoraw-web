@@ -10,6 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.js';
 import { AuditoriaService } from '../../infra/auditoria/auditoria.service.js';
+import type { TokenApi } from '../../infra/prisma/gerado/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { StorageService } from '../../infra/storage/storage.service.js';
 import { SenhaService } from '../auth/senha/senha.service.js';
@@ -565,6 +566,126 @@ export class SyncService {
       linkPublico,
       visibilidade: lote.galeria.visibilidade,
       codigoAcesso: lote.galeria.codigoAcesso,
+    };
+  }
+
+  /**
+   * Galerias da conta pro desktop de outro computador trazer (importar com os
+   * mesmos ids). Rascunho fica de fora: nunca teve foto conferida no bucket.
+   * `ultimaPublicacao` diz de qual máquina veio o último envio — o desktop avisa
+   * antes de republicar por cima (vale a última publicação).
+   */
+  async listarGalerias(contaId: string, tokenApi?: TokenApi) {
+    const [conta, galerias] = await Promise.all([
+      this.prisma.conta.findUniqueOrThrow({ where: { id: contaId }, select: { slug: true } }),
+      this.prisma.galeria.findMany({
+        where: { contaId, excluidoEm: null, status: { not: 'RASCUNHO' } },
+        orderBy: { criadoEm: 'desc' },
+        take: 500,
+      }),
+    ]);
+    const ids = galerias.map((g) => g.id);
+    const [tamanhos, lotes] = await Promise.all([
+      this.prisma.foto.groupBy({
+        by: ['galeriaId'],
+        where: { galeriaId: { in: ids }, status: 'ATIVA' },
+        _sum: { tamanhoAltaBytes: true },
+      }),
+      this.prisma.syncLote.findMany({
+        where: { galeriaId: { in: ids }, status: 'CONCLUIDO' },
+        orderBy: { concluidoEm: 'desc' },
+        distinct: ['galeriaId'],
+        select: {
+          galeriaId: true,
+          concluidoEm: true,
+          tokenApi: { select: { dispositivo: { select: { id: true, nome: true } } } },
+        },
+      }),
+    ]);
+    const tamanhoPor = new Map(tamanhos.map((t) => [t.galeriaId, t._sum.tamanhoAltaBytes ?? 0]));
+    const lotePor = new Map(lotes.map((l) => [l.galeriaId, l]));
+    const web = this.webUrl.replace(/\/$/, '');
+
+    return {
+      galerias: galerias.map((g) => {
+        const lote = lotePor.get(g.id);
+        const disp = lote?.tokenApi.dispositivo ?? null;
+        return {
+          galeriaId: g.id,
+          ensaioIdDesktop: g.ensaioIdDesktop,
+          titulo: g.titulo,
+          descricao: g.descricao,
+          modalidade: g.modalidade,
+          visibilidade: g.visibilidade,
+          categoria: g.categoria,
+          modoVenda: g.modoVenda,
+          precoFotoCentavos: g.precoFotoCentavos,
+          fotosIncluidas: g.fotosIncluidas,
+          precoPacoteCentavos: g.precoPacoteCentavos,
+          permiteDownloadGratis: g.permiteDownloadGratis,
+          codigoAcesso: g.codigoAcesso,
+          dataEvento: g.dataEvento?.toISOString().slice(0, 10) ?? null,
+          cidade: g.cidade,
+          uf: g.uf,
+          status: g.status,
+          publicadaEm: g.publicadaEm?.toISOString() ?? null,
+          encerraEm: g.encerraEm?.toISOString() ?? null,
+          totalFotos: g.totalFotos,
+          totalVendasCentavos: g.totalVendasCentavos,
+          tamanhoAltaBytes: tamanhoPor.get(g.id) ?? 0,
+          linkPublico: `${web}/@${conta.slug}/${g.slug}`,
+          ultimaPublicacao: lote?.concluidoEm
+            ? {
+                em: lote.concluidoEm.toISOString(),
+                dispositivoId: disp?.id ?? null,
+                dispositivoNome: disp?.nome ?? null,
+                esteComputador: !!disp && disp.id === tokenApi?.dispositivoId,
+              }
+            : null,
+        };
+      }),
+    };
+  }
+
+  /**
+   * Fotos de uma galeria pro desktop baixar: link assinado (2 h) do JPEG em alta,
+   * direto do bucket — o arquivo não passa pela VPS. Páginas de 200 (evento grande).
+   */
+  async listarFotosGaleria(contaId: string, ensaioIdDesktop: string, pagina: number) {
+    const POR_PAGINA = 200;
+    const galeria = await this.prisma.galeria.findUnique({
+      where: { contaId_ensaioIdDesktop: { contaId, ensaioIdDesktop } },
+      select: { id: true, excluidoEm: true },
+    });
+    if (!galeria || galeria.excluidoEm) throw new NotFoundException('Galeria não encontrada');
+
+    const fotos = await this.prisma.foto.findMany({
+      where: { galeriaId: galeria.id, status: 'ATIVA' },
+      orderBy: [{ ordem: 'asc' }, { id: 'asc' }],
+      skip: (pagina - 1) * POR_PAGINA,
+      take: POR_PAGINA + 1,
+    });
+    const temMais = fotos.length > POR_PAGINA;
+    const itens = fotos.slice(0, POR_PAGINA);
+
+    return {
+      fotos: await Promise.all(
+        itens.map(async (f) => ({
+          fotoIdDesktop: f.fotoIdDesktop,
+          numeroIdentificacao: f.numeroIdentificacao,
+          precoCentavos: f.precoCentavos,
+          ordem: f.ordem,
+          largura: f.largura,
+          altura: f.altura,
+          tamanhoAltaBytes: f.tamanhoAltaBytes,
+          urlAlta: f.altaKey
+            ? await this.storage.gerarUrlDownloadAssinada(this.storage.bucketOriginais, f.altaKey, 7200)
+            : null,
+          urlMiniatura: this.storage.urlPublicaPreview(f.thumbKey ?? f.previewKey),
+        })),
+      ),
+      pagina,
+      temMais,
     };
   }
 

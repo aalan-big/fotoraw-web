@@ -27,6 +27,7 @@ import { GaleriasService } from '../galerias/galerias.service.js';
 import { SyncService } from './sync.service.js';
 
 const uuidSchema = z.uuid();
+const paginaSchema = z.coerce.number().int().min(1).max(10_000).default(1);
 
 @Controller('sync')
 @UseGuards(TokenApiGuard)
@@ -35,6 +36,21 @@ export class SyncController {
     private readonly sync: SyncService,
     private readonly galerias: GaleriasService,
   ) {}
+
+  /** Galerias da conta — o desktop de outro computador traz as que não tem. */
+  @Get('galerias')
+  async listarGalerias(@ContaAtual() conta: Conta, @TokenApiAtual() tokenApi: TokenApi | undefined) {
+    return this.sync.listarGalerias(conta.id, tokenApi);
+  }
+
+  @Get('galerias/:ensaioIdDesktop/fotos')
+  async listarFotosGaleria(
+    @ContaAtual() conta: Conta,
+    @Param('ensaioIdDesktop') ensaioIdDesktop: string,
+    @Query('pagina', new ZodValidationPipe(paginaSchema)) pagina: number,
+  ) {
+    return this.sync.listarFotosGaleria(conta.id, ensaioIdDesktop, pagina);
+  }
 
   /** "Salvar só os valores" no desktop: muda o preço sem reenviar fotos. */
   @Patch('galerias/:ensaioIdDesktop/precos')
